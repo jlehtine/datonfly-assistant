@@ -1,10 +1,14 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
+import SvgIcon from "@mui/material/SvgIcon";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import type { ComponentType, ReactElement } from "react";
 import type { Components } from "react-markdown";
 
 import { ChatClientContext, useChatConnection, useMessages } from "@verbal-assistant/chat-hooks";
+import type { Thread } from "@verbal-assistant/core";
 
 import { Composer, type ComposerInputProps } from "./Composer.js";
 import type { InputTool } from "./InputTool.js";
@@ -32,6 +36,14 @@ export interface ChatEmbedConfig {
      * to enable syntax highlighting for code blocks in completed messages.
      */
     messageComponents?: Components | undefined;
+    /**
+     * When provided, the thread title is shown at the top of the chat view on desktop.
+     */
+    thread?: Thread | undefined;
+    /**
+     * Optional callback to open the thread list drawer (used on narrow viewports).
+     */
+    onOpenThreadList?: (() => void) | undefined;
 }
 
 /** Props for the {@link ChatEmbed} component. */
@@ -60,6 +72,10 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                 inputTools={config.inputTools}
                 maxRows={config.maxRows}
                 messageComponents={config.messageComponents}
+                url={config.url}
+                getToken={config.getToken}
+                thread={config.thread}
+                onOpenThreadList={config.onOpenThreadList}
             />
         </ChatClientContext.Provider>
     );
@@ -73,6 +89,10 @@ interface ChatInnerProps {
     inputTools?: InputTool[] | undefined;
     maxRows?: number | undefined;
     messageComponents?: Components | undefined;
+    url?: string | undefined;
+    getToken?: (() => string | null) | undefined;
+    thread?: Thread | undefined;
+    onOpenThreadList?: (() => void) | undefined;
 }
 
 function ChatInner({
@@ -83,11 +103,52 @@ function ChatInner({
     inputTools,
     maxRows,
     messageComponents,
+    url,
+    getToken,
+    thread,
+    onOpenThreadList,
 }: ChatInnerProps): ReactElement {
-    const { messages, sendMessage, isStreaming, error, clearError } = useMessages(threadId, onBeforeSend);
+    const { messages, sendMessage, isStreaming, error, clearError, isLoadingHistory, hasMore, loadMore } = useMessages(
+        threadId,
+        onBeforeSend,
+        { url, getToken },
+    );
+
+    const isNarrow = useMediaQuery("(max-width:640px)");
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            {(thread && !isNarrow) || onOpenThreadList ? (
+                <Box
+                    sx={{
+                        px: 2,
+                        py: 1,
+                        borderBottom: 1,
+                        borderColor: "divider",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                    }}
+                >
+                    {onOpenThreadList && (
+                        <IconButton
+                            size="small"
+                            aria-label="Open conversations"
+                            onClick={onOpenThreadList}
+                            edge="start"
+                        >
+                            <SvgIcon fontSize="small">
+                                <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                            </SvgIcon>
+                        </IconButton>
+                    )}
+                    {thread && (
+                        <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>
+                            {thread.title}
+                        </Typography>
+                    )}
+                </Box>
+            ) : null}
             {!connected && (
                 <Typography variant="caption" sx={{ textAlign: "center", p: 1, color: "warning.main" }}>
                     Connecting...
@@ -98,7 +159,14 @@ function ChatInner({
                     {error}
                 </Alert>
             )}
-            <MessageList messages={messages} isStreaming={isStreaming} components={messageComponents} />
+            <MessageList
+                messages={messages}
+                isStreaming={isStreaming}
+                components={messageComponents}
+                isLoadingHistory={isLoadingHistory}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
+            />
             <Composer
                 onSend={sendMessage}
                 disabled={!connected || isStreaming}

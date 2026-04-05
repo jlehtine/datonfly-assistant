@@ -9,6 +9,7 @@ import { useCallback, useRef, useState, type ReactElement } from "react";
 
 import { ChatEmbed } from "@verbal-assistant/chat-ui-mui";
 import { emojiPickerTool } from "@verbal-assistant/chat-ui-mui/emoji";
+import { highlightComponents } from "@verbal-assistant/chat-ui-mui/highlight";
 import { RichInput } from "@verbal-assistant/chat-ui-mui/rich";
 
 import { useAuth } from "./auth";
@@ -90,6 +91,7 @@ export function App(): ReactElement {
                         inputComponent: RichInput,
                         inputTools: [emojiPickerTool],
                         maxRows,
+                        messageComponents: highlightComponents,
                     }}
                 />
             </Box>

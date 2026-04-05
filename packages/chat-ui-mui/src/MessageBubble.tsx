@@ -2,7 +2,7 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
-import Markdown from "react-markdown";
+import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { ChatMessage } from "@verbal-assistant/chat-hooks";
@@ -11,6 +11,13 @@ import type { ChatMessage } from "@verbal-assistant/chat-hooks";
 export interface MessageBubbleProps {
     /** The message to render. */
     message: ChatMessage;
+    /**
+     * Optional custom element renderers forwarded to `react-markdown`.
+     * Use this to enable syntax highlighting for code blocks by passing
+     * `highlightComponents` imported from `@verbal-assistant/chat-ui-mui/highlight`.
+     * The components are only applied to completed (non-streaming) messages.
+     */
+    components?: Components | undefined;
 }
 
 /**
@@ -19,7 +26,7 @@ export interface MessageBubbleProps {
  * User messages are right-aligned with a primary background; assistant
  * messages are left-aligned. Markdown content is rendered via `react-markdown`.
  */
-export function MessageBubble({ message }: MessageBubbleProps): ReactElement {
+export function MessageBubble({ message, components }: MessageBubbleProps): ReactElement {
     const isUser = message.role === "user";
 
     return (
@@ -56,7 +63,9 @@ export function MessageBubble({ message }: MessageBubbleProps): ReactElement {
                     },
                 }}
             >
-                <Markdown remarkPlugins={[remarkGfm]}>{message.text}</Markdown>
+                <Markdown remarkPlugins={[remarkGfm]} components={message.streaming ? undefined : components}>
+                    {message.text}
+                </Markdown>
                 {message.streaming && (
                     <Typography variant="caption" sx={{ opacity: 0.6 }}>
                         ●

@@ -1,4 +1,5 @@
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 import { keyframes } from "@mui/material/styles";
 import { useEffect, useRef, type ReactElement } from "react";
 import type { Components } from "react-markdown";
@@ -55,6 +56,12 @@ export interface MessageListProps {
      * from `@verbal-assistant/chat-ui-mui/highlight`.
      */
     components?: Components | undefined;
+    /** When `true`, a loading spinner is shown at the top while older messages are being fetched. */
+    isLoadingHistory?: boolean | undefined;
+    /** When `true`, a "load more" trigger is active at the top of the list. */
+    hasMore?: boolean | undefined;
+    /** Called when the user scrolls near the top and older messages should be loaded. */
+    onLoadMore?: (() => void) | undefined;
 }
 
 /**
@@ -63,18 +70,59 @@ export interface MessageListProps {
  * Automatically scrolls to the bottom whenever the message list or streaming
  * state changes. Shows an animated thinking indicator while the assistant is
  * preparing its response.
+ *
+ * When `hasMore` is `true`, detects scroll-to-top and calls `onLoadMore`.
  */
-export function MessageList({ messages, isStreaming, components }: MessageListProps): ReactElement {
+export function MessageList({
+    messages,
+    isStreaming,
+    components,
+    isLoadingHistory,
+    hasMore,
+    onLoadMore,
+}: MessageListProps): ReactElement {
     const endRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
     const lastMsg = messages[messages.length - 1];
     const showThinking = isStreaming === true && !lastMsg?.streaming;
+    const prevLengthRef = useRef(messages.length);
 
+    // Scroll to bottom on new messages or streaming state change
     useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: "smooth" });
+        const prevLen = prevLengthRef.current;
+        const didAppend = messages.length > prevLen;
+        prevLengthRef.current = messages.length;
+
+        // Only auto-scroll when messages are appended at the end (not prepended at the top)
+        if (didAppend || showThinking) {
+            endRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
     }, [messages, showThinking]);
 
+    // Detect scroll-to-top and trigger load more
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el || !hasMore || !onLoadMore) return;
+
+        const handleScroll = (): void => {
+            if (el.scrollTop < 80) {
+                onLoadMore();
+            }
+        };
+
+        el.addEventListener("scroll", handleScroll, { passive: true });
+        return () => {
+            el.removeEventListener("scroll", handleScroll);
+        };
+    }, [hasMore, onLoadMore]);
+
     return (
-        <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+        <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto", p: 2 }}>
+            {isLoadingHistory && (
+                <Box sx={{ display: "flex", justifyContent: "center", pb: 1 }}>
+                    <CircularProgress size={20} />
+                </Box>
+            )}
             {messages.map((msg) => (
                 <MessageBubble key={msg.id} message={msg} components={components} />
             ))}

@@ -10,11 +10,12 @@ import {
     Param,
     Patch,
     Post,
+    Query,
     Req,
 } from "@nestjs/common";
 import type { Request } from "express";
 
-import type { AuthUser, IPersistenceProvider, Thread } from "@verbal-assistant/core";
+import type { AuthUser, IPersistenceProvider, Thread, ThreadMessage } from "@verbal-assistant/core";
 
 import { PERSISTENCE_PROVIDER } from "./constants.js";
 
@@ -33,9 +34,10 @@ export class ThreadController {
     }
 
     @Get()
-    async list(@Req() req: Request): Promise<Thread[]> {
+    async list(@Req() req: Request, @Query("includeArchived") includeArchivedStr?: string): Promise<Thread[]> {
         const user = (req as Request & { user: AuthUser }).user;
-        return this.persistence.listThreads({ userId: user.id });
+        const includeArchived = includeArchivedStr === "true";
+        return this.persistence.listThreads({ userId: user.id, includeArchived });
     }
 
     @Get(":id")
@@ -75,6 +77,26 @@ export class ThreadController {
         }
 
         return this.persistence.updateThread(threadId, updates);
+    }
+
+    @Get(":id/messages")
+    async listMessages(
+        @Req() req: Request,
+        @Param("id") threadId: string,
+        @Query("limit") limitStr?: string,
+        @Query("before") beforeStr?: string,
+    ): Promise<ThreadMessage[]> {
+        const user = (req as Request & { user: AuthUser }).user;
+
+        const isMember = await this.persistence.isMember(threadId, user.id);
+        if (!isMember) {
+            throw new ForbiddenException("Not a member of this thread");
+        }
+
+        const limit = limitStr !== undefined ? parseInt(limitStr, 10) : undefined;
+        const before = beforeStr !== undefined ? new Date(beforeStr) : undefined;
+
+        return this.persistence.loadMessages({ threadId, limit, before });
     }
 
     @Delete(":id")

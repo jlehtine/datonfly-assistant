@@ -1,10 +1,15 @@
 import { defineConfig } from "@playwright/test";
 
+const headed = process.argv.includes("--headed");
+
 export default defineConfig({
     testDir: "./tests",
-    timeout: 30_000,
+    timeout: headed ? 120_000 : 30_000,
     use: {
         baseURL: "http://localhost:5173",
+        launchOptions: {
+            slowMo: headed ? 500 : 0,
+        },
     },
     projects: [
         {

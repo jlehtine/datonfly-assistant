@@ -12,6 +12,7 @@
         "start": "pnpm --filter @verbal-assistant/backend start",
         "dev": "pnpm --filter @verbal-assistant/frontend dev",
         "test:e2e": "playwright test",
+        "test:e2e:headed": "playwright test --headed",
         "psql": "docker compose exec postgres psql -U verbal_assistant -d verbal_assistant",
         "prepare": "husky"
     },

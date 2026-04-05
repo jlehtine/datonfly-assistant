@@ -1,0 +1,42 @@
+services:
+    postgres:
+        image: postgres:16
+        ports:
+            - "5432:5432"
+        environment:
+            POSTGRES_USER: verbal
+            POSTGRES_PASSWORD: verbal
+            POSTGRES_DB: verbal_assistant
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U verbal -d verbal_assistant"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+            - "6333:6333"
+            - "6334:6334"
+        volumes:
+            - qdrantdata:/qdrant/storage
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    tei:
+        image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+        ports:
+            - "8080:80"
+        volumes:
+            - teidata:/data
+        command: --model-id BAAI/bge-large-en-v1.5
+
+volumes:
+    pgdata:
+    qdrantdata:
+    teidata:

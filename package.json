@@ -1,0 +1,33 @@
+{
+    "name": "verbal-assistant",
+    "private": true,
+    "packageManager": "pnpm@10.29.2",
+    "scripts": {
+        "build": "turbo run build",
+        "lint": "turbo run lint",
+        "lint:fix": "turbo run lint:fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "prepare": "husky"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+        "eslint": "^10.2.0",
+        "globals": "^17.4.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.1.0",
+        "prettier": "^3.5.3",
+        "turbo": "^2.5.4",
+        "typescript": "^6.0.2",
+        "typescript-eslint": "^8.58.0"
+    },
+    "lint-staged": {
+        "*.{ts,tsx,js,jsx,mjs}": [
+            "eslint --fix"
+        ],
+        "*": [
+            "prettier --write --ignore-unknown"
+        ]
+    }
+}

@@ -96,11 +96,13 @@ export function MessageList({
         const didAppend = messages.length > prevLen;
         prevLengthRef.current = messages.length;
 
-        // Only auto-scroll when messages are appended at the end (not prepended at the top)
-        if (didAppend || showThinking) {
+        // Auto-scroll when messages are appended, during streaming content updates,
+        // or when the thinking indicator is shown — but NOT when old messages are
+        // prepended at the top via history loading.
+        if (didAppend || showThinking || lastMsg?.streaming) {
             endRef.current?.scrollIntoView({ behavior: "smooth" });
         }
-    }, [messages, showThinking]);
+    }, [messages, showThinking, lastMsg?.streaming]);
 
     // Detect scroll-to-top and trigger load more
     useEffect(() => {

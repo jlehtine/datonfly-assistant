@@ -4,8 +4,8 @@ services:
         ports:
             - "5432:5432"
         environment:
-            POSTGRES_USER: verbal
-            POSTGRES_PASSWORD: verbal
+            POSTGRES_USER: verbal_assistant
+            POSTGRES_PASSWORD: verbal_assistant
             POSTGRES_DB: verbal_assistant
         volumes:
             - pgdata:/var/lib/postgresql/data

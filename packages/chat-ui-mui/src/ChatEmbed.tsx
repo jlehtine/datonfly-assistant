@@ -9,20 +9,36 @@ import { Composer, type ComposerInputProps } from "./Composer.js";
 import type { InputTool } from "./InputTool.js";
 import { MessageList } from "./MessageList.js";
 
+/** Configuration options passed to {@link ChatEmbed}. */
 export interface ChatEmbedConfig {
+    /** WebSocket server URL. */
     url: string;
+    /** ID of the thread to open, or `undefined` to let `onBeforeSend` provide it lazily. */
     threadId?: string | undefined;
+    /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
     getToken?: (() => string | null) | undefined;
+    /** Optional async callback invoked before each send; must resolve to the thread ID to use. */
     onBeforeSend?: (() => Promise<string>) | undefined;
+    /** Override the default plain-text input with a custom component. */
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
+    /** Optional input tools (e.g. emoji picker) to attach to the composer. */
     inputTools?: InputTool[] | undefined;
+    /** Maximum number of visible rows in the composer textarea before it scrolls. */
     maxRows?: number | undefined;
 }
 
+/** Props for the {@link ChatEmbed} component. */
 export interface ChatEmbedProps {
+    /** Chat configuration object. */
     config: ChatEmbedConfig;
 }
 
+/**
+ * Self-contained chat widget that manages its own WebSocket connection.
+ *
+ * Renders a message list and a composer inside a flex column that fills its
+ * parent's height. Wrap the parent in a fixed-height container.
+ */
 export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
     const { client, connected } = useChatConnection({ url: config.url, getToken: config.getToken });
     const threadId = config.threadId ?? null;

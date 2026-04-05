@@ -8,15 +8,27 @@ import pg from "pg";
 import { PostgresPersistenceProvider } from "./provider.js";
 import type { Database } from "./schema.js";
 
+/** Options for {@link createPostgresPersistence}. */
 export interface CreatePostgresPersistenceOptions {
+    /** `pg`-compatible connection string (e.g. `"postgresql://user:pass@host:5432/db"`). */
     connectionString: string;
 }
 
+/** Return value of {@link createPostgresPersistence}. */
 export interface PostgresPersistenceResult {
+    /** Fully initialised persistence provider ready for use. */
     provider: PostgresPersistenceProvider;
+    /** Gracefully close the underlying connection pool. */
     destroy: () => Promise<void>;
 }
 
+/**
+ * Create a {@link PostgresPersistenceProvider}, run any pending database migrations,
+ * and return the provider together with a `destroy` function to release the pool.
+ *
+ * @param options - Connection options.
+ * @throws {Error} When one or more migrations fail to apply.
+ */
 export async function createPostgresPersistence(
     options: CreatePostgresPersistenceOptions,
 ): Promise<PostgresPersistenceResult> {

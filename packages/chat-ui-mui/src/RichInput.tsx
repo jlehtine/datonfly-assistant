@@ -42,6 +42,14 @@ function CollapseToolbarIcon(): ReactElement {
     );
 }
 
+/**
+ * Rich-text composer input backed by `@uiw/react-md-editor`.
+ *
+ * Implements the {@link ComposerInputProps} contract so it can be passed
+ * directly as the `inputComponent` prop of {@link Composer} or {@link ChatEmbed}.
+ * Includes a toggle button to switch between a plain textarea and a full
+ * Markdown editor with a formatting toolbar.
+ */
 export function RichInput({
     value,
     onChange,

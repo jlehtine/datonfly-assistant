@@ -7,10 +7,18 @@ import remarkGfm from "remark-gfm";
 
 import type { ChatMessage } from "@verbal-assistant/chat-hooks";
 
+/** Props for the {@link MessageBubble} component. */
 export interface MessageBubbleProps {
+    /** The message to render. */
     message: ChatMessage;
 }
 
+/**
+ * Renders a single chat message as a styled bubble.
+ *
+ * User messages are right-aligned with a primary background; assistant
+ * messages are left-aligned. Markdown content is rendered via `react-markdown`.
+ */
 export function MessageBubble({ message }: MessageBubbleProps): ReactElement {
     const isUser = message.role === "user";
 

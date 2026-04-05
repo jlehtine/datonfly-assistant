@@ -8,22 +8,37 @@ import { useComposer } from "@verbal-assistant/chat-hooks";
 
 import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 
+/** Props passed to a custom composer input component. */
 export interface ComposerInputProps {
+    /** Current text value. */
     value: string;
+    /** Callback to update the text value. */
     onChange: (value: string) => void;
+    /** Keyboard event handler (used to detect Enter-to-send). */
     onKeyDown: (e: KeyboardEvent) => void;
+    /** Placeholder text shown when the input is empty. */
     placeholder: string;
+    /** Whether the input should be non-interactive. */
     disabled: boolean;
+    /** Whether the input should receive focus on mount. */
     autoFocus: boolean;
+    /** Optional input tools (e.g. emoji picker) to render alongside the input. */
     inputTools?: InputTool[] | undefined;
+    /** Maximum number of visible rows before the textarea scrolls. */
     maxRows?: number | undefined;
 }
 
+/** Props for the {@link Composer} component. */
 export interface ComposerProps {
+    /** Callback invoked with the trimmed message text when the user submits. */
     onSend: (text: string) => void;
+    /** When `true`, the send button and input are disabled. */
     disabled?: boolean | undefined;
+    /** Override the built-in plain-text input with a custom component. */
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
+    /** Optional input tools (e.g. emoji picker) to attach to the default input. */
     inputTools?: InputTool[] | undefined;
+    /** Maximum number of visible rows in the textarea before it scrolls. */
     maxRows?: number | undefined;
 }
 
@@ -173,6 +188,12 @@ function ToolsMenuIcon(): ReactElement {
     );
 }
 
+/**
+ * Message input bar with a send button.
+ *
+ * Delegates text state management to {@link useComposer} and supports an
+ * optional custom input component for rich-text editing.
+ */
 export function Composer({
     onSend,
     disabled,

@@ -90,6 +90,8 @@ export function useMessages(
     const resolvedThreadIdRef = useRef(threadId);
     // Tracks the createdAt of the oldest loaded message for scroll-up pagination
     const oldestCreatedAtRef = useRef<Date | null>(null);
+    // Synchronous loading guard to prevent concurrent history fetches (state updates are async)
+    const isLoadingHistoryRef = useRef(false);
 
     // Keep ref in sync when parent passes a new threadId
     useEffect(() => {
@@ -131,11 +133,13 @@ export function useMessages(
         setMessages([]);
         setHasMore(false);
         oldestCreatedAtRef.current = null;
+        isLoadingHistoryRef.current = false;
         streamingIdRef.current = null;
         setIsStreaming(false);
 
         if (!threadId || !url) return;
 
+        isLoadingHistoryRef.current = true;
         setIsLoadingHistory(true);
         void (async () => {
             try {
@@ -146,6 +150,7 @@ export function useMessages(
             } catch (e: unknown) {
                 setError(e instanceof Error ? e.message : "Failed to load history");
             } finally {
+                isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
             }
         })();
@@ -160,25 +165,31 @@ export function useMessages(
 
     const loadMore = useCallback(() => {
         const tid = resolvedThreadIdRef.current;
-        if (!tid || !url || isLoadingHistory) return;
+        // Use the synchronous ref guard to prevent concurrent fetches (React state updates are async)
+        if (!tid || !url || isLoadingHistoryRef.current) return;
 
-        // Use the cursor from the ref first; fall back to the oldest loaded message's createdAt.
+        // Use the explicitly tracked cursor; fall back to the oldest loaded message's createdAt
+        // only if the cursor hasn't been set yet (e.g. on first loadMore call in an edge case).
         const cursor = oldestCreatedAtRef.current ?? messagesRef.current[0]?.createdAt;
+        isLoadingHistoryRef.current = true;
         setIsLoadingHistory(true);
         void fetchHistory(tid, cursor)
             .then((result) => {
                 setMessages((prev) => [...result.messages, ...prev]);
                 setHasMore(result.hasMore);
+                // Only update cursor if new messages were returned; preserve existing cursor otherwise
                 if (result.messages[0]?.createdAt) {
                     oldestCreatedAtRef.current = result.messages[0].createdAt;
                 }
+                isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
             })
             .catch((e: unknown) => {
                 setError(e instanceof Error ? e.message : "Failed to load more messages");
+                isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
             });
-    }, [url, isLoadingHistory, fetchHistory]);
+    }, [url, fetchHistory]);
 
     useEffect(() => {
         const handleDelta = (event: MessageDeltaEvent): void => {

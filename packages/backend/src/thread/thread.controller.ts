@@ -54,8 +54,9 @@ export class ThreadController {
             throw new ForbiddenException("Not a member of this thread");
         }
 
-        const limit = limitStr !== undefined ? parseInt(limitStr, 10) : undefined;
-        const before = beforeStr !== undefined ? new Date(beforeStr) : undefined;
+        const limit = limitStr !== undefined ? Math.min(100, Math.max(1, parseInt(limitStr, 10) || 50)) : undefined;
+        const parsedBefore = beforeStr !== undefined ? new Date(beforeStr) : undefined;
+        const before = parsedBefore !== undefined && !isNaN(parsedBefore.getTime()) ? parsedBefore : undefined;
 
         return this.persistence.loadMessages({ threadId, limit, before });
     }

@@ -108,7 +108,7 @@ export function MessageList({
         if (!el || !hasMore || !onLoadMore) return;
 
         const handleScroll = (): void => {
-            if (el.scrollTop < LOAD_MORE_SCROLL_THRESHOLD) {
+            if (!isLoadingHistory && el.scrollTop < LOAD_MORE_SCROLL_THRESHOLD) {
                 onLoadMore();
             }
         };
@@ -117,7 +117,7 @@ export function MessageList({
         return () => {
             el.removeEventListener("scroll", handleScroll);
         };
-    }, [hasMore, onLoadMore]);
+    }, [hasMore, onLoadMore, isLoadingHistory]);
 
     return (
         <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto", p: 2 }}>

@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useRef, useState, type ComponentType, type ReactElement } from "react";
+import type { Components } from "react-markdown";
 
 import { useThreadList } from "@verbal-assistant/chat-hooks";
 import type { Thread } from "@verbal-assistant/core";
@@ -24,6 +25,12 @@ export interface ChatHistoryEmbedConfig {
     /** Maximum number of visible rows in the composer textarea before it scrolls. */
     maxRows?: number | undefined;
     /**
+     * Optional custom element renderers for message markdown.
+     * Pass `highlightComponents` from `@verbal-assistant/chat-ui-mui/highlight`
+     * to enable syntax highlighting for code blocks in completed messages.
+     */
+    messageComponents?: Components | undefined;
+    /**
      * Optional async callback invoked before the very first message send when no thread
      * is selected yet; must resolve to the thread ID to use.
      * If omitted, a new thread is created automatically via `POST /threads`.
@@ -45,7 +52,7 @@ export interface ChatHistoryEmbedProps {
  * thread creation on first send. On narrow viewports the sidebar is hidden.
  */
 export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElement {
-    const { url, getToken, inputComponent, inputTools, maxRows, onBeforeSend } = config;
+    const { url, getToken, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
 
     const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
     const pendingCreateRef = useRef<Promise<string> | null>(null);
@@ -163,6 +170,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                         inputComponent,
                         inputTools,
                         maxRows,
+                        messageComponents,
                         thread: selectedThread,
                         onOpenThreadList: isNarrow
                             ? () => {

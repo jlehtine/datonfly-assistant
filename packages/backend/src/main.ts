@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { NestFactory } from "@nestjs/core";
 import { config } from "dotenv";
 
-import { LangGraphAgent } from "@verbal-assistant/agent-langchain";
+import { createTitleGenerateFn, LangGraphAgent } from "@verbal-assistant/agent-langchain";
 import { createPostgresPersistence } from "@verbal-assistant/persistence-pg";
 import { ChatRealtimeServer } from "@verbal-assistant/realtime";
 
@@ -92,6 +92,15 @@ async function bootstrap(): Promise<void> {
         apiKey: process.env.ANTHROPIC_API_KEY,
     });
 
+    // Optional: separate (cheaper) model for automatic thread title generation.
+    const titleModelName = process.env.ANTHROPIC_TITLE_MODEL;
+    const generateTitle = titleModelName
+        ? createTitleGenerateFn({
+              modelName: titleModelName,
+              apiKey: process.env.ANTHROPIC_API_KEY,
+          })
+        : undefined;
+
     const realtime = new ChatRealtimeServer({
         agent,
         persistence,
@@ -99,6 +108,7 @@ async function bootstrap(): Promise<void> {
             origin: frontendUrl,
         },
         validateToken: (token: string) => authService.authenticateToken(token),
+        generateTitle,
     });
     realtime.attach(httpServer);
 

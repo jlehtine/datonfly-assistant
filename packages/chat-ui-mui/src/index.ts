@@ -8,6 +8,8 @@ export { MessageBubble } from "./MessageBubble.js";
 export type { MessageBubbleProps } from "./MessageBubble.js";
 export { Composer } from "./Composer.js";
 export type { ComposerInputProps, ComposerProps } from "./Composer.js";
+export { EditableTitle } from "./EditableTitle.js";
+export type { EditableTitleProps } from "./EditableTitle.js";
 export type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 export { ThreadListPanel } from "./ThreadListPanel.js";
 export type { ThreadListPanelProps } from "./ThreadListPanel.js";

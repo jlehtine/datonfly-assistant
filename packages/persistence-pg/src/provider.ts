@@ -116,13 +116,18 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
     async updateThread(
         threadId: string,
-        updates: Partial<Pick<Thread, "title" | "archivedAt" | "memoryEnabled">>,
+        updates: Partial<
+            Pick<Thread, "title" | "archivedAt" | "memoryEnabled" | "titleGeneratedAt" | "titleManuallySet">
+        >,
     ): Promise<Thread> {
         const values: Record<string, unknown> = {};
         if (updates.title !== undefined) values.title = updates.title;
         if (updates.archivedAt !== undefined) values.archived_at = updates.archivedAt;
         if ("archivedAt" in updates && updates.archivedAt === undefined) values.archived_at = null;
         if (updates.memoryEnabled !== undefined) values.memory_enabled = updates.memoryEnabled;
+        if (updates.titleGeneratedAt !== undefined) values.title_generated_at = updates.titleGeneratedAt;
+        if ("titleGeneratedAt" in updates && updates.titleGeneratedAt === undefined) values.title_generated_at = null;
+        if (updates.titleManuallySet !== undefined) values.title_manually_set = updates.titleManuallySet;
         values.updated_at = new Date();
 
         const row = await this.db
@@ -218,6 +223,15 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         return toMessage(row);
     }
 
+    async countMessages(threadId: string): Promise<number> {
+        const result = await this.db
+            .selectFrom("message")
+            .select(this.db.fn.countAll<string>().as("count"))
+            .where("thread_id", "=", threadId)
+            .executeTakeFirstOrThrow();
+        return parseInt(result.count, 10);
+    }
+
     async loadMessages(options: LoadMessagesOptions): Promise<ThreadMessage[]> {
         let query = this.db.selectFrom("message").selectAll().where("thread_id", "=", options.threadId);
 
@@ -258,6 +272,8 @@ function toThread(row: ThreadRow): Thread {
         updatedAt: row.updated_at,
         archivedAt: row.archived_at ?? undefined,
         memoryEnabled: row.memory_enabled,
+        titleGeneratedAt: row.title_generated_at ?? undefined,
+        titleManuallySet: row.title_manually_set,
     };
 }
 

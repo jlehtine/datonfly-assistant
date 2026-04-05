@@ -24,6 +24,10 @@ export interface UseThreadListResult {
     refresh: () => void;
     /** Archive or unarchive a thread by ID and refresh the list. */
     setArchived: (threadId: string, archived: boolean) => Promise<void>;
+    /** Rename a thread and refresh the list. */
+    renameThread: (threadId: string, title: string) => Promise<void>;
+    /** Update a single thread's title in-place without re-fetching. */
+    updateThreadTitle: (threadId: string, title: string) => void;
 }
 
 /**
@@ -53,16 +57,21 @@ export function useThreadList({ url, getToken, includeArchived = false }: UseThr
             if (!res.ok) {
                 throw new Error(`Failed to load threads: ${res.statusText}`);
             }
-            const data = (await res.json()) as (Omit<Thread, "createdAt" | "updatedAt" | "archivedAt"> & {
+            const data = (await res.json()) as (Omit<
+                Thread,
+                "createdAt" | "updatedAt" | "archivedAt" | "titleGeneratedAt"
+            > & {
                 createdAt: string;
                 updatedAt: string;
                 archivedAt?: string | null;
+                titleGeneratedAt?: string | null;
             })[];
             const parsed: Thread[] = data.map((t) => ({
                 ...t,
                 createdAt: new Date(t.createdAt),
                 updatedAt: new Date(t.updatedAt),
                 archivedAt: t.archivedAt ? new Date(t.archivedAt) : undefined,
+                titleGeneratedAt: t.titleGeneratedAt ? new Date(t.titleGeneratedAt) : undefined,
             }));
             // Sort by most recently updated first
             parsed.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
@@ -99,5 +108,24 @@ export function useThreadList({ url, getToken, includeArchived = false }: UseThr
         [url, authHeaders, fetchThreads],
     );
 
-    return { threads, loading, error, refresh, setArchived };
+    const renameThread = useCallback(
+        async (threadId: string, title: string): Promise<void> => {
+            const res = await fetch(`${url}/threads/${threadId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({ title }),
+            });
+            if (!res.ok) {
+                throw new Error(`Failed to rename thread: ${res.statusText}`);
+            }
+            void fetchThreads();
+        },
+        [url, authHeaders, fetchThreads],
+    );
+
+    const updateThreadTitle = useCallback((threadId: string, title: string): void => {
+        setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, title } : t)));
+    }, []);
+
+    return { threads, loading, error, refresh, setArchived, renameThread, updateThreadTitle };
 }

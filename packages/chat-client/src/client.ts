@@ -1,6 +1,12 @@
 import { io, type Socket } from "socket.io-client";
 
-import type { ErrorEvent, MessageCompleteEvent, MessageDeltaEvent, SendMessageEvent } from "@verbal-assistant/core";
+import type {
+    ErrorEvent,
+    MessageCompleteEvent,
+    MessageDeltaEvent,
+    SendMessageEvent,
+    ThreadUpdatedEvent,
+} from "@verbal-assistant/core";
 
 /** Map of event names to their handler signatures for {@link ChatClient}. */
 export interface ChatClientEventMap {
@@ -8,6 +14,8 @@ export interface ChatClientEventMap {
     "message-delta": (event: MessageDeltaEvent) => void;
     /** Fired when the server finishes streaming an assistant response. */
     "message-complete": (event: MessageCompleteEvent) => void;
+    /** Fired when one or more mutable thread properties have been updated. */
+    "thread-updated": (event: ThreadUpdatedEvent) => void;
     /** Fired when the server reports an error. */
     error: (event: ErrorEvent) => void;
     /** Fired when the WebSocket connection is established. */

@@ -93,8 +93,16 @@ export class ThreadController {
             throw new ForbiddenException("Only the thread owner can update this thread");
         }
 
-        const updates: { title?: string; archivedAt?: Date | undefined; memoryEnabled?: boolean } = {};
-        if (body.title !== undefined) updates.title = body.title;
+        const updates: {
+            title?: string;
+            archivedAt?: Date | undefined;
+            memoryEnabled?: boolean;
+            titleManuallySet?: boolean;
+        } = {};
+        if (body.title !== undefined) {
+            updates.title = body.title;
+            updates.titleManuallySet = true;
+        }
         if (body.memoryEnabled !== undefined) updates.memoryEnabled = body.memoryEnabled;
         if (body.archivedAt !== undefined) {
             updates.archivedAt = body.archivedAt === null ? undefined : new Date(body.archivedAt);

@@ -1,19 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { Server as HttpServer } from "node:http";
 
-import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import type { BaseMessage } from "@langchain/core/messages";
 import { Server, type ServerOptions, type Socket } from "socket.io";
 
 import type {
     AuthUser,
-    ContentPart,
     IChatAgent,
     IPersistenceProvider,
     MessageCompleteEvent,
     MessageDeltaEvent,
     SendMessageEvent,
-    ThreadMessage,
+    ThreadUpdatedEvent,
 } from "@verbal-assistant/core";
+
+import { threadMessagesToBaseMessages } from "./messages.js";
+import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
 
 /** Callback that validates a raw JWT string and returns the authenticated user, or `null` on failure. */
 export type ValidateTokenFn = (token: string) => AuthUser | null;
@@ -28,6 +30,11 @@ export interface ChatRealtimeServerConfig {
     validateToken?: ValidateTokenFn | undefined;
     /** Persistence provider for loading thread history and saving messages. */
     persistence: IPersistenceProvider;
+    /**
+     * Optional callback that generates a thread title from conversation messages.
+     * When omitted, title auto-generation is disabled.
+     */
+    generateTitle?: GenerateTitleFn | undefined;
 }
 
 /**
@@ -42,6 +49,8 @@ export class ChatRealtimeServer {
     private readonly corsConfig: { origin: string | string[] } | undefined;
     private readonly validateToken: ValidateTokenFn | undefined;
     private readonly persistence: IPersistenceProvider;
+    private titleGenerator: ThreadTitleGenerator | null = null;
+    private readonly generateTitleFn: GenerateTitleFn | undefined;
 
     /** Create the server with the given configuration. Call {@link attach} to start accepting connections. */
     constructor(config: ChatRealtimeServerConfig) {
@@ -49,6 +58,7 @@ export class ChatRealtimeServer {
         this.corsConfig = config.cors;
         this.validateToken = config.validateToken;
         this.persistence = config.persistence;
+        this.generateTitleFn = config.generateTitle;
     }
 
     /** Attach the Socket.io server to an existing HTTP server and begin accepting connections. */
@@ -82,6 +92,23 @@ export class ChatRealtimeServer {
                 void this.handleSendMessage(socket, data);
             });
         });
+
+        // Set up title generator if a generateTitle function is provided.
+        if (this.generateTitleFn) {
+            const io = this.io;
+            this.titleGenerator = new ThreadTitleGenerator({
+                persistence: this.persistence,
+                generateTitle: this.generateTitleFn,
+                onTitleUpdated: (threadId: string, title: string): void => {
+                    const event: ThreadUpdatedEvent = {
+                        event: "thread-updated",
+                        threadId,
+                        title,
+                    };
+                    io.emit("thread-updated", event);
+                },
+            });
+        }
     }
 
     private async handleSendMessage(socket: Socket, data: SendMessageEvent): Promise<void> {
@@ -144,6 +171,11 @@ export class ChatRealtimeServer {
                 content: [{ type: "text", text: fullText }],
             };
             socket.emit("message-complete", completeEvent);
+
+            // Fire-and-forget title generation.
+            if (this.titleGenerator) {
+                void this.titleGenerator.maybeGenerateTitle(threadId);
+            }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Unknown error";
             socket.emit("error", { event: "error", message });
@@ -154,56 +186,4 @@ export class ChatRealtimeServer {
     async close(): Promise<void> {
         await this.io?.close();
     }
-}
-
-// ─── Helpers ───
-
-function extractText(content: ContentPart[]): string {
-    return content
-        .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
-        .map((part) => part.text)
-        .join("\n");
-}
-
-function formatTimestamp(date: Date): string {
-    const pad = (n: number, len = 2) => String(n).padStart(len, "0");
-    const offsetMinutes = -date.getTimezoneOffset();
-    const sign = offsetMinutes >= 0 ? "+" : "-";
-    const absOffset = Math.abs(offsetMinutes);
-    const offsetHours = Math.floor(absOffset / 60);
-    const offsetMins = absOffset % 60;
-    return (
-        `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-        `T${pad(date.getHours())}:${pad(date.getMinutes())}` +
-        `${sign}${pad(offsetHours)}:${pad(offsetMins)}`
-    );
-}
-
-const ONE_HOUR_MS = 60 * 60 * 1000;
-
-function threadMessagesToBaseMessages(messages: ThreadMessage[]): BaseMessage[] {
-    const result: BaseMessage[] = [];
-    let lastTimestamp: Date | null = null;
-
-    for (const msg of messages) {
-        const messageTimestamp = msg.createdAt;
-        if (lastTimestamp === null || messageTimestamp.getTime() - lastTimestamp.getTime() >= ONE_HOUR_MS) {
-            result.push(new HumanMessage(`@ ${formatTimestamp(messageTimestamp)}`));
-            lastTimestamp = messageTimestamp;
-        }
-        const text = extractText(msg.content);
-        switch (msg.role) {
-            case "user":
-                result.push(new HumanMessage(text));
-                break;
-            case "assistant":
-                result.push(new AIMessage(text));
-                break;
-            case "system":
-                result.push(new SystemMessage(text));
-                break;
-        }
-    }
-
-    return result;
 }

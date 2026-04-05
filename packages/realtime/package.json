@@ -21,6 +21,7 @@
         "socket.io": "^4.8.0"
     },
     "peerDependencies": {
+        "@langchain/core": "^1.1.39",
         "@verbal-assistant/core": "workspace:*"
     },
     "devDependencies": {

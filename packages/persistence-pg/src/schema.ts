@@ -21,6 +21,8 @@ export interface ThreadsTable {
     updated_at: ColumnType<Date, Date | undefined, Date>;
     archived_at: Date | null;
     memory_enabled: ColumnType<boolean, boolean | undefined, boolean>;
+    title_generated_at: Date | null;
+    title_manually_set: ColumnType<boolean, boolean | undefined, boolean>;
 }
 
 /** Kysely table definition for the `thread_member` database table. */

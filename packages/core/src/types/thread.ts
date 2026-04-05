@@ -12,6 +12,10 @@ export interface Thread {
     archivedAt?: Date | undefined;
     /** Whether the agent persists long-term memories from this thread. */
     memoryEnabled: boolean;
+    /** Timestamp of the last auto-generated title, or `undefined` if never generated. */
+    titleGeneratedAt?: Date | undefined;
+    /** Whether the title was manually set by a user (protected from auto-generation). */
+    titleManuallySet: boolean;
 }
 
 /** Role a user can have within a thread. */

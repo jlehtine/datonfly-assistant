@@ -5,7 +5,7 @@ import { useCallback, useRef, useState, type ComponentType, type ReactElement } 
 import type { Components } from "react-markdown";
 
 import { useThreadList } from "@verbal-assistant/chat-hooks";
-import type { Thread } from "@verbal-assistant/core";
+import type { Thread, ThreadUpdatedEvent } from "@verbal-assistant/core";
 
 import { ChatEmbed } from "./ChatEmbed.js";
 import type { ComposerInputProps } from "./Composer.js";
@@ -58,7 +58,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
     const pendingCreateRef = useRef<Promise<string> | null>(null);
 
     // Always load all threads (active + archived); ThreadListPanel handles client-side filtering.
-    const { threads, loading, setArchived, refresh } = useThreadList({
+    const { threads, loading, setArchived, renameThread, updateThreadTitle, refresh } = useThreadList({
         url,
         getToken,
         includeArchived: true,
@@ -117,6 +117,23 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
         pendingCreateRef.current = null;
     }, []);
 
+    const handleRenameThread = useCallback(
+        (title: string) => {
+            if (!selectedThreadId) return;
+            void renameThread(selectedThreadId, title);
+        },
+        [selectedThreadId, renameThread],
+    );
+
+    const handleThreadUpdated = useCallback(
+        (event: ThreadUpdatedEvent) => {
+            if (event.title !== undefined) {
+                updateThreadTitle(event.threadId, event.title);
+            }
+        },
+        [updateThreadTitle],
+    );
+
     const isNarrow = useMediaQuery("(max-width:640px)");
     const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -172,6 +189,8 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                         maxRows,
                         messageComponents,
                         thread: selectedThread,
+                        onRenameThread: selectedThread ? handleRenameThread : undefined,
+                        onThreadUpdated: handleThreadUpdated,
                         onOpenThreadList: isNarrow
                             ? () => {
                                   setDrawerOpen(true);

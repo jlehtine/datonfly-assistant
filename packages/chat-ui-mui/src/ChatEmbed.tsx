@@ -4,13 +4,14 @@ import IconButton from "@mui/material/IconButton";
 import SvgIcon from "@mui/material/SvgIcon";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import type { ComponentType, ReactElement } from "react";
+import { useEffect, type ComponentType, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import { ChatClientContext, useChatConnection, useMessages } from "@verbal-assistant/chat-hooks";
-import type { Thread } from "@verbal-assistant/core";
+import { ChatClientContext, useChatClient, useChatConnection, useMessages } from "@verbal-assistant/chat-hooks";
+import type { Thread, ThreadUpdatedEvent } from "@verbal-assistant/core";
 
 import { Composer, type ComposerInputProps } from "./Composer.js";
+import { EditableTitle } from "./EditableTitle.js";
 import type { InputTool } from "./InputTool.js";
 import { MessageList } from "./MessageList.js";
 
@@ -44,6 +45,15 @@ export interface ChatEmbedConfig {
      * Optional callback to open the thread list drawer (used on narrow viewports).
      */
     onOpenThreadList?: (() => void) | undefined;
+    /**
+     * Optional callback invoked when the user edits the thread title inline.
+     */
+    onRenameThread?: ((title: string) => void) | undefined;
+    /**
+     * Optional callback invoked when the server pushes a thread-updated event
+     * (e.g. after auto-generating a title).
+     */
+    onThreadUpdated?: ((event: ThreadUpdatedEvent) => void) | undefined;
 }
 
 /** Props for the {@link ChatEmbed} component. */
@@ -76,6 +86,8 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                 getToken={config.getToken}
                 thread={config.thread}
                 onOpenThreadList={config.onOpenThreadList}
+                onRenameThread={config.onRenameThread}
+                onThreadUpdated={config.onThreadUpdated}
             />
         </ChatClientContext.Provider>
     );
@@ -93,6 +105,8 @@ interface ChatInnerProps {
     getToken?: (() => string | null) | undefined;
     thread?: Thread | undefined;
     onOpenThreadList?: (() => void) | undefined;
+    onRenameThread?: ((title: string) => void) | undefined;
+    onThreadUpdated?: ((event: ThreadUpdatedEvent) => void) | undefined;
 }
 
 function ChatInner({
@@ -107,7 +121,22 @@ function ChatInner({
     getToken,
     thread,
     onOpenThreadList,
+    onRenameThread,
+    onThreadUpdated,
 }: ChatInnerProps): ReactElement {
+    const client = useChatClient();
+
+    useEffect(() => {
+        if (!onThreadUpdated) return;
+        const handler = (event: ThreadUpdatedEvent): void => {
+            onThreadUpdated(event);
+        };
+        client.on("thread-updated", handler);
+        return () => {
+            client.off("thread-updated", handler);
+        };
+    }, [client, onThreadUpdated]);
+
     const { messages, sendMessage, isStreaming, error, clearError, isLoadingHistory, hasMore, loadMore } = useMessages(
         threadId,
         onBeforeSend,
@@ -142,11 +171,13 @@ function ChatInner({
                             </SvgIcon>
                         </IconButton>
                     )}
-                    {thread && (
+                    {thread && onRenameThread ? (
+                        <EditableTitle title={thread.title} onSave={onRenameThread} />
+                    ) : thread ? (
                         <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>
                             {thread.title}
                         </Typography>
-                    )}
+                    ) : null}
                 </Box>
             ) : null}
             {!connected && (

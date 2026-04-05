@@ -66,7 +66,9 @@ export interface IPersistenceProvider {
     /** Update mutable thread properties. */
     updateThread(
         threadId: string,
-        updates: Partial<Pick<Thread, "title" | "archivedAt" | "memoryEnabled">>,
+        updates: Partial<
+            Pick<Thread, "title" | "archivedAt" | "memoryEnabled" | "titleGeneratedAt" | "titleManuallySet">
+        >,
     ): Promise<Thread>;
     /** Permanently delete a thread and all its messages. */
     deleteThread(threadId: string): Promise<void>;
@@ -88,4 +90,6 @@ export interface IPersistenceProvider {
     appendMessage(options: AppendMessageOptions): Promise<ThreadMessage>;
     /** Load messages from a thread with optional cursor-based pagination. */
     loadMessages(options: LoadMessagesOptions): Promise<ThreadMessage[]>;
+    /** Count the total number of messages in a thread. */
+    countMessages(threadId: string): Promise<number>;
 }

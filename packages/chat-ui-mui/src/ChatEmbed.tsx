@@ -51,7 +51,7 @@ function ChatInner({ threadId, connected, onBeforeSend }: ChatInnerProps): React
                     {error}
                 </Alert>
             )}
-            <MessageList messages={messages} />
+            <MessageList messages={messages} isStreaming={isStreaming} />
             <Composer onSend={sendMessage} disabled={!connected || isStreaming} />
         </Box>
     );

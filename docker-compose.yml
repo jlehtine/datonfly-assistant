@@ -8,9 +8,9 @@ services:
             POSTGRES_PASSWORD: verbal_assistant
             POSTGRES_DB: verbal_assistant
         volumes:
-            - pgdata:/var/lib/postgresql/data
+            - pgdata:/var/lib/postgresql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U verbal -d verbal_assistant"]
+            test: ["CMD-SHELL", "pg_isready -U verbal_assistant -d verbal_assistant"]
             interval: 5s
             timeout: 5s
             retries: 5
@@ -23,7 +23,7 @@ services:
         volumes:
             - qdrantdata:/qdrant/storage
         healthcheck:
-            test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+            test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
             interval: 5s
             timeout: 5s
             retries: 5

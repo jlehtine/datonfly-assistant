@@ -4,21 +4,39 @@ import type { ErrorEvent, MessageCompleteEvent, MessageDeltaEvent } from "@verba
 
 import { useChatClient } from "./context.js";
 
+/** A single chat message held in local React state. */
 export interface ChatMessage {
+    /** Unique client-side message identifier. */
     id: string;
+    /** Whether the message was sent by the user or the assistant. */
     role: "user" | "assistant";
+    /** Plain-text or Markdown message body. */
     text: string;
+    /** `true` while the assistant is still streaming this message. */
     streaming: boolean;
 }
 
+/** Return value of {@link useMessages}. */
 export interface UseMessagesResult {
+    /** Ordered list of messages in the current thread. */
     messages: ChatMessage[];
+    /** Send a user message to the server. */
     sendMessage: (text: string) => void;
+    /** `true` while the assistant is generating a response. */
     isStreaming: boolean;
+    /** The most recent error message, or `null` if there is none. */
     error: string | null;
+    /** Dismiss the current error. */
     clearError: () => void;
 }
 
+/**
+ * Subscribe to real-time chat messages for a thread and expose a send handler.
+ *
+ * @param threadId - The thread to subscribe to, or `null` if the thread is not yet known.
+ * @param onBeforeSend - Optional async callback invoked before each send; must resolve to the
+ *   thread ID to use (useful when the thread needs to be created lazily).
+ */
 export function useMessages(threadId: string | null, onBeforeSend?: () => Promise<string>): UseMessagesResult {
     const client = useChatClient();
     const [messages, setMessages] = useState<ChatMessage[]>([]);

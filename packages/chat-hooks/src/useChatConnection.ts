@@ -2,11 +2,21 @@ import { useEffect, useRef, useState } from "react";
 
 import { ChatClient } from "@verbal-assistant/chat-client";
 
+/** Configuration options for {@link useChatConnection}. */
 export interface UseChatConnectionConfig {
+    /** WebSocket server URL (e.g. `"http://localhost:3000"`). */
     url: string;
+    /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
     getToken?: (() => string | null) | undefined;
 }
 
+/**
+ * Create and manage a {@link ChatClient} connection for the component lifetime.
+ *
+ * Creates the client on first render, connects immediately, and disconnects on unmount.
+ *
+ * @returns An object containing the stable `client` instance and a reactive `connected` flag.
+ */
 export function useChatConnection(config: UseChatConnectionConfig): { client: ChatClient; connected: boolean } {
     const clientRef = useRef<ChatClient | null>(null);
     const [connected, setConnected] = useState(false);

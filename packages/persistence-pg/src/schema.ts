@@ -2,6 +2,7 @@ import type { ColumnType, Generated, Insertable, Selectable } from "kysely";
 
 // ─── Table Definitions ───
 
+/** Kysely table definition for the `user` database table. */
 export interface UsersTable {
     id: string;
     email: string;
@@ -12,6 +13,7 @@ export interface UsersTable {
     deleted_at: Date | null;
 }
 
+/** Kysely table definition for the `thread` database table. */
 export interface ThreadsTable {
     id: string;
     title: string;
@@ -21,6 +23,7 @@ export interface ThreadsTable {
     memory_enabled: ColumnType<boolean, boolean | undefined, boolean>;
 }
 
+/** Kysely table definition for the `thread_member` database table. */
 export interface ThreadMembersTable {
     user_id: string;
     thread_id: string;
@@ -28,6 +31,7 @@ export interface ThreadMembersTable {
     joined_at: ColumnType<Date, Date | undefined, never>;
 }
 
+/** Kysely table definition for the `message` database table. */
 export interface MessagesTable {
     id: Generated<string>;
     thread_id: string;
@@ -40,6 +44,7 @@ export interface MessagesTable {
 
 // ─── Database ───
 
+/** Kysely database schema mapping table names to their definitions. */
 export interface Database {
     user: UsersTable;
     thread: ThreadsTable;
@@ -49,14 +54,22 @@ export interface Database {
 
 // ─── Row Types ───
 
+/** Selected (read) row type for the `user` table. */
 export type UserRow = Selectable<UsersTable>;
+/** Insertable row type for the `user` table. */
 export type NewUser = Insertable<UsersTable>;
 
+/** Selected (read) row type for the `thread` table. */
 export type ThreadRow = Selectable<ThreadsTable>;
+/** Insertable row type for the `thread` table. */
 export type NewThread = Insertable<ThreadsTable>;
 
+/** Selected (read) row type for the `thread_member` table. */
 export type ThreadMemberRow = Selectable<ThreadMembersTable>;
+/** Insertable row type for the `thread_member` table. */
 export type NewThreadMember = Insertable<ThreadMembersTable>;
 
+/** Selected (read) row type for the `message` table. */
 export type MessageRow = Selectable<MessagesTable>;
+/** Insertable row type for the `message` table. */
 export type NewMessage = Insertable<MessagesTable>;

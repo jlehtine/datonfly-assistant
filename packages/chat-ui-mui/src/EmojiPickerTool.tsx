@@ -29,6 +29,7 @@ function EmojiPickerPanel({
     return <EmojiPicker onEmojiClick={handleEmojiClick} />;
 }
 
+/** Pre-built {@link InputTool} that opens an emoji picker and inserts the chosen emoji at the cursor position. */
 export const emojiPickerTool: InputTool = {
     name: "emoji",
     icon: <EmojiIcon />,

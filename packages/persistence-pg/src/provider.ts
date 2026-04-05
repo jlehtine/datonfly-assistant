@@ -18,6 +18,12 @@ import type {
 
 import type { Database, MessageRow, ThreadMemberRow, ThreadRow, UserRow } from "./schema.js";
 
+/**
+ * {@link IPersistenceProvider} implementation backed by a PostgreSQL database via Kysely.
+ *
+ * Use {@link createPostgresPersistence} to obtain an initialised instance with
+ * migrations applied. Do not instantiate this class directly in application code.
+ */
 export class PostgresPersistenceProvider implements IPersistenceProvider {
     constructor(private readonly db: Kysely<Database>) {}
 

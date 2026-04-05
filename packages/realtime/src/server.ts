@@ -15,15 +15,27 @@ import type {
     ThreadMessage,
 } from "@verbal-assistant/core";
 
+/** Callback that validates a raw JWT string and returns the authenticated user, or `null` on failure. */
 export type ValidateTokenFn = (token: string) => AuthUser | null;
 
+/** Configuration options for {@link ChatRealtimeServer}. */
 export interface ChatRealtimeServerConfig {
+    /** Chat agent that processes incoming messages and streams responses. */
     agent: IChatAgent;
+    /** CORS configuration forwarded to Socket.io. Omit to disable CORS headers. */
     cors?: { origin: string | string[] } | undefined;
+    /** Token validation callback. When provided, unauthenticated connections are rejected. */
     validateToken?: ValidateTokenFn | undefined;
+    /** Persistence provider for loading thread history and saving messages. When omitted, the server operates statelessly. */
     persistence?: IPersistenceProvider | undefined;
 }
 
+/**
+ * Socket.io server that handles real-time chat for one or more threads.
+ *
+ * Attach it to an existing HTTP server via {@link attach}, then call
+ * {@link close} during graceful shutdown.
+ */
 export class ChatRealtimeServer {
     private io: Server | null = null;
     private readonly agent: IChatAgent;
@@ -31,6 +43,7 @@ export class ChatRealtimeServer {
     private readonly validateToken: ValidateTokenFn | undefined;
     private readonly persistence: IPersistenceProvider | undefined;
 
+    /** Create the server with the given configuration. Call {@link attach} to start accepting connections. */
     constructor(config: ChatRealtimeServerConfig) {
         this.agent = config.agent;
         this.corsConfig = config.cors;
@@ -38,6 +51,7 @@ export class ChatRealtimeServer {
         this.persistence = config.persistence;
     }
 
+    /** Attach the Socket.io server to an existing HTTP server and begin accepting connections. */
     attach(httpServer: HttpServer): void {
         const opts: ServerOptions = {} as ServerOptions;
         if (this.corsConfig) {
@@ -149,6 +163,7 @@ export class ChatRealtimeServer {
         }
     }
 
+    /** Gracefully close all active connections and stop the Socket.io server. */
     async close(): Promise<void> {
         await this.io?.close();
     }

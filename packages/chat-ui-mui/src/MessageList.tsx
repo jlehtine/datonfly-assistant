@@ -42,11 +42,21 @@ function ThinkingBubble(): ReactElement {
     );
 }
 
+/** Props for the {@link MessageList} component. */
 export interface MessageListProps {
+    /** Ordered list of messages to render. */
     messages: ChatMessage[];
+    /** When `true`, a typing indicator is shown after the last message. */
     isStreaming?: boolean | undefined;
 }
 
+/**
+ * Scrollable list of {@link MessageBubble} components.
+ *
+ * Automatically scrolls to the bottom whenever the message list or streaming
+ * state changes. Shows an animated thinking indicator while the assistant is
+ * preparing its response.
+ */
 export function MessageList({ messages, isStreaming }: MessageListProps): ReactElement {
     const endRef = useRef<HTMLDivElement>(null);
     const lastMsg = messages[messages.length - 1];

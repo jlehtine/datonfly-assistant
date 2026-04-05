@@ -5,9 +5,9 @@ import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
 import SvgIcon from "@mui/material/SvgIcon";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { formatDistanceToNow } from "date-fns";
@@ -33,6 +33,15 @@ function UnarchiveIcon(): ReactElement {
     );
 }
 
+/** New-conversation icon (Material Design "edit square" / create). */
+function NewConversationIcon(): ReactElement {
+    return (
+        <SvgIcon fontSize="small">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+        </SvgIcon>
+    );
+}
+
 export interface ThreadListPanelProps {
     /** The list of threads to display. */
     threads: Thread[];
@@ -42,6 +51,8 @@ export interface ThreadListPanelProps {
     onSelectThread: (threadId: string) => void;
     /** Called when the user toggles the archived state of a thread. */
     onArchiveToggle: (threadId: string, archived: boolean) => void;
+    /** Called when the user clicks the new-conversation button. */
+    onNewThread?: (() => void) | undefined;
     /** `true` while threads are being loaded. */
     loading?: boolean | undefined;
 }
@@ -59,6 +70,7 @@ export function ThreadListPanel({
     selectedThreadId,
     onSelectThread,
     onArchiveToggle,
+    onNewThread,
     loading = false,
 }: ThreadListPanelProps): ReactElement {
     const [filter, setFilter] = useState<ThreadFilter>("active");
@@ -79,22 +91,24 @@ export function ThreadListPanel({
                 bgcolor: "background.default",
             }}
         >
-            <Box sx={{ px: 1.5, pt: 1.5, pb: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 1, px: 0.5 }}>
-                    Conversations
-                </Typography>
-                <ToggleButtonGroup
+            <Box sx={{ px: 1.5, pt: 1.5, pb: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                {onNewThread && (
+                    <Tooltip title="New conversation">
+                        <IconButton size="small" onClick={onNewThread} aria-label="New conversation">
+                            <NewConversationIcon />
+                        </IconButton>
+                    </Tooltip>
+                )}
+                <Select
                     value={filter}
-                    exclusive
-                    onChange={(_e, v: ThreadFilter | null) => {
-                        if (v) setFilter(v);
-                    }}
+                    onChange={(e) => { setFilter(e.target.value as ThreadFilter); }}
                     size="small"
-                    fullWidth
+                    variant="outlined"
+                    sx={{ flex: 1, fontSize: "0.8125rem" }}
                 >
-                    <ToggleButton value="active">Active</ToggleButton>
-                    <ToggleButton value="archived">Archived</ToggleButton>
-                </ToggleButtonGroup>
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="archived">Archived</MenuItem>
+                </Select>
             </Box>
             <Divider />
             <Box sx={{ flex: 1, overflow: "auto" }}>

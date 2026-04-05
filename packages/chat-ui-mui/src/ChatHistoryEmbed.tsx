@@ -105,6 +105,11 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
         pendingCreateRef.current = null;
     }, []);
 
+    const handleNewThread = useCallback(() => {
+        setSelectedThreadId(null);
+        pendingCreateRef.current = null;
+    }, []);
+
     const isNarrow = useMediaQuery("(max-width:640px)");
     const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -124,16 +129,26 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                     selectedThreadId={selectedThreadId}
                     onSelectThread={handleSelectThread}
                     onArchiveToggle={handleArchiveToggleFromPanel}
+                    onNewThread={handleNewThread}
                     loading={loading}
                 />
             )}
             {isNarrow && (
-                <Drawer open={drawerOpen} onClose={() => { setDrawerOpen(false); }}>
+                <Drawer
+                    open={drawerOpen}
+                    onClose={() => {
+                        setDrawerOpen(false);
+                    }}
+                >
                     <ThreadListPanel
                         threads={threads}
                         selectedThreadId={selectedThreadId}
                         onSelectThread={handleSelectThreadMobile}
                         onArchiveToggle={handleArchiveToggleFromPanel}
+                        onNewThread={() => {
+                            handleNewThread();
+                            setDrawerOpen(false);
+                        }}
                         loading={loading}
                     />
                 </Drawer>
@@ -149,7 +164,11 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                         inputTools,
                         maxRows,
                         thread: selectedThread,
-                        onOpenThreadList: isNarrow ? () => { setDrawerOpen(true); } : undefined,
+                        onOpenThreadList: isNarrow
+                            ? () => {
+                                  setDrawerOpen(true);
+                              }
+                            : undefined,
                     }}
                 />
             </Box>

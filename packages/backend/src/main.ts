@@ -30,7 +30,13 @@ async function bootstrap(): Promise<void> {
 
     const httpServer = app.getHttpAdapter().getHttpServer() as Server;
 
+    const model = process.env.ANTHROPIC_MODEL;
+    if (!model) {
+        throw new Error("ANTHROPIC_MODEL environment variable is required");
+    }
+
     const agent = new LangGraphAgent({
+        modelName: model,
         apiKey: process.env.ANTHROPIC_API_KEY,
     });
 

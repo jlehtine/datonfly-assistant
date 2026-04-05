@@ -7,7 +7,7 @@ import type { IterableReadableStream } from "@langchain/core/utils/stream";
 import type { IChatAgent, ShouldRespondResult, ThreadMessage } from "@verbal-assistant/core";
 
 export interface LangGraphAgentConfig {
-    modelName?: string | undefined;
+    modelName: string;
     apiKey?: string | undefined;
     temperature?: number | undefined;
     maxTokens?: number | undefined;
@@ -16,9 +16,9 @@ export interface LangGraphAgentConfig {
 export class LangGraphAgent implements IChatAgent {
     private readonly model: ChatAnthropic;
 
-    constructor(config: LangGraphAgentConfig = {}) {
+    constructor(config: LangGraphAgentConfig) {
         const options: ConstructorParameters<typeof ChatAnthropic>[0] = {
-            model: config.modelName ?? "claude-sonnet-4-20250514",
+            model: config.modelName,
             temperature: config.temperature ?? 0.7,
             maxTokens: config.maxTokens ?? 4096,
         };

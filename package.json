@@ -8,6 +8,9 @@
         "lint:fix": "turbo run lint:fix",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
+        "start": "pnpm --filter @verbal-assistant/backend start",
+        "dev": "pnpm --filter @verbal-assistant/frontend dev",
+        "test:e2e": "playwright test",
         "prepare": "husky"
     },
     "devDependencies": {

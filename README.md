@@ -22,11 +22,11 @@ pnpm install
 # Build all packages
 pnpm build
 
-# Start the backend (needs an Anthropic API key)
-pnpm --filter @verbal-assistant/backend start
+# Start the backend
+pnpm start
 
 # In another terminal, start the frontend dev server
-pnpm --filter @verbal-assistant/frontend dev
+pnpm dev
 ```
 
 Open http://localhost:5173 — the frontend proxies WebSocket connections to the
@@ -42,5 +42,5 @@ running (see Quick Start above).
 npx playwright install chromium
 
 # Run tests
-npx playwright test
+pnpm test:e2e
 ```

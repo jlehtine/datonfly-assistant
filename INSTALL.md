@@ -78,6 +78,10 @@ JWT_SECRET=a-strong-random-secret
 - **`JWT_SECRET`** — Secret used to sign session JWTs. Auto-generated if omitted
   but should be set explicitly in production for persistent sessions across
   restarts.
+- **`OIDC_ALLOWED_EMAIL_DOMAIN`** _(optional)_ — If set, only users whose email
+  address ends with `@<domain>` are allowed to log in (e.g. `example.com`).
+  Useful when the identity provider cannot restrict sign-ins to a single
+  organization.
 
 ---
 

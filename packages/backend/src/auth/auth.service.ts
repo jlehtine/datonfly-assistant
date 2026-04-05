@@ -18,6 +18,8 @@ export interface AuthConfig {
               redirectUri: string;
           }
         | undefined;
+    /** If set, only emails ending with this domain are allowed (e.g. "example.com"). */
+    allowedEmailDomain?: string | undefined;
     /** Only used when mode === "fake" */
     fakeUser?:
         | {
@@ -116,10 +118,19 @@ export class AuthService {
             throw new Error("No ID token claims returned");
         }
 
+        const email = (claims.email as string | undefined) ?? "";
+
+        if (this.config.allowedEmailDomain) {
+            const domain = email.split("@")[1];
+            if (domain?.toLowerCase() !== this.config.allowedEmailDomain.toLowerCase()) {
+                throw new Error(`Email domain not allowed. Expected @${this.config.allowedEmailDomain}, got ${email}`);
+            }
+        }
+
         const user: AuthUser = {
             id: randomUUID(),
-            email: (claims.email as string | undefined) ?? "",
-            name: (claims.name as string | undefined) ?? (claims.email as string | undefined) ?? "Unknown",
+            email,
+            name: (claims.name as string | undefined) ?? (email || "Unknown"),
             avatarUrl: (claims.picture as string | undefined) ?? undefined,
         };
 

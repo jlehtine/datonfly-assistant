@@ -31,9 +31,12 @@ async function bootstrap(): Promise<void> {
         console.log("AUTH_MODE=fake — using fake authentication (no login required)");
     }
 
+    const allowedEmailDomain = process.env.OIDC_ALLOWED_EMAIL_DOMAIN;
+
     const authConfig: AuthConfig = {
         mode: authMode,
         jwtSecret,
+        allowedEmailDomain,
         oidc:
             authMode === "oidc"
                 ? {

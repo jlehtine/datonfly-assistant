@@ -6,6 +6,9 @@ AI chat platform for teams.
 > no tools. All conversation state lives in the browser; refreshing starts a new
 > chat.
 
+See [INSTALL.md](INSTALL.md) for detailed setup instructions and
+[CONVENTIONS.md](CONVENTIONS.md) for coding and database conventions.
+
 ## Prerequisites
 
 - Node.js >= 22

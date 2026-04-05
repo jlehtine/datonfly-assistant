@@ -15,7 +15,10 @@ export function MessageBubble({ message }: MessageBubbleProps): ReactElement {
     const isUser = message.role === "user";
 
     return (
-        <Box sx={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start", mb: 1 }}>
+        <Box
+            sx={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start", mb: 1 }}
+            data-role={message.role}
+        >
             <Paper
                 elevation={1}
                 sx={{

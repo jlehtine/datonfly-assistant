@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
-import type { KeyboardEvent, ReactElement } from "react";
+import { useEffect, useRef, type KeyboardEvent, type ReactElement } from "react";
 
 import { useComposer } from "@verbal-assistant/chat-hooks";
 
@@ -12,6 +12,13 @@ export interface ComposerProps {
 
 export function Composer({ onSend, disabled }: ComposerProps): ReactElement {
     const { text, setText, submit } = useComposer(onSend);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (!disabled) {
+            inputRef.current?.focus();
+        }
+    }, [disabled]);
 
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -23,6 +30,7 @@ export function Composer({ onSend, disabled }: ComposerProps): ReactElement {
     return (
         <Box sx={{ display: "flex", gap: 1, p: 2, borderTop: 1, borderColor: "divider" }}>
             <TextField
+                inputRef={inputRef}
                 fullWidth
                 multiline
                 maxRows={4}

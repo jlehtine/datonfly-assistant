@@ -184,10 +184,10 @@ function threadMessagesToBaseMessages(messages: ThreadMessage[]): BaseMessage[] 
     let lastTimestamp: Date | null = null;
 
     for (const msg of messages) {
-        const ts = msg.createdAt;
-        if (lastTimestamp === null || ts.getTime() - lastTimestamp.getTime() >= ONE_HOUR_MS) {
-            result.push(new SystemMessage(`@ ${formatTimestamp(ts)}`));
-            lastTimestamp = ts;
+        const messageTimestamp = msg.createdAt;
+        if (lastTimestamp === null || messageTimestamp.getTime() - lastTimestamp.getTime() >= ONE_HOUR_MS) {
+            result.push(new SystemMessage(`@ ${formatTimestamp(messageTimestamp)}`));
+            lastTimestamp = messageTimestamp;
         }
         const text = extractText(msg.content);
         switch (msg.role) {

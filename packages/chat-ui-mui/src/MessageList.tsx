@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import { keyframes } from "@mui/material/styles";
 import { useEffect, useRef, type ReactElement } from "react";
+import type { Components } from "react-markdown";
 
 import type { ChatMessage } from "@verbal-assistant/chat-hooks";
 
@@ -48,6 +49,12 @@ export interface MessageListProps {
     messages: ChatMessage[];
     /** When `true`, a typing indicator is shown after the last message. */
     isStreaming?: boolean | undefined;
+    /**
+     * Optional custom element renderers forwarded to each {@link MessageBubble}.
+     * Use this to enable syntax highlighting by passing `highlightComponents`
+     * from `@verbal-assistant/chat-ui-mui/highlight`.
+     */
+    components?: Components | undefined;
 }
 
 /**
@@ -57,7 +64,7 @@ export interface MessageListProps {
  * state changes. Shows an animated thinking indicator while the assistant is
  * preparing its response.
  */
-export function MessageList({ messages, isStreaming }: MessageListProps): ReactElement {
+export function MessageList({ messages, isStreaming, components }: MessageListProps): ReactElement {
     const endRef = useRef<HTMLDivElement>(null);
     const lastMsg = messages[messages.length - 1];
     const showThinking = isStreaming === true && !lastMsg?.streaming;
@@ -69,7 +76,7 @@ export function MessageList({ messages, isStreaming }: MessageListProps): ReactE
     return (
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
             {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
+                <MessageBubble key={msg.id} message={msg} components={components} />
             ))}
             {showThinking && <ThinkingBubble />}
             <div ref={endRef} />

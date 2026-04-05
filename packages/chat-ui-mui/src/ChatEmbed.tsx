@@ -2,6 +2,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { ComponentType, ReactElement } from "react";
+import type { Components } from "react-markdown";
 
 import { ChatClientContext, useChatConnection, useMessages } from "@verbal-assistant/chat-hooks";
 
@@ -25,6 +26,12 @@ export interface ChatEmbedConfig {
     inputTools?: InputTool[] | undefined;
     /** Maximum number of visible rows in the composer textarea before it scrolls. */
     maxRows?: number | undefined;
+    /**
+     * Optional custom element renderers for message markdown.
+     * Pass `highlightComponents` from `@verbal-assistant/chat-ui-mui/highlight`
+     * to enable syntax highlighting for code blocks in completed messages.
+     */
+    messageComponents?: Components | undefined;
 }
 
 /** Props for the {@link ChatEmbed} component. */
@@ -52,6 +59,7 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                 inputComponent={config.inputComponent}
                 inputTools={config.inputTools}
                 maxRows={config.maxRows}
+                messageComponents={config.messageComponents}
             />
         </ChatClientContext.Provider>
     );
@@ -64,6 +72,7 @@ interface ChatInnerProps {
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
     inputTools?: InputTool[] | undefined;
     maxRows?: number | undefined;
+    messageComponents?: Components | undefined;
 }
 
 function ChatInner({
@@ -73,6 +82,7 @@ function ChatInner({
     inputComponent,
     inputTools,
     maxRows,
+    messageComponents,
 }: ChatInnerProps): ReactElement {
     const { messages, sendMessage, isStreaming, error, clearError } = useMessages(threadId, onBeforeSend);
 
@@ -88,7 +98,7 @@ function ChatInner({
                     {error}
                 </Alert>
             )}
-            <MessageList messages={messages} isStreaming={isStreaming} />
+            <MessageList messages={messages} isStreaming={isStreaming} components={messageComponents} />
             <Composer
                 onSend={sendMessage}
                 disabled={!connected || isStreaming}

@@ -10,4 +10,8 @@ export interface User {
     avatarUrl?: string | undefined;
     /** Timestamp when the user record was created. */
     createdAt: Date;
+    /** Timestamp of the user's most recent successful authentication. */
+    lastLoginAt?: Date | undefined;
+    /** Timestamp of logical deletion (soft-delete). `undefined` means the user is active. */
+    deletedAt?: Date | undefined;
 }

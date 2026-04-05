@@ -4,11 +4,13 @@ import { Injectable } from "@nestjs/common";
 import jsonwebtoken from "jsonwebtoken";
 import * as client from "openid-client";
 
-import type { AuthUser } from "@verbal-assistant/core";
+import type { AuthUser, IPersistenceProvider } from "@verbal-assistant/core";
 
 export interface AuthConfig {
     mode: "fake" | "oidc";
     jwtSecret: string;
+    /** Optional persistence provider for user upsert (stable IDs). */
+    persistence?: IPersistenceProvider | undefined;
     /** Only required when mode === "oidc" */
     oidc?:
         | {
@@ -41,6 +43,8 @@ export class AuthService {
     private oidcConfig: client.Configuration | null = null;
     /** Maps state → PKCE session data. */
     private readonly pkceSessions = new Map<string, PkceSession>();
+    /** Resolved fake user (DB-backed when persistence is available). */
+    private resolvedFakeUser: AuthUser | null = null;
 
     constructor(config: AuthConfig) {
         this.config = config;
@@ -53,6 +57,23 @@ export class AuthService {
                 throw new Error("OIDC config is required when AUTH_MODE=oidc");
             }
             this.oidcConfig = await client.discovery(new URL(oidc.issuerUrl), oidc.clientId, oidc.clientSecret);
+        }
+
+        // Upsert fake user to DB at startup for stable IDs
+        if (this.config.mode === "fake" && this.config.persistence) {
+            const fakeUser = this.config.fakeUser ?? { email: "dev@localhost", name: "Dev User" };
+            const dbUser = await this.config.persistence.upsertUser({
+                id: "00000000-0000-0000-0000-000000000000",
+                email: fakeUser.email,
+                name: fakeUser.name,
+                lastLoginAt: new Date(),
+            });
+            this.resolvedFakeUser = {
+                id: dbUser.id,
+                email: dbUser.email,
+                name: dbUser.name,
+                avatarUrl: dbUser.avatarUrl,
+            };
         }
     }
 
@@ -127,18 +148,36 @@ export class AuthService {
             }
         }
 
-        const user: AuthUser = {
+        let user: AuthUser = {
             id: randomUUID(),
             email,
             name: (claims.name as string | undefined) ?? (email || "Unknown"),
             avatarUrl: (claims.picture as string | undefined) ?? undefined,
         };
 
+        // Upsert to DB for stable IDs across logins
+        if (this.config.persistence) {
+            const dbUser = await this.config.persistence.upsertUser({
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                avatarUrl: user.avatarUrl,
+                lastLoginAt: new Date(),
+            });
+            user = {
+                id: dbUser.id,
+                email: dbUser.email,
+                name: dbUser.name,
+                avatarUrl: dbUser.avatarUrl,
+            };
+        }
+
         const accessToken = this.signToken(user);
         return { accessToken, user };
     }
 
     getFakeUser(): AuthUser {
+        if (this.resolvedFakeUser) return this.resolvedFakeUser;
         const fakeUser = this.config.fakeUser ?? { email: "dev@localhost", name: "Dev User" };
         return {
             id: "00000000-0000-0000-0000-000000000000",

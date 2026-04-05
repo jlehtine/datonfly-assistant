@@ -9,10 +9,13 @@ import { NestFactory } from "@nestjs/core";
 import { config } from "dotenv";
 
 import { LangGraphAgent } from "@verbal-assistant/agent-langchain";
+import type { IPersistenceProvider } from "@verbal-assistant/core";
+import { createPostgresPersistence } from "@verbal-assistant/persistence-pg";
 import { ChatRealtimeServer } from "@verbal-assistant/realtime";
 
 import { AppModule } from "./app.module.js";
 import { AuthModule, AuthService, type AuthConfig } from "./auth/index.js";
+import { ThreadModule } from "./thread/thread.module.js";
 
 // Load .env from monorepo root (two levels up from packages/backend)
 for (const candidate of [".env", "../../.env"]) {
@@ -31,11 +34,24 @@ async function bootstrap(): Promise<void> {
         console.log("AUTH_MODE=fake — using fake authentication (no login required)");
     }
 
+    // ─── Persistence ───
+    const databaseUrl = process.env.DATABASE_URL;
+    let persistence: IPersistenceProvider | undefined;
+    let destroyPersistence: (() => Promise<void>) | undefined;
+
+    if (databaseUrl) {
+        const pg = await createPostgresPersistence({ connectionString: databaseUrl });
+        persistence = pg.provider;
+        destroyPersistence = pg.destroy;
+        console.log("PostgreSQL persistence initialized");
+    }
+
     const allowedEmailDomain = process.env.OIDC_ALLOWED_EMAIL_DOMAIN;
 
     const authConfig: AuthConfig = {
         mode: authMode,
         jwtSecret,
+        persistence,
         allowedEmailDomain,
         oidc:
             authMode === "oidc"
@@ -60,7 +76,12 @@ async function bootstrap(): Promise<void> {
     const authService = new AuthService(authConfig);
     await authService.initialize();
 
-    const app = await NestFactory.create(AppModule.register(AuthModule.create(authService)));
+    const extraModules = [];
+    if (persistence) {
+        extraModules.push(ThreadModule.create(persistence));
+    }
+
+    const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules));
 
     app.enableCors({
         origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
@@ -80,6 +101,7 @@ async function bootstrap(): Promise<void> {
 
     const realtime = new ChatRealtimeServer({
         agent,
+        persistence,
         cors: {
             origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
         },
@@ -91,6 +113,17 @@ async function bootstrap(): Promise<void> {
     const port = process.env.PORT ?? "3000";
     await app.listen(port);
     console.log(`Backend listening on port ${port}`);
+
+    // Graceful shutdown
+    const shutdown = async (): Promise<void> => {
+        console.log("Shutting down...");
+        await realtime.close();
+        await app.close();
+        await destroyPersistence?.();
+        process.exit(0);
+    };
+    process.on("SIGTERM", () => void shutdown());
+    process.on("SIGINT", () => void shutdown());
 }
 
 void bootstrap();

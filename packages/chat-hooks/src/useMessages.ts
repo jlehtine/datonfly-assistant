@@ -19,16 +19,22 @@ export interface UseMessagesResult {
     clearError: () => void;
 }
 
-export function useMessages(threadId: string): UseMessagesResult {
+export function useMessages(threadId: string | null, onBeforeSend?: () => Promise<string>): UseMessagesResult {
     const client = useChatClient();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const streamingIdRef = useRef<string | null>(null);
+    const resolvedThreadIdRef = useRef(threadId);
+
+    // Keep ref in sync when parent passes a new threadId
+    useEffect(() => {
+        resolvedThreadIdRef.current = threadId;
+    }, [threadId]);
 
     useEffect(() => {
         const handleDelta = (event: MessageDeltaEvent): void => {
-            if (event.threadId !== threadId) return;
+            if (event.threadId !== resolvedThreadIdRef.current) return;
 
             if (streamingIdRef.current !== event.messageId) {
                 streamingIdRef.current = event.messageId;
@@ -44,7 +50,7 @@ export function useMessages(threadId: string): UseMessagesResult {
         };
 
         const handleComplete = (event: MessageCompleteEvent): void => {
-            if (event.threadId !== threadId) return;
+            if (event.threadId !== resolvedThreadIdRef.current) return;
 
             const fullText = event.content
                 .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
@@ -73,7 +79,7 @@ export function useMessages(threadId: string): UseMessagesResult {
             client.off("message-complete", handleComplete);
             client.off("error", handleError);
         };
-    }, [client, threadId]);
+    }, [client]);
 
     const sendMessage = useCallback(
         (text: string) => {
@@ -86,9 +92,20 @@ export function useMessages(threadId: string): UseMessagesResult {
             setMessages((prev) => [...prev, userMsg]);
             setIsStreaming(true);
             setError(null);
-            client.sendMessage(threadId, text);
+
+            void (async () => {
+                try {
+                    const tid = onBeforeSend ? await onBeforeSend() : resolvedThreadIdRef.current;
+                    if (!tid) return;
+                    resolvedThreadIdRef.current = tid;
+                    client.sendMessage(tid, text);
+                } catch (e: unknown) {
+                    setError(e instanceof Error ? e.message : "Failed to send message");
+                    setIsStreaming(false);
+                }
+            })();
         },
-        [client, threadId],
+        [client, onBeforeSend],
     );
 
     const clearError = useCallback(() => {

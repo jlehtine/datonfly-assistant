@@ -13,6 +13,9 @@ export default defineConfig({
             "/auth": {
                 target: "http://localhost:3000",
             },
+            "/threads": {
+                target: "http://localhost:3000",
+            },
         },
     },
 });

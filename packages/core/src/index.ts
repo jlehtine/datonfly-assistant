@@ -3,7 +3,6 @@ export type {
     AuthUser,
     User,
     Thread,
-    ThreadType,
     ThreadMember,
     ThreadMemberRole,
     ThreadMessage,

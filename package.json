@@ -3,6 +3,7 @@
     "private": true,
     "packageManager": "pnpm@10.29.2",
     "scripts": {
+        "clean": "turbo run clean",
         "build": "turbo run build",
         "lint": "turbo run lint",
         "lint:fix": "turbo run lint:fix",
@@ -11,6 +12,7 @@
         "start": "pnpm --filter @verbal-assistant/backend start",
         "dev": "pnpm --filter @verbal-assistant/frontend dev",
         "test:e2e": "playwright test",
+        "psql": "docker compose exec postgres psql -U verbal_assistant -d verbal_assistant",
         "prepare": "husky"
     },
     "devDependencies": {

@@ -1,13 +1,11 @@
 import type { ContentPart, ThreadMessage } from "../types/message.js";
-import type { Thread, ThreadMember, ThreadMemberRole, ThreadType } from "../types/thread.js";
+import type { Thread, ThreadMember, ThreadMemberRole } from "../types/thread.js";
 import type { User } from "../types/user.js";
 
 /** Options for creating a new thread. */
 export interface CreateThreadOptions {
     /** Human-readable title. */
     title: string;
-    /** Whether this is a personal agent chat or a multi-user room. */
-    type: ThreadType;
     /** User ID of the thread creator (becomes the owner). */
     creatorId: string;
 }
@@ -68,7 +66,7 @@ export interface IPersistenceProvider {
     /** Update mutable thread properties. */
     updateThread(
         threadId: string,
-        updates: Partial<Pick<Thread, "title" | "archived" | "memoryEnabled">>,
+        updates: Partial<Pick<Thread, "title" | "archivedAt" | "memoryEnabled">>,
     ): Promise<Thread>;
     /** Permanently delete a thread and all its messages. */
     deleteThread(threadId: string): Promise<void>;

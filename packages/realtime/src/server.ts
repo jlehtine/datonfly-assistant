@@ -1,16 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { Server as HttpServer } from "node:http";
 
-import { HumanMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import { Server, type ServerOptions, type Socket } from "socket.io";
 
 import type {
     AuthUser,
     ContentPart,
     IChatAgent,
+    IPersistenceProvider,
     MessageCompleteEvent,
     MessageDeltaEvent,
     SendMessageEvent,
+    ThreadMessage,
 } from "@verbal-assistant/core";
 
 export type ValidateTokenFn = (token: string) => AuthUser | null;
@@ -19,6 +21,7 @@ export interface ChatRealtimeServerConfig {
     agent: IChatAgent;
     cors?: { origin: string | string[] } | undefined;
     validateToken?: ValidateTokenFn | undefined;
+    persistence?: IPersistenceProvider | undefined;
 }
 
 export class ChatRealtimeServer {
@@ -26,11 +29,13 @@ export class ChatRealtimeServer {
     private readonly agent: IChatAgent;
     private readonly corsConfig: { origin: string | string[] } | undefined;
     private readonly validateToken: ValidateTokenFn | undefined;
+    private readonly persistence: IPersistenceProvider | undefined;
 
     constructor(config: ChatRealtimeServerConfig) {
         this.agent = config.agent;
         this.corsConfig = config.cors;
         this.validateToken = config.validateToken;
+        this.persistence = config.persistence;
     }
 
     attach(httpServer: HttpServer): void {
@@ -71,12 +76,37 @@ export class ChatRealtimeServer {
         const user = (socket.data as { user?: AuthUser | undefined }).user;
         const userId = user?.id ?? "anonymous";
 
-        const textContent = content
-            .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
-            .map((part) => part.text)
-            .join("\n");
+        // Membership guard
+        if (this.persistence && user) {
+            const isMember = await this.persistence.isMember(threadId, user.id);
+            if (!isMember) {
+                socket.emit("error", { event: "error", message: "Not a member of this thread" });
+                return;
+            }
+        }
 
-        const messages = [new HumanMessage(textContent)];
+        let messages: BaseMessage[];
+
+        if (this.persistence) {
+            // Persist the user message
+            await this.persistence.appendMessage({
+                threadId,
+                role: "user",
+                content,
+                authorId: user?.id ?? null,
+            });
+
+            // Load full history and convert to BaseMessage[]
+            const history = await this.persistence.loadMessages({ threadId });
+            messages = threadMessagesToBaseMessages(history);
+        } else {
+            // Stateless fallback: single message
+            const textContent = content
+                .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
+                .map((part) => part.text)
+                .join("\n");
+            messages = [new HumanMessage(textContent)];
+        }
 
         try {
             const stream = await this.agent.stream(messages, threadId, userId);
@@ -96,6 +126,16 @@ export class ChatRealtimeServer {
                 }
             }
 
+            // Persist assistant response
+            if (this.persistence) {
+                await this.persistence.appendMessage({
+                    threadId,
+                    role: "assistant",
+                    content: [{ type: "text", text: fullText }],
+                    authorId: null,
+                });
+            }
+
             const completeEvent: MessageCompleteEvent = {
                 event: "message-complete",
                 threadId,
@@ -112,4 +152,27 @@ export class ChatRealtimeServer {
     async close(): Promise<void> {
         await this.io?.close();
     }
+}
+
+// ─── Helpers ───
+
+function extractText(content: ContentPart[]): string {
+    return content
+        .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
+        .map((part) => part.text)
+        .join("\n");
+}
+
+function threadMessagesToBaseMessages(messages: ThreadMessage[]): BaseMessage[] {
+    return messages.map((msg) => {
+        const text = extractText(msg.content);
+        switch (msg.role) {
+            case "user":
+                return new HumanMessage(text);
+            case "assistant":
+                return new AIMessage(text);
+            case "system":
+                return new SystemMessage(text);
+        }
+    });
 }

@@ -36,8 +36,7 @@ export const contentPartSchema = z.discriminatedUnion("type", [
 
 /** Zod schema for a request to create a new thread. */
 export const createThreadRequestSchema = z.object({
-    title: z.string().min(1).max(200),
-    type: z.enum(["personal", "room"]),
+    title: z.string().min(1).max(200).optional().default("Conversation"),
 });
 
 /** Validated request body for creating a new thread. */
@@ -46,7 +45,7 @@ export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 /** Zod schema for a request to update an existing thread. */
 export const updateThreadRequestSchema = z.object({
     title: z.string().min(1).max(200).optional(),
-    archived: z.boolean().optional(),
+    archivedAt: z.coerce.date().nullable().optional(),
     memoryEnabled: z.boolean().optional(),
 });
 

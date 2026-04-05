@@ -1,5 +1,5 @@
 {
-    "name": "@verbal-assistant/agent-langchain",
+    "name": "@verbal-assistant/persistence-pg",
     "version": "0.0.1",
     "private": true,
     "type": "module",
@@ -18,14 +18,15 @@
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
-        "@langchain/anthropic": "^1.3.0",
-        "@langchain/core": "^1.1.39"
+        "kysely": "^0.28.2",
+        "pg": "^8.16.0"
     },
     "peerDependencies": {
         "@verbal-assistant/core": "workspace:*"
     },
     "devDependencies": {
         "@verbal-assistant/core": "workspace:*",
+        "@types/pg": "^8.15.4",
         "typescript": "^6.0.2"
     }
 }

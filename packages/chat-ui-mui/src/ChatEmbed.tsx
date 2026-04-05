@@ -12,32 +12,32 @@ export interface ChatEmbedConfig {
     url: string;
     threadId?: string | undefined;
     getToken?: (() => string | null) | undefined;
+    onBeforeSend?: (() => Promise<string>) | undefined;
 }
 
 export interface ChatEmbedProps {
     config: ChatEmbedConfig;
 }
 
-const DEFAULT_THREAD_ID = "default";
-
 export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
     const { client, connected } = useChatConnection({ url: config.url, getToken: config.getToken });
-    const threadId = config.threadId ?? DEFAULT_THREAD_ID;
+    const threadId = config.threadId ?? null;
 
     return (
         <ChatClientContext.Provider value={client}>
-            <ChatInner threadId={threadId} connected={connected} />
+            <ChatInner threadId={threadId} connected={connected} onBeforeSend={config.onBeforeSend} />
         </ChatClientContext.Provider>
     );
 }
 
 interface ChatInnerProps {
-    threadId: string;
+    threadId: string | null;
     connected: boolean;
+    onBeforeSend?: (() => Promise<string>) | undefined;
 }
 
-function ChatInner({ threadId, connected }: ChatInnerProps): ReactElement {
-    const { messages, sendMessage, isStreaming, error, clearError } = useMessages(threadId);
+function ChatInner({ threadId, connected, onBeforeSend }: ChatInnerProps): ReactElement {
+    const { messages, sendMessage, isStreaming, error, clearError } = useMessages(threadId, onBeforeSend);
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>

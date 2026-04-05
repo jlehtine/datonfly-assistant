@@ -1,8 +1,11 @@
 import { Controller, Get, Query, Redirect, Req, Res, UnauthorizedException } from "@nestjs/common";
 import type { Request, Response } from "express";
 
+import { Public } from "../guards/jwt-auth.guard.js";
+
 import { AuthService } from "./auth.service.js";
 
+@Public()
 @Controller("auth")
 export class AuthController {
     constructor(private readonly authService: AuthService) {}

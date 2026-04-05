@@ -186,7 +186,7 @@ function formatTimestamp(date: Date): string {
     const offsetHours = Math.floor(absOffset / 60);
     const offsetMins = absOffset % 60;
     return (
-        `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+        `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
         `T${pad(date.getHours())}:${pad(date.getMinutes())}` +
         `${sign}${pad(offsetHours)}:${pad(offsetMins)}`
     );
@@ -201,7 +201,7 @@ function threadMessagesToBaseMessages(messages: ThreadMessage[]): BaseMessage[] 
     for (const msg of messages) {
         const messageTimestamp = msg.createdAt;
         if (lastTimestamp === null || messageTimestamp.getTime() - lastTimestamp.getTime() >= ONE_HOUR_MS) {
-            result.push(new SystemMessage(`@ ${formatTimestamp(messageTimestamp)}`));
+            result.push(new HumanMessage(`@ ${formatTimestamp(messageTimestamp)}`));
             lastTimestamp = messageTimestamp;
         }
         const text = extractText(msg.content);

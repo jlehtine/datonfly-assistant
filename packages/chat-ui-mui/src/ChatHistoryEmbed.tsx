@@ -87,19 +87,6 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
         return promise;
     }, [selectedThreadId, getToken, url, refresh]);
 
-    const handleArchiveToggle = useCallback(
-        (archived: boolean) => {
-            if (!selectedThreadId) return;
-            void setArchived(selectedThreadId, archived).then(() => {
-                // Deselect if the current thread was archived and we want a clean state
-                if (archived) {
-                    setSelectedThreadId(null);
-                }
-            });
-        },
-        [selectedThreadId, setArchived],
-    );
-
     const handleArchiveToggleFromPanel = useCallback(
         (threadId: string, archived: boolean) => {
             void setArchived(threadId, archived).then(() => {
@@ -141,7 +128,6 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                         inputTools,
                         maxRows,
                         thread: selectedThread,
-                        onArchiveToggle: selectedThread ? handleArchiveToggle : undefined,
                     }}
                 />
             </Box>

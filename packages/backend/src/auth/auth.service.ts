@@ -9,6 +9,8 @@ import type { AuthUser, IPersistenceProvider } from "@verbal-assistant/core";
 export interface AuthConfig {
     mode: "fake" | "oidc";
     jwtSecret: string;
+    /** Frontend origin URL, used for OIDC callback redirects. */
+    frontendUrl?: string | undefined;
     /** Optional persistence provider for user upsert (stable IDs). */
     persistence?: IPersistenceProvider | undefined;
     /** Only required when mode === "oidc" */
@@ -50,7 +52,13 @@ export class AuthService {
         this.config = config;
     }
 
+    // ── Lifecycle ──
+
     async initialize(): Promise<void> {
+        if (this.config.mode === "fake") {
+            console.log("AUTH_MODE=fake — using fake authentication (no login required)");
+        }
+
         if (this.config.mode === "oidc") {
             const oidc = this.config.oidc;
             if (!oidc) {
@@ -77,11 +85,88 @@ export class AuthService {
         }
     }
 
-    async buildLoginUrl(): Promise<string> {
-        if (this.config.mode === "fake") {
-            throw new Error("Login URL not available in fake auth mode");
-        }
+    // ── Public API (mode-agnostic) ──
 
+    async getLoginUrl(): Promise<string> {
+        if (this.config.mode === "fake") return "/";
+        return this.buildOidcLoginUrl();
+    }
+
+    async handleCallback(callbackUrl: URL): Promise<string> {
+        if (this.config.mode === "fake") return "/";
+
+        const { accessToken } = await this.performOidcCallback(callbackUrl);
+        const frontendUrl = this.config.frontendUrl ?? "http://localhost:5173";
+        return `${frontendUrl}/#token=${accessToken}`;
+    }
+
+    authenticateRequest(authorizationHeader: string | undefined): AuthUser | null {
+        if (this.config.mode === "fake") return this.getFakeUser();
+        return this.verifyBearerHeader(authorizationHeader);
+    }
+
+    getAuthInfo(authorizationHeader: string | undefined): { user: AuthUser; token: string } | null {
+        if (this.config.mode === "fake") {
+            const user = this.getFakeUser();
+            return { user, token: this.signToken(user) };
+        }
+        if (!authorizationHeader?.startsWith("Bearer ")) return null;
+        const token = authorizationHeader.slice(7);
+        const user = this.verifyToken(token);
+        if (!user) return null;
+        return { user, token };
+    }
+
+    authenticateToken(token: string): AuthUser | null {
+        if (this.config.mode === "fake") return this.getFakeUser();
+        return this.verifyToken(token);
+    }
+
+    // ── Internal helpers ──
+
+    private getFakeUser(): AuthUser {
+        if (this.resolvedFakeUser) return this.resolvedFakeUser;
+        const fakeUser = this.config.fakeUser ?? { email: "dev@localhost", name: "Dev User" };
+        return {
+            id: "00000000-0000-0000-0000-000000000000",
+            email: fakeUser.email,
+            name: fakeUser.name,
+        };
+    }
+
+    private signToken(user: AuthUser): string {
+        return jsonwebtoken.sign(
+            {
+                sub: user.id,
+                email: user.email,
+                name: user.name,
+                avatarUrl: user.avatarUrl,
+            },
+            this.config.jwtSecret,
+            { expiresIn: "24h" },
+        );
+    }
+
+    private verifyToken(token: string): AuthUser | null {
+        try {
+            const payload = jsonwebtoken.verify(token, this.config.jwtSecret) as jsonwebtoken.JwtPayload;
+            return {
+                id: payload.sub ?? "",
+                email: (payload.email as string | undefined) ?? "",
+                name: (payload.name as string | undefined) ?? "",
+                avatarUrl: (payload.avatarUrl as string | undefined) ?? undefined,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    private verifyBearerHeader(authorizationHeader: string | undefined): AuthUser | null {
+        if (!authorizationHeader?.startsWith("Bearer ")) return null;
+        return this.verifyToken(authorizationHeader.slice(7));
+    }
+
+    private async buildOidcLoginUrl(): Promise<string> {
         const oidc = this.config.oidc;
         const config = this.oidcConfig;
         if (!oidc || !config) {
@@ -107,11 +192,7 @@ export class AuthService {
         return url.href;
     }
 
-    async handleCallback(callbackUrl: URL): Promise<{ accessToken: string; user: AuthUser }> {
-        if (this.config.mode === "fake") {
-            throw new Error("Callback not available in fake auth mode");
-        }
-
+    private async performOidcCallback(callbackUrl: URL): Promise<{ accessToken: string; user: AuthUser }> {
         const config = this.oidcConfig;
         if (!config) {
             throw new Error("OIDC config is required when AUTH_MODE=oidc");
@@ -174,50 +255,5 @@ export class AuthService {
 
         const accessToken = this.signToken(user);
         return { accessToken, user };
-    }
-
-    getFakeUser(): AuthUser {
-        if (this.resolvedFakeUser) return this.resolvedFakeUser;
-        const fakeUser = this.config.fakeUser ?? { email: "dev@localhost", name: "Dev User" };
-        return {
-            id: "00000000-0000-0000-0000-000000000000",
-            email: fakeUser.email,
-            name: fakeUser.name,
-        };
-    }
-
-    getFakeToken(): string {
-        return this.signToken(this.getFakeUser());
-    }
-
-    signToken(user: AuthUser): string {
-        return jsonwebtoken.sign(
-            {
-                sub: user.id,
-                email: user.email,
-                name: user.name,
-                avatarUrl: user.avatarUrl,
-            },
-            this.config.jwtSecret,
-            { expiresIn: "24h" },
-        );
-    }
-
-    verifyToken(token: string): AuthUser | null {
-        try {
-            const payload = jsonwebtoken.verify(token, this.config.jwtSecret) as jsonwebtoken.JwtPayload;
-            return {
-                id: payload.sub ?? "",
-                email: (payload.email as string | undefined) ?? "",
-                name: (payload.name as string | undefined) ?? "",
-                avatarUrl: (payload.avatarUrl as string | undefined) ?? undefined,
-            };
-        } catch {
-            return null;
-        }
-    }
-
-    get isFakeMode(): boolean {
-        return this.config.mode === "fake";
     }
 }

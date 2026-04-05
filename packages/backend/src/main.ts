@@ -29,10 +29,7 @@ for (const candidate of [".env", "../../.env"]) {
 async function bootstrap(): Promise<void> {
     const authMode = (process.env.AUTH_MODE ?? "fake") as "fake" | "oidc";
     const jwtSecret = process.env.JWT_SECRET ?? randomUUID();
-
-    if (authMode === "fake") {
-        console.log("AUTH_MODE=fake — using fake authentication (no login required)");
-    }
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
 
     // ─── Persistence ───
     const databaseUrl = process.env.DATABASE_URL;
@@ -51,6 +48,7 @@ async function bootstrap(): Promise<void> {
     const authConfig: AuthConfig = {
         mode: authMode,
         jwtSecret,
+        frontendUrl,
         persistence,
         allowedEmailDomain,
         oidc:
@@ -84,7 +82,7 @@ async function bootstrap(): Promise<void> {
     const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules));
 
     app.enableCors({
-        origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+        origin: frontendUrl,
     });
 
     const httpServer = app.getHttpAdapter().getHttpServer() as Server;
@@ -103,10 +101,9 @@ async function bootstrap(): Promise<void> {
         agent,
         persistence,
         cors: {
-            origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+            origin: frontendUrl,
         },
-        validateToken:
-            authMode === "fake" ? () => authService.getFakeUser() : (token: string) => authService.verifyToken(token),
+        validateToken: (token: string) => authService.authenticateToken(token),
     });
     realtime.attach(httpServer);
 

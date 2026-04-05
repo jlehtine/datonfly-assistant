@@ -163,16 +163,45 @@ function extractText(content: ContentPart[]): string {
         .join("\n");
 }
 
+function formatTimestamp(date: Date): string {
+    const pad = (n: number, len = 2) => String(n).padStart(len, "0");
+    const offsetMinutes = -date.getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? "+" : "-";
+    const absOffset = Math.abs(offsetMinutes);
+    const offsetHours = Math.floor(absOffset / 60);
+    const offsetMins = absOffset % 60;
+    return (
+        `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+        `T${pad(date.getHours())}:${pad(date.getMinutes())}` +
+        `${sign}${pad(offsetHours)}:${pad(offsetMins)}`
+    );
+}
+
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
 function threadMessagesToBaseMessages(messages: ThreadMessage[]): BaseMessage[] {
-    return messages.map((msg) => {
+    const result: BaseMessage[] = [];
+    let lastTimestamp: Date | null = null;
+
+    for (const msg of messages) {
+        const ts = msg.createdAt;
+        if (lastTimestamp === null || ts.getTime() - lastTimestamp.getTime() >= ONE_HOUR_MS) {
+            result.push(new SystemMessage(`@ ${formatTimestamp(ts)}`));
+            lastTimestamp = ts;
+        }
         const text = extractText(msg.content);
         switch (msg.role) {
             case "user":
-                return new HumanMessage(text);
+                result.push(new HumanMessage(text));
+                break;
             case "assistant":
-                return new AIMessage(text);
+                result.push(new AIMessage(text));
+                break;
             case "system":
-                return new SystemMessage(text);
+                result.push(new SystemMessage(text));
+                break;
         }
-    });
+    }
+
+    return result;
 }

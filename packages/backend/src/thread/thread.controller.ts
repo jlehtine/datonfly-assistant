@@ -40,6 +40,26 @@ export class ThreadController {
         return this.persistence.listThreads({ userId: user.id, includeArchived });
     }
 
+    @Get(":id/messages")
+    async listMessages(
+        @Req() req: Request,
+        @Param("id") threadId: string,
+        @Query("limit") limitStr?: string,
+        @Query("before") beforeStr?: string,
+    ): Promise<ThreadMessage[]> {
+        const user = (req as Request & { user: AuthUser }).user;
+
+        const isMember = await this.persistence.isMember(threadId, user.id);
+        if (!isMember) {
+            throw new ForbiddenException("Not a member of this thread");
+        }
+
+        const limit = limitStr !== undefined ? parseInt(limitStr, 10) : undefined;
+        const before = beforeStr !== undefined ? new Date(beforeStr) : undefined;
+
+        return this.persistence.loadMessages({ threadId, limit, before });
+    }
+
     @Get(":id")
     async getOne(@Req() req: Request, @Param("id") threadId: string): Promise<Thread> {
         const user = (req as Request & { user: AuthUser }).user;
@@ -77,26 +97,6 @@ export class ThreadController {
         }
 
         return this.persistence.updateThread(threadId, updates);
-    }
-
-    @Get(":id/messages")
-    async listMessages(
-        @Req() req: Request,
-        @Param("id") threadId: string,
-        @Query("limit") limitStr?: string,
-        @Query("before") beforeStr?: string,
-    ): Promise<ThreadMessage[]> {
-        const user = (req as Request & { user: AuthUser }).user;
-
-        const isMember = await this.persistence.isMember(threadId, user.id);
-        if (!isMember) {
-            throw new ForbiddenException("Not a member of this thread");
-        }
-
-        const limit = limitStr !== undefined ? parseInt(limitStr, 10) : undefined;
-        const before = beforeStr !== undefined ? new Date(beforeStr) : undefined;
-
-        return this.persistence.loadMessages({ threadId, limit, before });
     }
 
     @Delete(":id")

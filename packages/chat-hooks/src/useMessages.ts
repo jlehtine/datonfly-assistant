@@ -120,7 +120,8 @@ export function useMessages(
                 const c = toChat(m);
                 return c ? [c] : [];
             });
-            return { messages: chatMsgs, hasMore: raw.length >= historyPageSize };
+            // A full page indicates there are likely more messages to load before this batch.
+            return { messages: chatMsgs, hasMore: raw.length === historyPageSize };
         },
         [url, historyPageSize, authHeaders],
     );
@@ -150,12 +151,21 @@ export function useMessages(
         })();
     }, [threadId, url, fetchHistory]);
 
+    // Keep a ref to the current messages so loadMore can access the oldest message's createdAt
+    // without needing messages as a dependency.
+    const messagesRef = useRef<ChatMessage[]>([]);
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     const loadMore = useCallback(() => {
         const tid = resolvedThreadIdRef.current;
         if (!tid || !url || isLoadingHistory) return;
 
+        // Use the cursor from the ref first; fall back to the oldest loaded message's createdAt.
+        const cursor = oldestCreatedAtRef.current ?? messagesRef.current[0]?.createdAt;
         setIsLoadingHistory(true);
-        void fetchHistory(tid, oldestCreatedAtRef.current ?? undefined)
+        void fetchHistory(tid, cursor)
             .then((result) => {
                 setMessages((prev) => [...result.messages, ...prev]);
                 setHasMore(result.hasMore);

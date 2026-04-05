@@ -44,6 +44,9 @@ function ThinkingBubble(): ReactElement {
     );
 }
 
+/** Pixel threshold from the top of the scroll container that triggers loading more messages. */
+const LOAD_MORE_SCROLL_THRESHOLD = 80;
+
 /** Props for the {@link MessageList} component. */
 export interface MessageListProps {
     /** Ordered list of messages to render. */
@@ -105,7 +108,7 @@ export function MessageList({
         if (!el || !hasMore || !onLoadMore) return;
 
         const handleScroll = (): void => {
-            if (el.scrollTop < 80) {
+            if (el.scrollTop < LOAD_MORE_SCROLL_THRESHOLD) {
                 onLoadMore();
             }
         };

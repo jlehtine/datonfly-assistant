@@ -5,11 +5,11 @@ import { Public } from "../guards/jwt-auth.guard.js";
 
 import { AuthService } from "./auth.service.js";
 
-@Public()
 @Controller("auth")
 export class AuthController {
     constructor(private readonly authService: AuthService) {}
 
+    @Public()
     @Get("login")
     @Redirect()
     async login(): Promise<{ url: string }> {
@@ -17,6 +17,7 @@ export class AuthController {
         return { url };
     }
 
+    @Public()
     @Get("callback")
     async callback(@Req() req: Request, @Res() res: Response): Promise<void> {
         const protocol = req.headers["x-forwarded-proto"] ?? req.protocol;

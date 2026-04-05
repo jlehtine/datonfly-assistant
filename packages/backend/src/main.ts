@@ -9,7 +9,6 @@ import { NestFactory } from "@nestjs/core";
 import { config } from "dotenv";
 
 import { LangGraphAgent } from "@verbal-assistant/agent-langchain";
-import type { IPersistenceProvider } from "@verbal-assistant/core";
 import { createPostgresPersistence } from "@verbal-assistant/persistence-pg";
 import { ChatRealtimeServer } from "@verbal-assistant/realtime";
 
@@ -33,15 +32,14 @@ async function bootstrap(): Promise<void> {
 
     // ─── Persistence ───
     const databaseUrl = process.env.DATABASE_URL;
-    let persistence: IPersistenceProvider | undefined;
-    let destroyPersistence: (() => Promise<void>) | undefined;
-
-    if (databaseUrl) {
-        const pg = await createPostgresPersistence({ connectionString: databaseUrl });
-        persistence = pg.provider;
-        destroyPersistence = pg.destroy;
-        console.log("PostgreSQL persistence initialized");
+    if (!databaseUrl) {
+        throw new Error("DATABASE_URL environment variable is required");
     }
+
+    const pg = await createPostgresPersistence({ connectionString: databaseUrl });
+    const persistence = pg.provider;
+    const destroyPersistence = pg.destroy;
+    console.log("PostgreSQL persistence initialized");
 
     const allowedEmailDomain = process.env.OIDC_ALLOWED_EMAIL_DOMAIN;
 
@@ -74,10 +72,7 @@ async function bootstrap(): Promise<void> {
     const authService = new AuthService(authConfig);
     await authService.initialize();
 
-    const extraModules = [];
-    if (persistence) {
-        extraModules.push(ThreadModule.create(persistence));
-    }
+    const extraModules = [ThreadModule.create(persistence)];
 
     const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules));
 
@@ -116,7 +111,7 @@ async function bootstrap(): Promise<void> {
         console.log("Shutting down...");
         await realtime.close();
         await app.close();
-        await destroyPersistence?.();
+        await destroyPersistence();
         process.exit(0);
     };
     process.on("SIGTERM", () => void shutdown());

@@ -37,7 +37,13 @@ interface PkceSession {
     codeVerifier: string;
     state: string;
     nonce: string;
+    createdAt: number;
 }
+
+/** Maximum number of concurrent PKCE sessions to prevent memory exhaustion. */
+const MAX_PKCE_SESSIONS = 1000;
+/** PKCE session time-to-live in milliseconds (10 minutes). */
+const PKCE_SESSION_TTL_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -178,7 +184,8 @@ export class AuthService {
         const state = client.randomState();
         const nonce = client.randomNonce();
 
-        this.pkceSessions.set(state, { codeVerifier, state, nonce });
+        this.pkceSessions.set(state, { codeVerifier, state, nonce, createdAt: Date.now() });
+        this.evictExpiredPkceSessions();
 
         const url = client.buildAuthorizationUrl(config, {
             redirect_uri: oidc.redirectUri,
@@ -208,6 +215,10 @@ export class AuthService {
             throw new Error("Invalid or expired state parameter");
         }
         this.pkceSessions.delete(state);
+
+        if (Date.now() - session.createdAt > PKCE_SESSION_TTL_MS) {
+            throw new Error("PKCE session expired");
+        }
 
         const tokens = await client.authorizationCodeGrant(config, callbackUrl, {
             pkceCodeVerifier: session.codeVerifier,
@@ -255,5 +266,21 @@ export class AuthService {
 
         const accessToken = this.signToken(user);
         return { accessToken, user };
+    }
+
+    private evictExpiredPkceSessions(): void {
+        const now = Date.now();
+        for (const [key, session] of this.pkceSessions) {
+            if (now - session.createdAt > PKCE_SESSION_TTL_MS) {
+                this.pkceSessions.delete(key);
+            }
+        }
+        // Enforce hard cap: drop oldest entries if over the limit
+        while (this.pkceSessions.size > MAX_PKCE_SESSIONS) {
+            const firstKey = this.pkceSessions.keys().next().value;
+            if (firstKey !== undefined) {
+                this.pkceSessions.delete(firstKey);
+            }
+        }
     }
 }

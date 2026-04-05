@@ -182,6 +182,16 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         return row !== undefined;
     }
 
+    async getMemberRole(threadId: string, userId: string): Promise<ThreadMemberRole | null> {
+        const row = await this.db
+            .selectFrom("thread_member")
+            .select("role")
+            .where("thread_id", "=", threadId)
+            .where("user_id", "=", userId)
+            .executeTakeFirst();
+        return row?.role ?? null;
+    }
+
     // ─── Messages ───
 
     async appendMessage(options: AppendMessageOptions): Promise<ThreadMessage> {

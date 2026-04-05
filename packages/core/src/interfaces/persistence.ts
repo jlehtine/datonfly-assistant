@@ -80,6 +80,8 @@ export interface IPersistenceProvider {
     listMembers(threadId: string): Promise<ThreadMember[]>;
     /** Check whether a user is a member of a thread. */
     isMember(threadId: string, userId: string): Promise<boolean>;
+    /** Return the role of a user in a thread, or `null` if not a member. */
+    getMemberRole(threadId: string, userId: string): Promise<ThreadMemberRole | null>;
 
     // Messages
     /** Append a new message to a thread. */

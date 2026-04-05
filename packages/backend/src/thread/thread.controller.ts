@@ -85,9 +85,12 @@ export class ThreadController {
     ): Promise<Thread> {
         const user = (req as Request & { user: AuthUser }).user;
 
-        const isMember = await this.persistence.isMember(threadId, user.id);
-        if (!isMember) {
+        const role = await this.persistence.getMemberRole(threadId, user.id);
+        if (!role) {
             throw new ForbiddenException("Not a member of this thread");
+        }
+        if (role !== "owner") {
+            throw new ForbiddenException("Only the thread owner can update this thread");
         }
 
         const updates: { title?: string; archivedAt?: Date | undefined; memoryEnabled?: boolean } = {};
@@ -105,9 +108,12 @@ export class ThreadController {
     async remove(@Req() req: Request, @Param("id") threadId: string): Promise<void> {
         const user = (req as Request & { user: AuthUser }).user;
 
-        const isMember = await this.persistence.isMember(threadId, user.id);
-        if (!isMember) {
+        const role = await this.persistence.getMemberRole(threadId, user.id);
+        if (!role) {
             throw new ForbiddenException("Not a member of this thread");
+        }
+        if (role !== "owner") {
+            throw new ForbiddenException("Only the thread owner can delete this thread");
         }
 
         await this.persistence.deleteThread(threadId);

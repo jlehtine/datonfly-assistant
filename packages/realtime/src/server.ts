@@ -26,8 +26,8 @@ export interface ChatRealtimeServerConfig {
     cors?: { origin: string | string[] } | undefined;
     /** Token validation callback. When provided, unauthenticated connections are rejected. */
     validateToken?: ValidateTokenFn | undefined;
-    /** Persistence provider for loading thread history and saving messages. When omitted, the server operates statelessly. */
-    persistence?: IPersistenceProvider | undefined;
+    /** Persistence provider for loading thread history and saving messages. */
+    persistence: IPersistenceProvider;
 }
 
 /**
@@ -41,7 +41,7 @@ export class ChatRealtimeServer {
     private readonly agent: IChatAgent;
     private readonly corsConfig: { origin: string | string[] } | undefined;
     private readonly validateToken: ValidateTokenFn | undefined;
-    private readonly persistence: IPersistenceProvider | undefined;
+    private readonly persistence: IPersistenceProvider;
 
     /** Create the server with the given configuration. Call {@link attach} to start accepting connections. */
     constructor(config: ChatRealtimeServerConfig) {
@@ -91,7 +91,7 @@ export class ChatRealtimeServer {
         const userId = user?.id ?? "anonymous";
 
         // Membership guard
-        if (this.persistence && user) {
+        if (user) {
             const isMember = await this.persistence.isMember(threadId, user.id);
             if (!isMember) {
                 socket.emit("error", { event: "error", message: "Not a member of this thread" });
@@ -99,28 +99,17 @@ export class ChatRealtimeServer {
             }
         }
 
-        let messages: BaseMessage[];
+        // Persist the user message
+        await this.persistence.appendMessage({
+            threadId,
+            role: "user",
+            content,
+            authorId: user?.id ?? null,
+        });
 
-        if (this.persistence) {
-            // Persist the user message
-            await this.persistence.appendMessage({
-                threadId,
-                role: "user",
-                content,
-                authorId: user?.id ?? null,
-            });
-
-            // Load full history and convert to BaseMessage[]
-            const history = await this.persistence.loadMessages({ threadId });
-            messages = threadMessagesToBaseMessages(history);
-        } else {
-            // Stateless fallback: single message
-            const textContent = content
-                .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
-                .map((part) => part.text)
-                .join("\n");
-            messages = [new HumanMessage(textContent)];
-        }
+        // Load full history and convert to BaseMessage[]
+        const history = await this.persistence.loadMessages({ threadId });
+        const messages: BaseMessage[] = threadMessagesToBaseMessages(history);
 
         try {
             const stream = await this.agent.stream(messages, threadId, userId);
@@ -141,14 +130,12 @@ export class ChatRealtimeServer {
             }
 
             // Persist assistant response
-            if (this.persistence) {
-                await this.persistence.appendMessage({
-                    threadId,
-                    role: "assistant",
-                    content: [{ type: "text", text: fullText }],
-                    authorId: null,
-                });
-            }
+            await this.persistence.appendMessage({
+                threadId,
+                role: "assistant",
+                content: [{ type: "text", text: fullText }],
+                authorId: null,
+            });
 
             const completeEvent: MessageCompleteEvent = {
                 event: "message-complete",

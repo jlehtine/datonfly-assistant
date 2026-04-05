@@ -1,4 +1,5 @@
 import Box from "@mui/material/Box";
+import Drawer from "@mui/material/Drawer";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useRef, useState, type ComponentType, type ReactElement } from "react";
 
@@ -105,6 +106,15 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
     }, []);
 
     const isNarrow = useMediaQuery("(max-width:640px)");
+    const [drawerOpen, setDrawerOpen] = useState(false);
+
+    const handleSelectThreadMobile = useCallback(
+        (threadId: string) => {
+            handleSelectThread(threadId);
+            setDrawerOpen(false);
+        },
+        [handleSelectThread],
+    );
 
     return (
         <Box sx={{ display: "flex", height: "100%", overflow: "hidden" }}>
@@ -117,6 +127,17 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                     loading={loading}
                 />
             )}
+            {isNarrow && (
+                <Drawer open={drawerOpen} onClose={() => { setDrawerOpen(false); }}>
+                    <ThreadListPanel
+                        threads={threads}
+                        selectedThreadId={selectedThreadId}
+                        onSelectThread={handleSelectThreadMobile}
+                        onArchiveToggle={handleArchiveToggleFromPanel}
+                        loading={loading}
+                    />
+                </Drawer>
+            )}
             <Box sx={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
                 <ChatEmbed
                     config={{
@@ -128,6 +149,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                         inputTools,
                         maxRows,
                         thread: selectedThread,
+                        onOpenThreadList: isNarrow ? () => { setDrawerOpen(true); } : undefined,
                     }}
                 />
             </Box>

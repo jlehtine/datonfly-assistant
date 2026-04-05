@@ -1,5 +1,7 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
+import SvgIcon from "@mui/material/SvgIcon";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type { ComponentType, ReactElement } from "react";
@@ -38,6 +40,10 @@ export interface ChatEmbedConfig {
      * When provided, the thread title is shown at the top of the chat view on desktop.
      */
     thread?: Thread | undefined;
+    /**
+     * Optional callback to open the thread list drawer (used on narrow viewports).
+     */
+    onOpenThreadList?: (() => void) | undefined;
 }
 
 /** Props for the {@link ChatEmbed} component. */
@@ -69,6 +75,7 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                 url={config.url}
                 getToken={config.getToken}
                 thread={config.thread}
+                onOpenThreadList={config.onOpenThreadList}
             />
         </ChatClientContext.Provider>
     );
@@ -85,6 +92,7 @@ interface ChatInnerProps {
     url?: string | undefined;
     getToken?: (() => string | null) | undefined;
     thread?: Thread | undefined;
+    onOpenThreadList?: (() => void) | undefined;
 }
 
 function ChatInner({
@@ -98,6 +106,7 @@ function ChatInner({
     url,
     getToken,
     thread,
+    onOpenThreadList,
 }: ChatInnerProps): ReactElement {
     const { messages, sendMessage, isStreaming, error, clearError, isLoadingHistory, hasMore, loadMore } = useMessages(
         threadId,
@@ -109,20 +118,37 @@ function ChatInner({
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            {thread && !isNarrow && (
+            {(thread && !isNarrow) || onOpenThreadList ? (
                 <Box
                     sx={{
                         px: 2,
                         py: 1,
                         borderBottom: 1,
                         borderColor: "divider",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
                     }}
                 >
-                    <Typography variant="subtitle2" noWrap>
-                        {thread.title}
-                    </Typography>
+                    {onOpenThreadList && (
+                        <IconButton
+                            size="small"
+                            aria-label="Open conversations"
+                            onClick={onOpenThreadList}
+                            edge="start"
+                        >
+                            <SvgIcon fontSize="small">
+                                <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                            </SvgIcon>
+                        </IconButton>
+                    )}
+                    {thread && (
+                        <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>
+                            {thread.title}
+                        </Typography>
+                    )}
                 </Box>
-            )}
+            ) : null}
             {!connected && (
                 <Typography variant="caption" sx={{ textAlign: "center", p: 1, color: "warning.main" }}>
                     Connecting...

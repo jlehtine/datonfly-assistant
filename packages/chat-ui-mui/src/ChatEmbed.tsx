@@ -1,11 +1,11 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import type { ReactElement } from "react";
+import type { ComponentType, ReactElement } from "react";
 
 import { ChatClientContext, useChatConnection, useMessages } from "@verbal-assistant/chat-hooks";
 
-import { Composer } from "./Composer.js";
+import { Composer, type ComposerInputProps } from "./Composer.js";
 import { MessageList } from "./MessageList.js";
 
 export interface ChatEmbedConfig {
@@ -13,6 +13,7 @@ export interface ChatEmbedConfig {
     threadId?: string | undefined;
     getToken?: (() => string | null) | undefined;
     onBeforeSend?: (() => Promise<string>) | undefined;
+    inputComponent?: ComponentType<ComposerInputProps> | undefined;
 }
 
 export interface ChatEmbedProps {
@@ -25,7 +26,12 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
 
     return (
         <ChatClientContext.Provider value={client}>
-            <ChatInner threadId={threadId} connected={connected} onBeforeSend={config.onBeforeSend} />
+            <ChatInner
+                threadId={threadId}
+                connected={connected}
+                onBeforeSend={config.onBeforeSend}
+                inputComponent={config.inputComponent}
+            />
         </ChatClientContext.Provider>
     );
 }
@@ -34,9 +40,10 @@ interface ChatInnerProps {
     threadId: string | null;
     connected: boolean;
     onBeforeSend?: (() => Promise<string>) | undefined;
+    inputComponent?: ComponentType<ComposerInputProps> | undefined;
 }
 
-function ChatInner({ threadId, connected, onBeforeSend }: ChatInnerProps): ReactElement {
+function ChatInner({ threadId, connected, onBeforeSend, inputComponent }: ChatInnerProps): ReactElement {
     const { messages, sendMessage, isStreaming, error, clearError } = useMessages(threadId, onBeforeSend);
 
     return (
@@ -52,7 +59,7 @@ function ChatInner({ threadId, connected, onBeforeSend }: ChatInnerProps): React
                 </Alert>
             )}
             <MessageList messages={messages} isStreaming={isStreaming} />
-            <Composer onSend={sendMessage} disabled={!connected || isStreaming} />
+            <Composer onSend={sendMessage} disabled={!connected || isStreaming} inputComponent={inputComponent} />
         </Box>
     );
 }

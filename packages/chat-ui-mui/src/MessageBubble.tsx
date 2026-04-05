@@ -30,22 +30,25 @@ export function MessageBubble({ message }: MessageBubbleProps): ReactElement {
                     borderRadius: 2,
                     "& p": { m: 0 },
                     "& pre": {
-                        bgcolor: "grey.900",
-                        color: "grey.100",
+                        bgcolor: isUser ? "rgba(0,0,0,0.2)" : "grey.900",
+                        color: isUser ? "primary.contrastText" : "grey.100",
                         p: 1.5,
                         borderRadius: 1,
                         overflow: "auto",
                     },
                     "& code": {
                         fontSize: "0.875em",
+                        bgcolor: isUser ? "rgba(0,0,0,0.15)" : undefined,
+                        borderRadius: 0.5,
+                        px: isUser ? 0.5 : undefined,
+                    },
+                    "& pre code": {
+                        bgcolor: "transparent",
+                        p: 0,
                     },
                 }}
             >
-                {isUser ? (
-                    <Typography variant="body1">{message.text}</Typography>
-                ) : (
-                    <Markdown remarkPlugins={[remarkGfm]}>{message.text}</Markdown>
-                )}
+                <Markdown remarkPlugins={[remarkGfm]}>{message.text}</Markdown>
                 {message.streaming && (
                     <Typography variant="caption" sx={{ opacity: 0.6 }}>
                         ●

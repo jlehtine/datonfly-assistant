@@ -5,4 +5,4 @@ export type { MessageListProps } from "./MessageList.js";
 export { MessageBubble } from "./MessageBubble.js";
 export type { MessageBubbleProps } from "./MessageBubble.js";
 export { Composer } from "./Composer.js";
-export type { ComposerProps } from "./Composer.js";
+export type { ComposerInputProps, ComposerProps } from "./Composer.js";

@@ -7,6 +7,7 @@ import Typography from "@mui/material/Typography";
 import { useCallback, useRef, useState, type ReactElement } from "react";
 
 import { ChatEmbed } from "@verbal-assistant/chat-ui-mui";
+import { RichInput } from "@verbal-assistant/chat-ui-mui/rich";
 
 import { useAuth } from "./auth";
 import { LoginPage } from "./pages/LoginPage";
@@ -82,6 +83,7 @@ export function App(): ReactElement {
                         getToken,
                         threadId: threadId ?? undefined,
                         onBeforeSend: ensureThread,
+                        inputComponent: RichInput,
                     }}
                 />
             </Box>

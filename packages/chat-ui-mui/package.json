@@ -9,6 +9,10 @@
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
+        },
+        "./rich": {
+            "types": "./dist/rich.d.ts",
+            "import": "./dist/rich.js"
         }
     },
     "scripts": {
@@ -25,16 +29,23 @@
         "@mui/material": "^7.0.0",
         "@emotion/react": "^11.0.0",
         "@emotion/styled": "^11.0.0",
+        "@uiw/react-md-editor": "^4.0.0",
         "@verbal-assistant/chat-hooks": "workspace:*",
         "@verbal-assistant/chat-client": "workspace:*",
         "@verbal-assistant/core": "workspace:*",
         "react": "^19.0.0",
         "react-dom": "^19.0.0"
     },
+    "peerDependenciesMeta": {
+        "@uiw/react-md-editor": {
+            "optional": true
+        }
+    },
     "devDependencies": {
         "@mui/material": "^7.0.0",
         "@emotion/react": "^11.0.0",
         "@emotion/styled": "^11.0.0",
+        "@uiw/react-md-editor": "^4.0.0",
         "@verbal-assistant/chat-hooks": "workspace:*",
         "@verbal-assistant/chat-client": "workspace:*",
         "@verbal-assistant/core": "workspace:*",

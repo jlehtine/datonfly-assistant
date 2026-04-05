@@ -25,6 +25,14 @@ export default tseslint.config(
             "@typescript-eslint/consistent-type-exports": "error",
             "@typescript-eslint/no-import-type-side-effects": "error",
             "@typescript-eslint/explicit-module-boundary-types": "error",
+            "@typescript-eslint/no-unused-vars": [
+                "error",
+                {
+                    args: "all",
+                    argsIgnorePattern: "^_",
+                    varsIgnorePattern: "^_",
+                },
+            ],
         },
     },
 );

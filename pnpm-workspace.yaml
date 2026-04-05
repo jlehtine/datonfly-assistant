@@ -1,3 +1,7 @@
 packages:
-    - "packages/*"
-    - "e2e"
+    - packages/*
+    - e2e
+
+ignoredBuiltDependencies:
+    - "@nestjs/core"
+    - esbuild

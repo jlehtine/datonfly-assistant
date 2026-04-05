@@ -1,0 +1,47 @@
+{
+    "name": "@verbal-assistant/chat-ui-mui",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc --project tsconfig.json",
+        "lint": "eslint src/",
+        "lint:fix": "eslint src/ --fix"
+    },
+    "dependencies": {
+        "react-markdown": "^10.1.0",
+        "remark-gfm": "^4.0.0"
+    },
+    "peerDependencies": {
+        "@mui/material": "^7.0.0",
+        "@emotion/react": "^11.0.0",
+        "@emotion/styled": "^11.0.0",
+        "@verbal-assistant/chat-hooks": "workspace:*",
+        "@verbal-assistant/chat-client": "workspace:*",
+        "@verbal-assistant/core": "workspace:*",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0"
+    },
+    "devDependencies": {
+        "@mui/material": "^7.0.0",
+        "@emotion/react": "^11.0.0",
+        "@emotion/styled": "^11.0.0",
+        "@verbal-assistant/chat-hooks": "workspace:*",
+        "@verbal-assistant/chat-client": "workspace:*",
+        "@verbal-assistant/core": "workspace:*",
+        "@langchain/core": "^1.1.39",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "typescript": "^6.0.2"
+    }
+}

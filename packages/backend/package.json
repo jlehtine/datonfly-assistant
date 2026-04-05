@@ -1,0 +1,30 @@
+{
+    "name": "@verbal-assistant/backend",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "main": "./dist/main.js",
+    "scripts": {
+        "build": "tsc --project tsconfig.json",
+        "start": "node dist/main.js",
+        "start:dev": "tsx watch src/main.ts",
+        "lint": "eslint src/",
+        "lint:fix": "eslint src/ --fix"
+    },
+    "dependencies": {
+        "@nestjs/common": "^11.1.0",
+        "@nestjs/config": "^4.0.0",
+        "@nestjs/core": "^11.1.0",
+        "@nestjs/platform-express": "^11.1.0",
+        "@verbal-assistant/agent-langchain": "workspace:*",
+        "@verbal-assistant/realtime": "workspace:*",
+        "dotenv": "^17.4.0",
+        "reflect-metadata": "^0.2.2",
+        "rxjs": "^7.8.0"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.0",
+        "tsx": "^4.19.0",
+        "typescript": "^6.0.2"
+    }
+}

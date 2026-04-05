@@ -6,3 +6,4 @@ export { MessageBubble } from "./MessageBubble.js";
 export type { MessageBubbleProps } from "./MessageBubble.js";
 export { Composer } from "./Composer.js";
 export type { ComposerInputProps, ComposerProps } from "./Composer.js";
+export type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";

@@ -6,6 +6,7 @@ import type { ComponentType, ReactElement } from "react";
 import { ChatClientContext, useChatConnection, useMessages } from "@verbal-assistant/chat-hooks";
 
 import { Composer, type ComposerInputProps } from "./Composer.js";
+import type { InputTool } from "./InputTool.js";
 import { MessageList } from "./MessageList.js";
 
 export interface ChatEmbedConfig {
@@ -14,6 +15,8 @@ export interface ChatEmbedConfig {
     getToken?: (() => string | null) | undefined;
     onBeforeSend?: (() => Promise<string>) | undefined;
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
+    inputTools?: InputTool[] | undefined;
+    maxRows?: number | undefined;
 }
 
 export interface ChatEmbedProps {
@@ -31,6 +34,8 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                 connected={connected}
                 onBeforeSend={config.onBeforeSend}
                 inputComponent={config.inputComponent}
+                inputTools={config.inputTools}
+                maxRows={config.maxRows}
             />
         </ChatClientContext.Provider>
     );
@@ -41,9 +46,18 @@ interface ChatInnerProps {
     connected: boolean;
     onBeforeSend?: (() => Promise<string>) | undefined;
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
+    inputTools?: InputTool[] | undefined;
+    maxRows?: number | undefined;
 }
 
-function ChatInner({ threadId, connected, onBeforeSend, inputComponent }: ChatInnerProps): ReactElement {
+function ChatInner({
+    threadId,
+    connected,
+    onBeforeSend,
+    inputComponent,
+    inputTools,
+    maxRows,
+}: ChatInnerProps): ReactElement {
     const { messages, sendMessage, isStreaming, error, clearError } = useMessages(threadId, onBeforeSend);
 
     return (
@@ -59,7 +73,13 @@ function ChatInner({ threadId, connected, onBeforeSend, inputComponent }: ChatIn
                 </Alert>
             )}
             <MessageList messages={messages} isStreaming={isStreaming} />
-            <Composer onSend={sendMessage} disabled={!connected || isStreaming} inputComponent={inputComponent} />
+            <Composer
+                onSend={sendMessage}
+                disabled={!connected || isStreaming}
+                inputComponent={inputComponent}
+                inputTools={inputTools}
+                maxRows={maxRows}
+            />
         </Box>
     );
 }

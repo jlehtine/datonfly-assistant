@@ -4,9 +4,11 @@ import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useRef, useState, type ReactElement } from "react";
 
 import { ChatEmbed } from "@verbal-assistant/chat-ui-mui";
+import { emojiPickerTool } from "@verbal-assistant/chat-ui-mui/emoji";
 import { RichInput } from "@verbal-assistant/chat-ui-mui/rich";
 
 import { useAuth } from "./auth";
@@ -16,6 +18,8 @@ const BACKEND_URL = window.location.origin;
 
 export function App(): ReactElement {
     const { user, loading, login, logout, getToken } = useAuth();
+    const isDesktop = useMediaQuery("(min-height:768px)");
+    const maxRows = isDesktop ? 10 : 4;
     const [threadId, setThreadId] = useState<string | null>(null);
     const pendingCreateRef = useRef<Promise<string> | null>(null);
 
@@ -84,6 +88,8 @@ export function App(): ReactElement {
                         threadId: threadId ?? undefined,
                         onBeforeSend: ensureThread,
                         inputComponent: RichInput,
+                        inputTools: [emojiPickerTool],
+                        maxRows,
                     }}
                 />
             </Box>

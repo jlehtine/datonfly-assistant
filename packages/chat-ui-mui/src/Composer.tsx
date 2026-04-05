@@ -1,9 +1,12 @@
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
+import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactElement } from "react";
 
 import { useComposer } from "@verbal-assistant/chat-hooks";
+
+import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 
 export interface ComposerInputProps {
     value: string;
@@ -12,12 +15,16 @@ export interface ComposerInputProps {
     placeholder: string;
     disabled: boolean;
     autoFocus: boolean;
+    inputTools?: InputTool[] | undefined;
+    maxRows?: number | undefined;
 }
 
 export interface ComposerProps {
     onSend: (text: string) => void;
     disabled?: boolean | undefined;
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
+    inputTools?: InputTool[] | undefined;
+    maxRows?: number | undefined;
 }
 
 function DefaultInput({
@@ -27,8 +34,15 @@ function DefaultInput({
     placeholder,
     disabled,
     autoFocus,
+    inputTools,
+    maxRows,
 }: ComposerInputProps): ReactElement {
     const inputRef = useRef<HTMLInputElement>(null);
+    const selectionRef = useRef({ start: 0, end: 0 });
+    const [activeTool, setActiveTool] = useState<InputTool | null>(null);
+    const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+    const anchorElRef = useRef<HTMLElement | null>(null);
+    const menuAnchorRef = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
         if (autoFocus) {
@@ -36,27 +50,137 @@ function DefaultInput({
         }
     }, [autoFocus]);
 
+    const handleDone = (result: InputToolResult | null): void => {
+        if (result) {
+            onChange(result.text);
+            setTimeout(() => {
+                const input = inputRef.current;
+                if (input) {
+                    input.setSelectionRange(result.selectionStart, result.selectionEnd);
+                    input.focus();
+                }
+            }, 0);
+        }
+        setActiveTool(null);
+    };
+
+    const ctx: InputToolContext = {
+        text: value,
+        selectionStart: selectionRef.current.start,
+        selectionEnd: selectionRef.current.end,
+    };
+
+    const hasMultipleTools = (inputTools?.length ?? 0) > 1;
+
     return (
-        <TextField
-            inputRef={inputRef}
-            fullWidth
-            multiline
-            maxRows={4}
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => {
-                onChange(e.target.value);
-            }}
-            onKeyDown={onKeyDown}
-            disabled={disabled}
-            size="small"
-        />
+        <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5 }}>
+            {hasMultipleTools ? (
+                <IconButton
+                    size="small"
+                    aria-label="Tools"
+                    onClick={(e) => {
+                        menuAnchorRef.current = e.currentTarget;
+                        setToolsMenuOpen(true);
+                    }}
+                    sx={{ mb: 0.5 }}
+                >
+                    <ToolsMenuIcon />
+                </IconButton>
+            ) : (
+                inputTools?.map((tool) => (
+                    <IconButton
+                        key={tool.name}
+                        size="small"
+                        aria-label={tool.name}
+                        onClick={(e) => {
+                            anchorElRef.current = e.currentTarget;
+                            setActiveTool(tool);
+                        }}
+                        sx={{ mb: 0.5 }}
+                    >
+                        {tool.icon}
+                    </IconButton>
+                ))
+            )}
+            <TextField
+                inputRef={inputRef}
+                multiline
+                maxRows={maxRows ?? 4}
+                placeholder={placeholder}
+                value={value}
+                onChange={(e) => {
+                    onChange(e.target.value);
+                }}
+                onKeyDown={onKeyDown}
+                onSelect={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    selectionRef.current = { start: target.selectionStart, end: target.selectionEnd };
+                }}
+                disabled={disabled}
+                size="small"
+                sx={{ flex: 1 }}
+            />
+            {hasMultipleTools && menuAnchorRef.current && (
+                <Popover
+                    open={toolsMenuOpen}
+                    anchorEl={menuAnchorRef.current}
+                    onClose={() => {
+                        setToolsMenuOpen(false);
+                    }}
+                    anchorOrigin={{ vertical: "top", horizontal: "left" }}
+                    transformOrigin={{ vertical: "bottom", horizontal: "left" }}
+                >
+                    <Box sx={{ display: "flex", gap: 0.5, p: 0.5 }}>
+                        {inputTools?.map((tool) => (
+                            <IconButton
+                                key={tool.name}
+                                size="small"
+                                aria-label={tool.name}
+                                onClick={(e) => {
+                                    setToolsMenuOpen(false);
+                                    anchorElRef.current = e.currentTarget;
+                                    setActiveTool(tool);
+                                }}
+                            >
+                                {tool.icon}
+                            </IconButton>
+                        ))}
+                    </Box>
+                </Popover>
+            )}
+            {activeTool && anchorElRef.current && (
+                <Popover
+                    open
+                    anchorEl={anchorElRef.current}
+                    onClose={() => {
+                        setActiveTool(null);
+                    }}
+                    anchorOrigin={{ vertical: "top", horizontal: "left" }}
+                    transformOrigin={{ vertical: "bottom", horizontal: "left" }}
+                >
+                    {activeTool.onActivate(ctx, handleDone)}
+                </Popover>
+            )}
+        </Box>
     );
 }
 
-export function Composer({ onSend, disabled, inputComponent: InputComponent }: ComposerProps): ReactElement {
+function ToolsMenuIcon(): ReactElement {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" />
+        </svg>
+    );
+}
+
+export function Composer({
+    onSend,
+    disabled,
+    inputComponent: InputComponent,
+    inputTools,
+    maxRows,
+}: ComposerProps): ReactElement {
     const { text, setText, submit } = useComposer(onSend);
-    const [richMode, setRichMode] = useState(false);
     const isDisabled = disabled ?? false;
 
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -73,25 +197,14 @@ export function Composer({ onSend, disabled, inputComponent: InputComponent }: C
         placeholder: "Type a message...",
         disabled: isDisabled,
         autoFocus: !isDisabled,
+        inputTools,
+        maxRows,
     };
 
-    const ActiveInput = richMode && InputComponent ? InputComponent : DefaultInput;
+    const ActiveInput = InputComponent ?? DefaultInput;
 
     return (
         <Box sx={{ display: "flex", gap: 1, p: 2, borderTop: 1, borderColor: "divider", alignItems: "flex-end" }}>
-            {InputComponent && (
-                <IconButton
-                    onClick={() => {
-                        setRichMode((prev) => !prev);
-                    }}
-                    size="small"
-                    color={richMode ? "primary" : "default"}
-                    aria-label="Toggle formatting"
-                    sx={{ mb: 0.5 }}
-                >
-                    <FormatIcon />
-                </IconButton>
-            )}
             <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ActiveInput {...inputProps} />
             </Box>
@@ -105,14 +218,6 @@ export function Composer({ onSend, disabled, inputComponent: InputComponent }: C
                 <SendIcon />
             </IconButton>
         </Box>
-    );
-}
-
-function FormatIcon(): ReactElement {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M5 17v2h14v-2H5zm4.5-4.2h5l.9 2.2h2.1L12.75 4h-1.5L6.5 15h2.1l.9-2.2zM12 5.98L13.87 11h-3.74L12 5.98z" />
-        </svg>
     );
 }
 

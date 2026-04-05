@@ -11,6 +11,7 @@ import { MessageList } from "./MessageList.js";
 export interface ChatEmbedConfig {
     url: string;
     threadId?: string | undefined;
+    getToken?: (() => string | null) | undefined;
 }
 
 export interface ChatEmbedProps {
@@ -20,7 +21,7 @@ export interface ChatEmbedProps {
 const DEFAULT_THREAD_ID = "default";
 
 export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
-    const { client, connected } = useChatConnection(config.url);
+    const { client, connected } = useChatConnection({ url: config.url, getToken: config.getToken });
     const threadId = config.threadId ?? DEFAULT_THREAD_ID;
 
     return (

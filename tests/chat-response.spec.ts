@@ -22,9 +22,9 @@ test("send hello and receive assistant response", async ({ page }) => {
 
     await page.goto("/");
 
-    // Wait for connection
+    // Wait for auth (fake mode auto-authenticates) and connection
     const composer = page.getByPlaceholder("Type a message...");
-    await expect(composer).toBeEnabled({ timeout: 5000 });
+    await expect(composer).toBeEnabled({ timeout: 10000 });
 
     // Type and send a message
     await composer.fill("Hello!");
@@ -51,7 +51,9 @@ test("send hello and receive assistant response", async ({ page }) => {
                                 l.trim() &&
                                 l.trim() !== "Verbal Assistant" &&
                                 l.trim() !== "Hello!" &&
-                                l.trim() !== "Connecting...",
+                                l.trim() !== "Connecting..." &&
+                                l.trim() !== "Dev User" &&
+                                l.trim() !== "Sign out",
                         );
                     return lines.length > 0;
                 },

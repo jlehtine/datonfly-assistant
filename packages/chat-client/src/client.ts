@@ -10,14 +10,29 @@ export interface ChatClientEventMap {
     disconnect: () => void;
 }
 
+export interface ChatClientConfig {
+    url: string;
+    getToken?: (() => string | null) | undefined;
+}
+
 export class ChatClient {
     private readonly socket: Socket;
 
-    constructor(url: string) {
-        this.socket = io(url, {
+    constructor(config: ChatClientConfig) {
+        const opts: Parameters<typeof io>[1] = {
             transports: ["websocket", "polling"],
             autoConnect: false,
-        });
+        };
+
+        if (config.getToken) {
+            const getToken = config.getToken;
+            opts.auth = (cb: (data: Record<string, unknown>) => void) => {
+                const token = getToken();
+                cb(token ? { token } : {});
+            };
+        }
+
+        this.socket = io(config.url, opts);
     }
 
     connect(): void {

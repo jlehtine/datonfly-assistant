@@ -1,2 +1,2 @@
 export { ChatRealtimeServer } from "./server.js";
-export type { ChatRealtimeServerConfig } from "./server.js";
+export type { ChatRealtimeServerConfig, ValidateTokenFn } from "./server.js";

@@ -15,10 +15,12 @@
         "@emotion/styled": "^11.14.0",
         "@mui/material": "^7.0.0",
         "@verbal-assistant/chat-ui-mui": "workspace:*",
+        "@verbal-assistant/core": "workspace:*",
         "react": "^19.0.0",
         "react-dom": "^19.0.0"
     },
     "devDependencies": {
+        "@langchain/core": "^1.1.39",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "@vitejs/plugin-react": "^6.0.0",

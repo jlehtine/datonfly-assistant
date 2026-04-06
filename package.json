@@ -9,6 +9,7 @@
         "lint:fix": "turbo run lint:fix",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
+        "lint-staged": "lint-staged",
         "start": "pnpm --filter @datonfly-assistant/backend start",
         "dev": "pnpm --filter @datonfly-assistant/frontend dev",
         "test:e2e": "playwright test",

@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { NestFactory } from "@nestjs/core";
+import { ServeStaticModule } from "@nestjs/serve-static";
 import { config } from "dotenv";
 import { Logger } from "nestjs-pino";
 
@@ -109,6 +110,15 @@ async function bootstrap(): Promise<void> {
     });
 
     const extraModules = [chatModule];
+
+    const publicDir = resolve("public");
+    if (existsSync(publicDir)) {
+        extraModules.push(
+            ServeStaticModule.forRoot({
+                rootPath: publicDir,
+            }),
+        );
+    }
 
     const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules), {
         bufferLogs: true,

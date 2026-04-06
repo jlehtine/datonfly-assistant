@@ -1,7 +1,19 @@
-import type { AIMessageChunk, BaseMessage } from "@langchain/core/messages";
-import type { IterableReadableStream } from "@langchain/core/utils/stream";
+/** The role of an agent message. */
+export type AgentMessageRole = "human" | "ai" | "system";
 
-import type { ThreadMessage } from "../types/message.js";
+/** A message in the format used by the agent service API. */
+export interface AgentMessage {
+    /** The role of the message author. */
+    role: AgentMessageRole;
+    /** The text content of the message. */
+    content: string;
+}
+
+/** A single chunk of streamed agent output. */
+export interface AgentStreamChunk {
+    /** The text content of this chunk. */
+    content: string;
+}
 
 /** Result of an agent's decision on whether to respond in a room thread. */
 export interface ShouldRespondResult {
@@ -12,25 +24,26 @@ export interface ShouldRespondResult {
 }
 
 /**
- * Chat agent that processes messages and produces responses.
+ * Agent service provider that processes messages and produces responses.
  *
  * Implementations wrap an LLM (or chain/graph) and expose both
- * one-shot and streaming interfaces.
+ * one-shot and streaming interfaces using the generic {@link AgentMessage}
+ * type, independent of any specific LLM framework.
  */
-export interface IChatAgent {
+export interface IAgentProvider {
     /**
-     * Run the agent and return a complete response.
+     * Run the agent and return a complete response message.
      */
-    run(messages: BaseMessage[], threadId: string, userId: string): Promise<ThreadMessage>;
+    run(messages: AgentMessage[], threadId: string, userId: string): Promise<AgentMessage>;
 
     /**
-     * Run the agent and return a stream of AI message chunks.
+     * Run the agent and return a stream of response chunks.
      */
-    stream(messages: BaseMessage[], threadId: string, userId: string): Promise<IterableReadableStream<AIMessageChunk>>;
+    stream(messages: AgentMessage[], threadId: string, userId: string): Promise<AsyncIterable<AgentStreamChunk>>;
 
     /**
      * Determine whether the agent should respond in a room context.
      * Always returns true for personal threads.
      */
-    shouldRespond(messages: BaseMessage[], threadId: string): Promise<ShouldRespondResult>;
+    shouldRespond(messages: AgentMessage[], threadId: string): Promise<ShouldRespondResult>;
 }

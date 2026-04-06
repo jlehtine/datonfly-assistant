@@ -177,9 +177,6 @@ importers:
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
-      '@langchain/core':
-        specifier: ^1.1.39
-        version: 1.1.39(ws@8.18.3)
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -248,9 +245,6 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@langchain/core':
-        specifier: ^1.1.39
-        version: 1.1.39(ws@8.18.3)
       typescript:
         specifier: ^6.0.2
         version: 6.0.2

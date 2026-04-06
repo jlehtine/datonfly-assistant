@@ -1,6 +1,4 @@
-import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
-
-import type { ContentPart, ThreadMessage } from "@datonfly-assistant/core";
+import type { AgentMessage, ContentPart, ThreadMessage } from "@datonfly-assistant/core";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -27,14 +25,14 @@ function formatTimestamp(date: Date): string {
 }
 
 /**
- * Convert an array of persisted {@link ThreadMessage} objects to LangChain
- * {@link BaseMessage} instances suitable for agent invocation.
+ * Convert an array of persisted {@link ThreadMessage} objects to
+ * {@link AgentMessage} instances suitable for agent invocation.
  *
  * Inserts a timestamp system message whenever more than one hour has elapsed
  * between consecutive messages.
  */
-export function threadMessagesToBaseMessages(messages: ThreadMessage[]): BaseMessage[] {
-    const result: BaseMessage[] = [];
+export function threadMessagesToAgentMessages(messages: ThreadMessage[]): AgentMessage[] {
+    const result: AgentMessage[] = [];
     let lastTimestamp: Date | null = null;
 
     for (const msg of messages) {
@@ -48,14 +46,14 @@ export function threadMessagesToBaseMessages(messages: ThreadMessage[]): BaseMes
         switch (msg.role) {
             case "user": {
                 const body = needsTimestamp ? `@ ${formatTimestamp(messageTimestamp)}\n\n${text}` : text;
-                result.push(new HumanMessage(body));
+                result.push({ role: "human", content: body });
                 break;
             }
             case "assistant":
-                result.push(new AIMessage(text));
+                result.push({ role: "ai", content: text });
                 break;
             case "system":
-                result.push(new SystemMessage(text));
+                result.push({ role: "system", content: text });
                 break;
         }
     }

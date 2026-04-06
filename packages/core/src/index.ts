@@ -17,7 +17,10 @@ export type {
 
 // Interfaces
 export type {
-    IChatAgent,
+    IAgentProvider,
+    AgentMessage,
+    AgentMessageRole,
+    AgentStreamChunk,
     ShouldRespondResult,
     IPersistenceProvider,
     CreateThreadOptions,
@@ -25,6 +28,7 @@ export type {
     AppendMessageOptions,
     LoadMessagesOptions,
     ISearchProvider,
+    SearchDocument,
     IndexDocumentOptions,
     SemanticSearchOptions,
     IEmbeddingsProvider,

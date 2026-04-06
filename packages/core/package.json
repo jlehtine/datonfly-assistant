@@ -20,11 +20,7 @@
     "dependencies": {
         "zod": "^4.3.6"
     },
-    "peerDependencies": {
-        "@langchain/core": ">=1.0.0"
-    },
     "devDependencies": {
-        "@langchain/core": "^1.1.39",
         "typescript": "^6.0.2"
     }
 }

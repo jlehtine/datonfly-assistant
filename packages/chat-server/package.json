@@ -21,12 +21,10 @@
         "socket.io": "^4.8.0"
     },
     "peerDependencies": {
-        "@langchain/core": "^1.1.39",
         "@datonfly-assistant/core": "workspace:*"
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
-        "@langchain/core": "^1.1.39",
         "typescript": "^6.0.2"
     }
 }

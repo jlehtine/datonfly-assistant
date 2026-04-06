@@ -1,10 +1,8 @@
-import type { EmbeddingsInterface } from "@langchain/core/embeddings";
-
 /**
- * Embeddings provider aligned with LangChain's EmbeddingsInterface.
+ * Embeddings provider for generating vector embeddings from text.
  * Implementations should provide both single-query and batch embedding.
  */
-export interface IEmbeddingsProvider extends EmbeddingsInterface {
+export interface IEmbeddingsProvider {
     /**
      * Embed a single text string.
      */

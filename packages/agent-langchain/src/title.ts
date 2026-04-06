@@ -1,5 +1,7 @@
 import { ChatAnthropic } from "@langchain/anthropic";
-import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+
+import type { AgentMessage } from "@datonfly-assistant/core";
 
 /** Configuration for {@link createTitleGenerateFn}. */
 export interface TitleModelConfig {
@@ -7,6 +9,20 @@ export interface TitleModelConfig {
     modelName: string;
     /** Anthropic API key. Falls back to the `ANTHROPIC_API_KEY` environment variable when omitted. */
     apiKey?: string | undefined;
+}
+
+/** Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances. */
+function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
+    return messages.map((msg) => {
+        switch (msg.role) {
+            case "human":
+                return new HumanMessage(msg.content);
+            case "ai":
+                return new AIMessage(msg.content);
+            case "system":
+                return new SystemMessage(msg.content);
+        }
+    });
 }
 
 const TITLE_INSTRUCTION = new HumanMessage(
@@ -18,7 +34,7 @@ const TITLE_INSTRUCTION = new HumanMessage(
  * Create a function that generates a thread title from conversation messages
  * using an Anthropic model via LangChain streaming.
  */
-export function createTitleGenerateFn(config: TitleModelConfig): (messages: BaseMessage[]) => Promise<string> {
+export function createTitleGenerateFn(config: TitleModelConfig): (messages: AgentMessage[]) => Promise<string> {
     const options: ConstructorParameters<typeof ChatAnthropic>[0] = {
         model: config.modelName,
         temperature: 0,
@@ -29,8 +45,8 @@ export function createTitleGenerateFn(config: TitleModelConfig): (messages: Base
     }
     const model = new ChatAnthropic(options);
 
-    return async (messages: BaseMessage[]): Promise<string> => {
-        const prompt: BaseMessage[] = [...messages, TITLE_INSTRUCTION];
+    return async (messages: AgentMessage[]): Promise<string> => {
+        const prompt: BaseMessage[] = [...agentMessagesToBaseMessages(messages), TITLE_INSTRUCTION];
         const response = await model.invoke(prompt);
         if (typeof response.content === "string") return response.content;
         if (Array.isArray(response.content)) {

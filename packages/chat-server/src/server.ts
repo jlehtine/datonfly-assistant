@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { Server as HttpServer } from "node:http";
 
-import type { BaseMessage } from "@langchain/core/messages";
 import { Server, type ServerOptions, type Socket } from "socket.io";
 
 import type {
+    AgentMessage,
     AuthUser,
-    IChatAgent,
+    IAgentProvider,
     IPersistenceProvider,
     MessageCompleteEvent,
     MessageDeltaEvent,
@@ -14,7 +14,7 @@ import type {
     ThreadUpdatedEvent,
 } from "@datonfly-assistant/core";
 
-import { threadMessagesToBaseMessages } from "./messages.js";
+import { threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
 
 /** Callback that validates a raw JWT string and returns the authenticated user, or `null` on failure. */
@@ -23,7 +23,7 @@ export type ValidateTokenFn = (token: string) => AuthUser | null;
 /** Configuration options for {@link ChatRealtimeServer}. */
 export interface ChatRealtimeServerConfig {
     /** Chat agent that processes incoming messages and streams responses. */
-    agent: IChatAgent;
+    agent: IAgentProvider;
     /** CORS configuration forwarded to Socket.io. Omit to disable CORS headers. */
     cors?: { origin: string | string[] } | undefined;
     /** Token validation callback. When provided, unauthenticated connections are rejected. */
@@ -45,7 +45,7 @@ export interface ChatRealtimeServerConfig {
  */
 export class ChatRealtimeServer {
     private io: Server | null = null;
-    private readonly agent: IChatAgent;
+    private readonly agent: IAgentProvider;
     private readonly corsConfig: { origin: string | string[] } | undefined;
     private readonly validateToken: ValidateTokenFn | undefined;
     private readonly persistence: IPersistenceProvider;
@@ -134,9 +134,9 @@ export class ChatRealtimeServer {
             authorId: user?.id ?? null,
         });
 
-        // Load full history and convert to BaseMessage[]
+        // Load full history and convert to AgentMessage[]
         const history = await this.persistence.loadMessages({ threadId });
-        const messages: BaseMessage[] = threadMessagesToBaseMessages(history);
+        const messages: AgentMessage[] = threadMessagesToAgentMessages(history);
 
         try {
             const stream = await this.agent.stream(messages, threadId, userId);

@@ -1,4 +1,10 @@
-import type { Document } from "@langchain/core/documents";
+/** A document returned by semantic search. */
+export interface SearchDocument {
+    /** The document content. */
+    pageContent: string;
+    /** Metadata associated with the document. */
+    metadata: Record<string, unknown>;
+}
 
 /** Options for indexing a document for semantic search. */
 export interface IndexDocumentOptions {
@@ -30,7 +36,7 @@ export interface ISearchProvider {
     /**
      * Perform a semantic search over indexed documents.
      */
-    semanticSearch(collection: string, options: SemanticSearchOptions): Promise<Document[]>;
+    semanticSearch(collection: string, options: SemanticSearchOptions): Promise<SearchDocument[]>;
 
     /**
      * Delete a document from the index.

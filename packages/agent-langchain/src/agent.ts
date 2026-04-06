@@ -1,10 +1,21 @@
-import { randomUUID } from "node:crypto";
-
 import { ChatAnthropic } from "@langchain/anthropic";
-import type { AIMessageChunk, BaseMessage } from "@langchain/core/messages";
-import type { IterableReadableStream } from "@langchain/core/utils/stream";
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 
-import type { IChatAgent, ShouldRespondResult, ThreadMessage } from "@datonfly-assistant/core";
+import type { AgentMessage, AgentStreamChunk, IAgentProvider, ShouldRespondResult } from "@datonfly-assistant/core";
+
+/** Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances. */
+function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
+    return messages.map((msg) => {
+        switch (msg.role) {
+            case "human":
+                return new HumanMessage(msg.content);
+            case "ai":
+                return new AIMessage(msg.content);
+            case "system":
+                return new SystemMessage(msg.content);
+        }
+    });
+}
 
 /** Configuration options for {@link LangGraphAgent}. */
 export interface LangGraphAgentConfig {
@@ -21,9 +32,9 @@ export interface LangGraphAgentConfig {
 /**
  * Chat agent backed by an Anthropic model via LangChain.
  *
- * Implements {@link IChatAgent} with both one-shot and streaming response modes.
+ * Implements {@link IAgentProvider} with both one-shot and streaming response modes.
  */
-export class LangGraphAgent implements IChatAgent {
+export class LangGraphAgent implements IAgentProvider {
     private readonly model: ChatAnthropic;
 
     /** Create the agent with the given model configuration. */
@@ -40,30 +51,33 @@ export class LangGraphAgent implements IChatAgent {
     }
 
     /** Run the agent and return a single complete assistant message. */
-    async run(messages: BaseMessage[], threadId: string, _userId: string): Promise<ThreadMessage> {
-        const response = await this.model.invoke(messages);
+    async run(messages: AgentMessage[], _threadId: string, _userId: string): Promise<AgentMessage> {
+        const response = await this.model.invoke(agentMessagesToBaseMessages(messages));
         const text = typeof response.content === "string" ? response.content : "";
+        return { role: "ai", content: text };
+    }
+
+    /** Run the agent and return a stream of incremental response chunks. */
+    async stream(
+        messages: AgentMessage[],
+        _threadId: string,
+        _userId: string,
+    ): Promise<AsyncIterable<AgentStreamChunk>> {
+        const langchainStream = await this.model.stream(agentMessagesToBaseMessages(messages));
         return {
-            id: randomUUID(),
-            threadId,
-            role: "assistant",
-            content: [{ type: "text", text }],
-            authorId: null,
-            createdAt: new Date(),
+            async *[Symbol.asyncIterator]() {
+                for await (const chunk of langchainStream) {
+                    const content = typeof chunk.content === "string" ? chunk.content : "";
+                    if (content) {
+                        yield { content };
+                    }
+                }
+            },
         };
     }
 
-    /** Run the agent and return a stream of incremental AI message chunks. */
-    async stream(
-        messages: BaseMessage[],
-        _threadId: string,
-        _userId: string,
-    ): Promise<IterableReadableStream<AIMessageChunk>> {
-        return this.model.stream(messages);
-    }
-
     /** Always resolves to `{ shouldRespond: true }` for this implementation. */
-    shouldRespond(_messages: BaseMessage[], _threadId: string): Promise<ShouldRespondResult> {
+    shouldRespond(_messages: AgentMessage[], _threadId: string): Promise<ShouldRespondResult> {
         return Promise.resolve({ shouldRespond: true });
     }
 }

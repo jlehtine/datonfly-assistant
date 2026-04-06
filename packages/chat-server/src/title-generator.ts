@@ -1,8 +1,6 @@
-import type { BaseMessage } from "@langchain/core/messages";
+import type { AgentMessage, IPersistenceProvider, ThreadMessage } from "@datonfly-assistant/core";
 
-import type { IPersistenceProvider, ThreadMessage } from "@datonfly-assistant/core";
-
-import { threadMessagesToBaseMessages } from "./messages.js";
+import { threadMessagesToAgentMessages } from "./messages.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const TITLE_MESSAGE_WINDOW = 20;
@@ -12,7 +10,7 @@ function isPowerOfTwo(n: number): boolean {
 }
 
 /** Callback that generates a thread title from a list of conversation messages. */
-export type GenerateTitleFn = (messages: BaseMessage[]) => Promise<string>;
+export type GenerateTitleFn = (messages: AgentMessage[]) => Promise<string>;
 
 /** Callback invoked after the title has been updated in the database. */
 export type OnTitleUpdatedFn = (threadId: string, title: string) => void;
@@ -77,8 +75,8 @@ export class ThreadTitleGenerator {
                     ? allMessages.slice(allMessages.length - TITLE_MESSAGE_WINDOW)
                     : allMessages;
 
-            const baseMessages = threadMessagesToBaseMessages(recentMessages);
-            const rawTitle = await this.generateTitle(baseMessages);
+            const agentMessages = threadMessagesToAgentMessages(recentMessages);
+            const rawTitle = await this.generateTitle(agentMessages);
 
             // Clean up the LLM response: strip surrounding quotes and whitespace, truncate.
             const title = rawTitle

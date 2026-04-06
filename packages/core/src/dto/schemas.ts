@@ -5,22 +5,22 @@ import { z } from "zod";
 /** Zod schema for a plain-text content part. */
 export const textContentPartSchema = z.object({
     type: z.literal("text"),
-    text: z.string().min(1),
+    text: z.string().min(1).max(100_000),
 });
 
 /** Zod schema for a tool-call content part. */
 export const toolCallContentPartSchema = z.object({
     type: z.literal("tool-call"),
-    toolCallId: z.string(),
-    toolName: z.string(),
+    toolCallId: z.string().min(1).max(200),
+    toolName: z.string().min(1).max(200),
     args: z.record(z.string(), z.unknown()),
 });
 
 /** Zod schema for a tool-result content part. */
 export const toolResultContentPartSchema = z.object({
     type: z.literal("tool-result"),
-    toolCallId: z.string(),
-    toolName: z.string(),
+    toolCallId: z.string().min(1).max(200),
+    toolName: z.string().min(1).max(200),
     result: z.unknown(),
     isError: z.boolean().optional(),
 });
@@ -35,9 +35,11 @@ export const contentPartSchema = z.discriminatedUnion("type", [
 // ─── Thread ───
 
 /** Zod schema for a request to create a new thread. */
-export const createThreadRequestSchema = z.object({
-    title: z.string().min(1).max(200).optional().default("Conversation"),
-});
+export const createThreadRequestSchema = z
+    .object({
+        title: z.string().min(1).max(200).optional().default("Conversation"),
+    })
+    .default({ title: "Conversation" });
 
 /** Validated request body for creating a new thread. */
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
@@ -57,7 +59,7 @@ export type UpdateThreadRequest = z.infer<typeof updateThreadRequestSchema>;
 /** Zod schema for a request to send a chat message. */
 export const chatRequestSchema = z.object({
     threadId: z.uuid(),
-    content: z.array(contentPartSchema).min(1),
+    content: z.array(contentPartSchema).min(1).max(100),
 });
 
 /** Validated request body for sending a chat message. */

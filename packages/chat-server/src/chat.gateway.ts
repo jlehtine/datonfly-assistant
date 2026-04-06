@@ -14,6 +14,7 @@ import type {
     SendMessageEvent,
     ThreadUpdatedEvent,
     User,
+    UserIdentity,
 } from "@datonfly-assistant/core";
 
 import { WS_PATH, chatRequestSchema } from "@datonfly-assistant/core";
@@ -21,7 +22,9 @@ import { WS_PATH, chatRequestSchema } from "@datonfly-assistant/core";
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
 import { threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
-import type { ValidateTokenFn } from "./server.js";
+
+/** Callback that validates a raw token string and returns the user identity, or `null` on failure. */
+export type ValidateTokenFn = (token: string) => UserIdentity | null;
 
 /**
  * NestJS WebSocket gateway that provides real-time chat over Socket.io.

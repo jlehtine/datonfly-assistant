@@ -24,7 +24,10 @@ for (const candidate of [".env", "../../.env"]) {
 }
 
 async function bootstrap(): Promise<void> {
-    const authMode = (process.env.AUTH_MODE ?? "fake") as "fake" | "oidc";
+    const authMode = process.env.AUTH_MODE ?? "fake";
+    if (authMode !== "fake" && authMode !== "oidc") {
+        throw new Error(`AUTH_MODE must be "fake" or "oidc", got "${authMode}"`);
+    }
     const jwtSecret = process.env.JWT_SECRET ?? randomUUID();
     const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
 
@@ -40,6 +43,15 @@ async function bootstrap(): Promise<void> {
     console.log("PostgreSQL persistence initialized");
 
     const allowedEmailDomain = process.env.OIDC_ALLOWED_EMAIL_DOMAIN;
+
+    if (authMode === "oidc") {
+        if (!process.env.OIDC_CLIENT_ID) {
+            throw new Error("OIDC_CLIENT_ID is required when AUTH_MODE=oidc");
+        }
+        if (!process.env.OIDC_CLIENT_SECRET) {
+            throw new Error("OIDC_CLIENT_SECRET is required when AUTH_MODE=oidc");
+        }
+    }
 
     const authConfig: AuthConfig = {
         mode: authMode,
@@ -105,6 +117,10 @@ async function bootstrap(): Promise<void> {
     });
 
     const port = process.env.PORT ?? "3000";
+    const portNumber = Number(port);
+    if (!Number.isInteger(portNumber) || portNumber < 1 || portNumber > 65535) {
+        throw new Error(`PORT must be an integer between 1 and 65535, got "${port}"`);
+    }
     await app.listen(port);
     console.log(`Backend listening on port ${port}`);
 

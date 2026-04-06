@@ -130,8 +130,10 @@ export class AuthService {
     private verifyToken(token: string): UserIdentity | null {
         try {
             const payload = jsonwebtoken.verify(token, this.config.jwtSecret) as jsonwebtoken.JwtPayload;
+            const email = (payload.email as string | undefined) ?? "";
+            if (!email) return null;
             return {
-                email: (payload.email as string | undefined) ?? "",
+                email,
                 name: (payload.name as string | undefined) ?? "",
                 avatarUrl: (payload.avatarUrl as string | undefined) ?? undefined,
             };
@@ -205,6 +207,10 @@ export class AuthService {
         }
 
         const email = (claims.email as string | undefined) ?? "";
+
+        if (!email) {
+            throw new Error("No email address returned from OIDC provider");
+        }
 
         if (this.config.allowedEmailDomain) {
             const domain = email.split("@")[1];

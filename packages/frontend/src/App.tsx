@@ -41,7 +41,7 @@ export function App(): ReactElement {
     return (
         <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
             <AppBar position="static" elevation={0}>
-                <Toolbar>
+                <Toolbar sx={{ maxWidth: "80rem", width: "100%", mx: "auto" }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
                         Datonfly Assistant
                     </Typography>
@@ -53,17 +53,19 @@ export function App(): ReactElement {
                     </Button>
                 </Toolbar>
             </AppBar>
-            <Box sx={{ flex: 1, overflow: "hidden" }}>
-                <ChatHistoryEmbed
-                    config={{
-                        url: BACKEND_URL,
-                        getToken,
-                        inputComponent: RichInput,
-                        inputTools: [emojiPickerTool],
-                        maxRows,
-                        messageComponents: highlightComponents,
-                    }}
-                />
+            <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "center" }}>
+                <Box sx={{ width: "100%", maxWidth: "80rem" }}>
+                    <ChatHistoryEmbed
+                        config={{
+                            url: BACKEND_URL,
+                            getToken,
+                            inputComponent: RichInput,
+                            inputTools: [emojiPickerTool],
+                            maxRows,
+                            messageComponents: highlightComponents,
+                        }}
+                    />
+                </Box>
             </Box>
         </Box>
     );

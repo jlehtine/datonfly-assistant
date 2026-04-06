@@ -22,10 +22,15 @@ import { MessageList } from "./MessageList.js";
 
 /** Configuration options passed to {@link ChatEmbed}. */
 export interface ChatEmbedConfig {
-    /** WebSocket server URL. */
+    /** Server base URL. */
     url: string;
     /** ID of the thread to open, or `undefined` to let `onBeforeSend` provide it lazily. */
     threadId?: string | undefined;
+    /**
+     * Optional path prefix prepended to all endpoint paths.
+     * @see ChatClientConfig.basePath
+     */
+    basePath?: string | undefined;
     /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
     getToken?: (() => string | null) | undefined;
     /** Optional async callback invoked before each send; must resolve to the thread ID to use. */
@@ -74,7 +79,11 @@ export interface ChatEmbedProps {
  * parent's height. Wrap the parent in a fixed-height container.
  */
 export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
-    const { client, connected } = useChatConnection({ url: config.url, getToken: config.getToken });
+    const { client, connected } = useChatConnection({
+        url: config.url,
+        basePath: config.basePath,
+        getToken: config.getToken,
+    });
     const threadId = config.threadId ?? null;
 
     return (
@@ -87,8 +96,6 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                 inputTools={config.inputTools}
                 maxRows={config.maxRows}
                 messageComponents={config.messageComponents}
-                url={config.url}
-                getToken={config.getToken}
                 thread={config.thread}
                 onOpenThreadList={config.onOpenThreadList}
                 onRenameThread={config.onRenameThread}
@@ -106,8 +113,6 @@ interface ChatInnerProps {
     inputTools?: InputTool[] | undefined;
     maxRows?: number | undefined;
     messageComponents?: Components | undefined;
-    url?: string | undefined;
-    getToken?: (() => string | null) | undefined;
     thread?: Thread | undefined;
     onOpenThreadList?: (() => void) | undefined;
     onRenameThread?: ((title: string) => void) | undefined;
@@ -122,8 +127,6 @@ function ChatInner({
     inputTools,
     maxRows,
     messageComponents,
-    url,
-    getToken,
     thread,
     onOpenThreadList,
     onRenameThread,
@@ -145,7 +148,6 @@ function ChatInner({
     const { messages, sendMessage, isStreaming, error, clearError, isLoadingHistory, hasMore, loadMore } = useMessages(
         threadId,
         onBeforeSend,
-        { url, getToken },
     );
 
     const isNarrow = useMediaQuery("(max-width:640px)");

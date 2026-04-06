@@ -136,6 +136,9 @@ importers:
       socket.io-client:
         specifier: ^4.8.0
         version: 4.8.3
+      zod:
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@datonfly-assistant/core':
         specifier: workspace:*

@@ -20,15 +20,15 @@ import { PERSISTENCE_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 
-@Controller("threads")
+@Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
 export class ThreadController {
     constructor(@Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider) {}
 
     @Post()
-    async create(@ResolvedUser() user: User, @Body() body: { title?: string }): Promise<Thread> {
+    async create(@ResolvedUser() user: User, @Body() body?: { title?: string }): Promise<Thread> {
         return this.persistence.createThread({
-            title: body.title ?? "Conversation",
+            title: body?.title ?? "Conversation",
             creatorId: user.id,
         });
     }

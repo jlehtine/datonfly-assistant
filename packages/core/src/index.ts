@@ -84,3 +84,18 @@ export type {
     MemorySearchRequest,
     PaginationQuery,
 } from "./dto/index.js";
+
+// Endpoints
+export {
+    API_PREFIX,
+    WS_PATH,
+    THREADS_PATH,
+    threadPath,
+    threadMessagesPath,
+    threadWireSchema,
+    threadListWireSchema,
+    threadMessageWireSchema,
+    threadMessageListWireSchema,
+} from "./endpoints/index.js";
+
+export type { ThreadWire, ThreadMessageWire } from "./endpoints/index.js";

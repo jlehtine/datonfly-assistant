@@ -1,11 +1,12 @@
 import { io, type Socket } from "socket.io-client";
 
-import type {
-    ErrorEvent,
-    MessageCompleteEvent,
-    MessageDeltaEvent,
-    SendMessageEvent,
-    ThreadUpdatedEvent,
+import {
+    WS_PATH,
+    type ErrorEvent,
+    type MessageCompleteEvent,
+    type MessageDeltaEvent,
+    type SendMessageEvent,
+    type ThreadUpdatedEvent,
 } from "@datonfly-assistant/core";
 
 /** Map of event names to their handler signatures for {@link ChatClient}. */
@@ -26,8 +27,19 @@ export interface ChatClientEventMap {
 
 /** Configuration options for {@link ChatClient}. */
 export interface ChatClientConfig {
-    /** WebSocket server URL (e.g. `"http://localhost:3000"`). */
+    /** Server base URL (e.g. `"http://localhost:3000"`). Used for both REST and WebSocket. */
     url: string;
+    /**
+     * Optional path prefix prepended to all endpoint paths.
+     *
+     * Use this when the server is behind a reverse proxy that maps the backend
+     * at a subpath (e.g. `"/api"`). Path constants already include the
+     * `/datonfly-assistant` prefix, so the final URL becomes
+     * `url + basePath + endpointPath`.
+     *
+     * @default ""
+     */
+    basePath?: string | undefined;
     /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
     getToken?: (() => string | null) | undefined;
 }
@@ -41,11 +53,21 @@ export interface ChatClientConfig {
 export class ChatClient {
     private readonly socket: Socket;
 
+    /** Path prefix prepended to all REST endpoint paths. */
+    readonly basePath: string;
+
+    /** Auth token callback, or `undefined` for anonymous access. */
+    readonly getToken: (() => string | null) | undefined;
+
     /** Create a new client. The socket is not connected until {@link connect} is called. */
     constructor(config: ChatClientConfig) {
+        this.basePath = config.basePath ?? "";
+        this.getToken = config.getToken;
+
         const opts: Parameters<typeof io>[1] = {
             transports: ["websocket", "polling"],
             autoConnect: false,
+            path: this.basePath + WS_PATH,
         };
 
         if (config.getToken) {

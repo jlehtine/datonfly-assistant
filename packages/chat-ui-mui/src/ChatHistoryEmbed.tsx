@@ -4,8 +4,14 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useRef, useState, type ComponentType, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import { useThreadList } from "@datonfly-assistant/chat-client/react";
-import type { Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
+import { typedFetch } from "@datonfly-assistant/chat-client";
+import {
+    ChatClientContext,
+    useChatClient,
+    useChatConnection,
+    useThreadList,
+} from "@datonfly-assistant/chat-client/react";
+import { THREADS_PATH, threadWireSchema, type ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
 import { ChatEmbed } from "./ChatEmbed.js";
 import type { ComposerInputProps } from "./Composer.js";
@@ -18,6 +24,11 @@ export interface ChatHistoryEmbedConfig {
     url: string;
     /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
     getToken?: (() => string | null) | undefined;
+    /**
+     * Optional path prefix prepended to all endpoint paths.
+     * @see ChatClientConfig.basePath
+     */
+    basePath?: string | undefined;
     /** Override the default plain-text input with a custom component. */
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
     /** Optional input tools (e.g. emoji picker) to attach to the composer. */
@@ -52,15 +63,26 @@ export interface ChatHistoryEmbedProps {
  * thread creation on first send. On narrow viewports the sidebar is hidden.
  */
 export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElement {
-    const { url, getToken, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
+    const { url, getToken, basePath } = config;
+    const { client } = useChatConnection({ url, getToken, basePath });
+
+    return (
+        <ChatClientContext.Provider value={client}>
+            <ChatHistoryInner config={config} />
+        </ChatClientContext.Provider>
+    );
+}
+
+function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
+    const { url, getToken, basePath, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
+
+    const client = useChatClient();
 
     const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
     const pendingCreateRef = useRef<Promise<string> | null>(null);
 
     // Always load all threads (active + archived); ThreadListPanel handles client-side filtering.
     const { threads, loading, setArchived, renameThread, updateThreadTitle, refresh } = useThreadList({
-        url,
-        getToken,
         includeArchived: true,
     });
 
@@ -73,18 +95,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
         if (pendingCreateRef.current) return pendingCreateRef.current;
 
         const promise = (async () => {
-            const token = getToken?.();
-            const res = await fetch(`${url}/threads`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-            });
-            if (!res.ok) {
-                throw new Error(`Failed to create thread: ${res.statusText}`);
-            }
-            const thread = (await res.json()) as Thread;
+            const thread = await typedFetch(client, THREADS_PATH, threadWireSchema, { method: "POST" });
             setSelectedThreadId(thread.id);
             pendingCreateRef.current = null;
             refresh();
@@ -93,7 +104,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
 
         pendingCreateRef.current = promise;
         return promise;
-    }, [selectedThreadId, getToken, url, refresh]);
+    }, [selectedThreadId, client, refresh]);
 
     const handleArchiveToggleFromPanel = useCallback(
         (threadId: string, archived: boolean) => {
@@ -182,6 +193,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
                     config={{
                         url,
                         getToken,
+                        basePath,
                         threadId: selectedThreadId ?? undefined,
                         onBeforeSend: onBeforeSend ?? ensureThread,
                         inputComponent,

@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ErrorEvent, MessageCompleteEvent, MessageDeltaEvent, ThreadMessage } from "@datonfly-assistant/core";
+import {
+    threadMessageListWireSchema,
+    threadMessagesPath,
+    type ErrorEvent,
+    type MessageCompleteEvent,
+    type MessageDeltaEvent,
+    type ThreadMessage,
+} from "@datonfly-assistant/core";
 
+import { typedFetch } from "../fetch.js";
 import { useChatClient } from "./context.js";
 
 /** A single chat message held in local React state. */
@@ -20,10 +28,6 @@ export interface ChatMessage {
 
 /** Options for {@link useMessages}. */
 export interface UseMessagesOptions {
-    /** REST server base URL used to load message history. */
-    url?: string | undefined;
-    /** Optional callback that returns a JWT for authentication. */
-    getToken?: (() => string | null) | undefined;
     /** Number of messages to fetch per history page. Defaults to 50. */
     historyPageSize?: number | undefined;
 }
@@ -78,7 +82,7 @@ export function useMessages(
     onBeforeSend?: () => Promise<string>,
     options: UseMessagesOptions = {},
 ): UseMessagesResult {
-    const { url, getToken, historyPageSize = 50 } = options;
+    const { historyPageSize = 50 } = options;
     const client = useChatClient();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
@@ -97,34 +101,23 @@ export function useMessages(
         resolvedThreadIdRef.current = threadId;
     }, [threadId]);
 
-    const authHeaders = useCallback((): Record<string, string> => {
-        const token = getToken?.();
-        return token ? { Authorization: `Bearer ${token}` } : {};
-    }, [getToken]);
-
     /**
      * Fetch a page of history messages from the REST API.
      * Returns messages sorted oldest-first (as returned by loadMessages in the backend).
      */
     const fetchHistory = useCallback(
         async (tid: string, before?: Date): Promise<{ messages: ChatMessage[]; hasMore: boolean }> => {
-            if (!url) return { messages: [], hasMore: false };
-            const params = new URLSearchParams({ limit: String(historyPageSize) });
-            if (before) params.set("before", before.toISOString());
-            const res = await fetch(`${url}/threads/${tid}/messages?${params.toString()}`, {
-                headers: authHeaders(),
-            });
-            if (!res.ok) throw new Error(`Failed to load history: ${res.statusText}`);
-            const raw = (await res.json()) as (Omit<ThreadMessage, "createdAt"> & { createdAt: string })[];
-            const parsed = raw.map((m) => ({ ...m, createdAt: new Date(m.createdAt) }));
-            const chatMsgs = parsed.flatMap((m) => {
+            const query: Record<string, string> = { limit: String(historyPageSize) };
+            if (before) query.before = before.toISOString();
+            const raw = await typedFetch(client, threadMessagesPath(tid), threadMessageListWireSchema, { query });
+            const chatMsgs = raw.flatMap((m) => {
                 const c = toChat(m);
                 return c ? [c] : [];
             });
             // A full page indicates there are likely more messages to load before this batch.
             return { messages: chatMsgs, hasMore: raw.length === historyPageSize };
         },
-        [url, historyPageSize, authHeaders],
+        [client, historyPageSize],
     );
 
     // Reset and load history when threadId changes
@@ -136,7 +129,7 @@ export function useMessages(
         streamingIdRef.current = null;
         setIsStreaming(false);
 
-        if (!threadId || !url) return;
+        if (!threadId) return;
 
         isLoadingHistoryRef.current = true;
         setIsLoadingHistory(true);
@@ -153,7 +146,7 @@ export function useMessages(
                 setIsLoadingHistory(false);
             }
         })();
-    }, [threadId, url, fetchHistory]);
+    }, [threadId, fetchHistory]);
 
     // Keep a ref to the current messages so loadMore can access the oldest message's createdAt
     // without needing messages as a dependency.
@@ -165,7 +158,7 @@ export function useMessages(
     const loadMore = useCallback(() => {
         const tid = resolvedThreadIdRef.current;
         // Use the synchronous ref guard to prevent concurrent fetches (React state updates are async)
-        if (!tid || !url || isLoadingHistoryRef.current) return;
+        if (!tid || isLoadingHistoryRef.current) return;
 
         // Use the explicitly tracked cursor; fall back to the oldest loaded message's createdAt
         // only if the cursor hasn't been set yet (e.g. on first loadMore call in an edge case).
@@ -188,7 +181,7 @@ export function useMessages(
                 isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
             });
-    }, [url, fetchHistory]);
+    }, [fetchHistory]);
 
     useEffect(() => {
         const handleDelta = (event: MessageDeltaEvent): void => {

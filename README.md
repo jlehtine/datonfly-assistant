@@ -74,7 +74,7 @@ the standalone implementation.
 
 Generic types and interfaces shared among the other library packages,
 applications embedding assistant functionality and pluggable provider
-implementations. Does not have any dependencies.
+implementations. Dependencies: `zod`.
 
 #### `@datonfly-assistant/chat-server`
 

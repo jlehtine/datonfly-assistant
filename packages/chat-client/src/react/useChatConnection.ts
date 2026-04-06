@@ -4,8 +4,13 @@ import { ChatClient } from "../client.js";
 
 /** Configuration options for {@link useChatConnection}. */
 export interface UseChatConnectionConfig {
-    /** WebSocket server URL (e.g. `"http://localhost:3000"`). */
+    /** Server base URL (e.g. `"http://localhost:3000"`). */
     url: string;
+    /**
+     * Optional path prefix prepended to all endpoint paths.
+     * @see {@link ChatClientConfig.basePath}
+     */
+    basePath?: string | undefined;
     /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
     getToken?: (() => string | null) | undefined;
 }
@@ -21,7 +26,11 @@ export function useChatConnection(config: UseChatConnectionConfig): { client: Ch
     const clientRef = useRef<ChatClient | null>(null);
     const [connected, setConnected] = useState(false);
 
-    clientRef.current ??= new ChatClient({ url: config.url, getToken: config.getToken });
+    clientRef.current ??= new ChatClient({
+        url: config.url,
+        basePath: config.basePath,
+        getToken: config.getToken,
+    });
     const client = clientRef.current;
 
     useEffect(() => {

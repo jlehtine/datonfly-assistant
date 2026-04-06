@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Thread } from "@datonfly-assistant/core";
+import {
+    threadListWireSchema,
+    threadPath,
+    THREADS_PATH,
+    threadWireSchema,
+    type Thread,
+} from "@datonfly-assistant/core";
+
+import { typedFetch } from "../fetch.js";
+import { useChatClient } from "./context.js";
 
 /** Options for {@link useThreadList}. */
 export interface UseThreadListOptions {
-    /** REST server base URL. */
-    url: string;
-    /** Optional callback that returns a JWT for authentication, or `null` for anonymous access. */
-    getToken?: (() => string | null) | undefined;
     /** Whether to include archived threads. Defaults to `false`. */
     includeArchived?: boolean | undefined;
 }
@@ -35,53 +40,27 @@ export interface UseThreadListResult {
  *
  * Automatically refreshes whenever `includeArchived` changes.
  */
-export function useThreadList({ url, getToken, includeArchived = false }: UseThreadListOptions): UseThreadListResult {
+export function useThreadList({ includeArchived = false }: UseThreadListOptions = {}): UseThreadListResult {
+    const client = useChatClient();
     const [threads, setThreads] = useState<Thread[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const refreshCountRef = useRef(0);
 
-    const authHeaders = useCallback((): Record<string, string> => {
-        const token = getToken?.();
-        return token ? { Authorization: `Bearer ${token}` } : {};
-    }, [getToken]);
-
     const fetchThreads = useCallback(async (): Promise<void> => {
         setLoading(true);
         setError(null);
         try {
-            const qs = includeArchived ? "?includeArchived=true" : "";
-            const res = await fetch(`${url}/threads${qs}`, {
-                headers: authHeaders(),
-            });
-            if (!res.ok) {
-                throw new Error(`Failed to load threads: ${res.statusText}`);
-            }
-            const data = (await res.json()) as (Omit<
-                Thread,
-                "createdAt" | "updatedAt" | "archivedAt" | "titleGeneratedAt"
-            > & {
-                createdAt: string;
-                updatedAt: string;
-                archivedAt?: string | null;
-                titleGeneratedAt?: string | null;
-            })[];
-            const parsed: Thread[] = data.map((t) => ({
-                ...t,
-                createdAt: new Date(t.createdAt),
-                updatedAt: new Date(t.updatedAt),
-                archivedAt: t.archivedAt ? new Date(t.archivedAt) : undefined,
-                titleGeneratedAt: t.titleGeneratedAt ? new Date(t.titleGeneratedAt) : undefined,
-            }));
-            // Sort by most recently updated first
-            parsed.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-            setThreads(parsed);
+            const query = includeArchived ? { includeArchived: "true" } : undefined;
+            const data = await typedFetch(client, THREADS_PATH, threadListWireSchema, { query });
+            const sorted = [...data].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+            setThreads(sorted);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Failed to load threads");
         } finally {
             setLoading(false);
         }
-    }, [url, includeArchived, authHeaders]);
+    }, [client, includeArchived]);
 
     const refresh = useCallback(() => {
         refreshCountRef.current += 1;
@@ -95,32 +74,24 @@ export function useThreadList({ url, getToken, includeArchived = false }: UseThr
     const setArchived = useCallback(
         async (threadId: string, archived: boolean): Promise<void> => {
             const body = { archivedAt: archived ? new Date().toISOString() : null };
-            const res = await fetch(`${url}/threads/${threadId}`, {
+            await typedFetch(client, threadPath(threadId), threadWireSchema, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json", ...authHeaders() },
-                body: JSON.stringify(body),
+                body,
             });
-            if (!res.ok) {
-                throw new Error(`Failed to update thread: ${res.statusText}`);
-            }
             void fetchThreads();
         },
-        [url, authHeaders, fetchThreads],
+        [client, fetchThreads],
     );
 
     const renameThread = useCallback(
         async (threadId: string, title: string): Promise<void> => {
-            const res = await fetch(`${url}/threads/${threadId}`, {
+            await typedFetch(client, threadPath(threadId), threadWireSchema, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json", ...authHeaders() },
-                body: JSON.stringify({ title }),
+                body: { title },
             });
-            if (!res.ok) {
-                throw new Error(`Failed to rename thread: ${res.statusText}`);
-            }
             void fetchThreads();
         },
-        [url, authHeaders, fetchThreads],
+        [client, fetchThreads],
     );
 
     const updateThreadTitle = useCallback((threadId: string, title: string): void => {

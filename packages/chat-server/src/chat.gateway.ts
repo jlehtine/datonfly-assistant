@@ -16,6 +16,8 @@ import type {
     User,
 } from "@datonfly-assistant/core";
 
+import { WS_PATH } from "@datonfly-assistant/core";
+
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
 import { threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
@@ -29,7 +31,7 @@ import type { ValidateTokenFn } from "./server.js";
  * resolved to a full {@link User} record via the persistence provider and
  * stored in `socket.data.user`.
  */
-@WebSocketGateway()
+@WebSocketGateway({ path: WS_PATH })
 @Injectable()
 export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     @WebSocketServer()

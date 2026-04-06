@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Kysely } from "kysely";
+import type { Kysely, QueryCreator } from "kysely";
 
 import type {
     AppendMessageOptions,
@@ -25,22 +25,26 @@ import type { Database, MessageRow, ThreadMemberRow, ThreadRow, UserRow } from "
  * migrations applied. Do not instantiate this class directly in application code.
  */
 export class PostgresPersistenceProvider implements IPersistenceProvider {
-    constructor(private readonly db: Kysely<Database>) {}
+    private readonly qb: QueryCreator<Database>;
+
+    constructor(private readonly db: Kysely<Database>) {
+        this.qb = db.withSchema("dfa");
+    }
 
     // ─── Users ───
 
     async findUserByEmail(email: string): Promise<User | null> {
-        const row = await this.db.selectFrom("user").selectAll().where("email", "=", email).executeTakeFirst();
+        const row = await this.qb.selectFrom("user").selectAll().where("email", "=", email).executeTakeFirst();
         return row ? toUser(row) : null;
     }
 
     async findUserById(id: string): Promise<User | null> {
-        const row = await this.db.selectFrom("user").selectAll().where("id", "=", id).executeTakeFirst();
+        const row = await this.qb.selectFrom("user").selectAll().where("id", "=", id).executeTakeFirst();
         return row ? toUser(row) : null;
     }
 
     async upsertUser(user: Omit<User, "createdAt">): Promise<User> {
-        const row = await this.db
+        const row = await this.qb
             .insertInto("user")
             .values({
                 id: user.id,
@@ -68,7 +72,8 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         const id = randomUUID();
         const now = new Date();
 
-        return await this.db.transaction().execute(async (trx) => {
+        return await this.db.transaction().execute(async (tx) => {
+            const trx = tx.withSchema("dfa");
             const row = await trx
                 .insertInto("thread")
                 .values({
@@ -95,12 +100,12 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async getThread(threadId: string): Promise<Thread | null> {
-        const row = await this.db.selectFrom("thread").selectAll().where("id", "=", threadId).executeTakeFirst();
+        const row = await this.qb.selectFrom("thread").selectAll().where("id", "=", threadId).executeTakeFirst();
         return row ? toThread(row) : null;
     }
 
     async listThreads(options: ListThreadsOptions): Promise<Thread[]> {
-        let query = this.db
+        let query = this.qb
             .selectFrom("thread")
             .innerJoin("thread_member", "thread.id", "thread_member.thread_id")
             .selectAll("thread")
@@ -130,7 +135,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         if (updates.titleManuallySet !== undefined) values.title_manually_set = updates.titleManuallySet;
         values.updated_at = new Date();
 
-        const row = await this.db
+        const row = await this.qb
             .updateTable("thread")
             .set(values)
             .where("id", "=", threadId)
@@ -140,13 +145,13 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async deleteThread(threadId: string): Promise<void> {
-        await this.db.deleteFrom("thread").where("id", "=", threadId).execute();
+        await this.qb.deleteFrom("thread").where("id", "=", threadId).execute();
     }
 
     // ─── Membership ───
 
     async addMember(threadId: string, userId: string, role: ThreadMemberRole): Promise<ThreadMember> {
-        const row = await this.db
+        const row = await this.qb
             .insertInto("thread_member")
             .values({
                 user_id: userId,
@@ -160,7 +165,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async removeMember(threadId: string, userId: string): Promise<void> {
-        await this.db
+        await this.qb
             .deleteFrom("thread_member")
             .where("thread_id", "=", threadId)
             .where("user_id", "=", userId)
@@ -168,7 +173,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async listMembers(threadId: string): Promise<ThreadMember[]> {
-        const rows = await this.db
+        const rows = await this.qb
             .selectFrom("thread_member")
             .selectAll()
             .where("thread_id", "=", threadId)
@@ -178,7 +183,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async isMember(threadId: string, userId: string): Promise<boolean> {
-        const row = await this.db
+        const row = await this.qb
             .selectFrom("thread_member")
             .select("user_id")
             .where("thread_id", "=", threadId)
@@ -188,7 +193,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async getMemberRole(threadId: string, userId: string): Promise<ThreadMemberRole | null> {
-        const row = await this.db
+        const row = await this.qb
             .selectFrom("thread_member")
             .select("role")
             .where("thread_id", "=", threadId)
@@ -203,7 +208,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         const id = randomUUID();
         const now = new Date();
 
-        const row = await this.db
+        const row = await this.qb
             .insertInto("message")
             .values({
                 id,
@@ -218,13 +223,13 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             .executeTakeFirstOrThrow();
 
         // Bump thread updated_at
-        await this.db.updateTable("thread").set({ updated_at: now }).where("id", "=", options.threadId).execute();
+        await this.qb.updateTable("thread").set({ updated_at: now }).where("id", "=", options.threadId).execute();
 
         return toMessage(row);
     }
 
     async countMessages(threadId: string): Promise<number> {
-        const result = await this.db
+        const result = await this.qb
             .selectFrom("message")
             .select(this.db.fn.countAll<string>().as("count"))
             .where("thread_id", "=", threadId)
@@ -233,7 +238,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async loadMessages(options: LoadMessagesOptions): Promise<ThreadMessage[]> {
-        let query = this.db.selectFrom("message").selectAll().where("thread_id", "=", options.threadId);
+        let query = this.qb.selectFrom("message").selectAll().where("thread_id", "=", options.threadId);
 
         if (options.before) {
             query = query.where("created_at", "<", options.before);

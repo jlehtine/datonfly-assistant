@@ -47,6 +47,7 @@ export async function createPostgresPersistence(
             path,
             migrationFolder: path.join(__dirname, "migrations"),
         }),
+        migrationTableSchema: "dfa",
     });
 
     const { error, results } = await migrator.migrateToLatest();

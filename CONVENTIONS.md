@@ -30,6 +30,9 @@ All public API interfaces are documented with **JSDoc**.
 
 ## Database
 
+- All tables live in the **`dfa`** (Datonfly Assistant) PostgreSQL schema. This
+  allows other Datonfly components to share the same database using their own
+  schemas.
 - **Table names** use **singular** form: `user`, `thread`, `thread_member`,
   `message`.
 - **Column names** use `snake_case`.

@@ -74,15 +74,25 @@ the standalone implementation.
 
 Generic types and interfaces shared among the other library packages,
 applications embedding assistant functionality and pluggable provider
-implementations. Dependencies: `zod`.
+implementations. Also declares the REST and WebSocket endpoint contract (path
+constants and Zod wire-format schemas) used by both server and client packages.
+
+Dependencies: `zod`.
 
 #### `@datonfly-assistant/chat-server`
 
-NestJS based backend for assistant functionality. Provides backend endpoints and
-their interface declarations to `chat-client`. Uses pluggable service providers
-to implement assistant functionality — for example, the default AI agent and
+NestJS based backend for assistant functionality. Provides REST endpoints and a
+WebSocket gateway for real-time chat. Uses pluggable service providers to
+implement assistant functionality — for example, the default AI agent and
 persistence layer implementations are provided as pluggable providers that can
 be replaced with custom or alternative providers.
+
+Authentication is delegated to the host application. The host application is
+responsible for authenticating requests and populating `req.user` with a
+`UserIdentity`. Chat-server provides a `RequireUserGuard` that resolves the
+identity to a full `User` record and enforces thread-level membership checks.
+For WebSocket connections, an optional `validateToken` callback is accepted to
+verify tokens during the Socket.io handshake.
 
 Configured and initialized by application specific logic. Designed to be
 embedded into the Node.js backend of the host application or to be used as a
@@ -99,8 +109,16 @@ Dependencies: `@datonfly-assistant/core`.
 #### `@datonfly-assistant/chat-client`
 
 Implements the web client side assistant logic. Connects to the endpoints
-provided and declared by `chat-server`. Maintains the client side assistant
-state, sending requests to and receiving updates from the server.
+declared by `core`. Maintains the client side assistant state, sending requests
+to and receiving updates from the server. Provides a validated fetch wrapper
+(`typedFetch`) that builds URLs from a configurable `basePath`, injects
+authentication headers via a `getToken` callback, and validates responses
+through Zod schemas.
+
+Also provides React hooks (via the `@datonfly-assistant/chat-client/react`
+subpath export) for thread listing, message history, real-time streaming, and
+connection management. The hooks source their configuration from a
+`ChatClientContext` and do not require per-call URL or token options.
 
 Does not include a concrete user interface implementation. Instead, provides
 hooks for pluggable user interface implementations. Configured and initialized
@@ -108,8 +126,7 @@ by application specific logic. Designed to be embedded into application web
 frontends and can be used with `chat-ui-mui` or with a completely custom user
 interface.
 
-Dependencies: `@datonfly-assistant/core`, `@datonfly-assistant/chat-server`
-(endpoint interface declarations only).
+Dependencies: `@datonfly-assistant/core`.
 
 #### `@datonfly-assistant/chat-ui-mui`
 
@@ -152,8 +169,10 @@ application.
 #### `@datonfly-assistant/backend`
 
 Standalone backend using `chat-server`, `agent-langchain` and `persistence-pg`.
-Also hosts the static files of `frontend` for web users. Supports OIDC based
-authentication for production usage.
+Also hosts the static files of `frontend` for web users. Implements
+authentication (OIDC for production, fake mode for development) via a global JWT
+guard that populates `req.user` with a `UserIdentity` expected by `chat-server`.
+Also provides login, OIDC callback, and user info endpoints.
 
 #### `@datonfly-assistant/frontend`
 

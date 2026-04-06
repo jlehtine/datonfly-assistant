@@ -13,9 +13,12 @@ or `SameSite=Strict`).
 ### Input validation of API bodies
 
 Request bodies accepted by the REST API (e.g. thread creation, thread update)
-have TypeScript types but no runtime validation. Add NestJS `ValidationPipe`
-with `class-validator` DTOs to enforce maximum lengths, allowed values, and
-correct types at the boundary.
+have TypeScript types but no runtime validation. Zod schemas exist for
+wire-format response validation on the client side
+(`core/src/endpoints/schemas`), but the server does not yet validate incoming
+request bodies. Add NestJS `ValidationPipe` with Zod-based DTOs or
+`class-validator` DTOs to enforce maximum lengths, allowed values, and correct
+types at the boundary.
 
 ### Rate limiting
 

@@ -82,9 +82,10 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
     const pendingCreateRef = useRef<Promise<string> | null>(null);
 
     // Always load all threads (active + archived); ThreadListPanel handles client-side filtering.
-    const { threads, loading, setArchived, renameThread, updateThreadTitle, refresh } = useThreadList({
-        includeArchived: true,
-    });
+    const { threads, loading, setArchived, renameThread, updateThreadTitle, refresh, hasMore, loadMore } =
+        useThreadList({
+            includeArchived: true,
+        });
 
     // Find the full Thread object for the currently selected thread.
     const selectedThread = threads.find((t) => t.id === selectedThreadId);
@@ -166,6 +167,8 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
                     onArchiveToggle={handleArchiveToggleFromPanel}
                     onNewThread={handleNewThread}
                     loading={loading}
+                    hasMore={hasMore}
+                    onLoadMore={loadMore}
                 />
             )}
             {isNarrow && (
@@ -185,6 +188,8 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
                             setDrawerOpen(false);
                         }}
                         loading={loading}
+                        hasMore={hasMore}
+                        onLoadMore={loadMore}
                     />
                 </Drawer>
             )}

@@ -52,6 +52,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
     await s.createIndex("thread_member_thread_idx").on("thread_member").column("thread_id").execute();
 
+    await s.createIndex("thread_updated_at_idx").on("thread").columns(["updated_at desc", "id asc"]).execute();
+
     await s.createIndex("message_author_idx").on("message").column("author_id").execute();
 }
 

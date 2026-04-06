@@ -10,7 +10,7 @@ import Select from "@mui/material/Select";
 import SvgIcon from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 
 import type { Thread } from "@datonfly-assistant/core";
 
@@ -56,6 +56,10 @@ export interface ThreadListPanelProps {
     onNewThread?: (() => void) | undefined;
     /** `true` while threads are being loaded. */
     loading?: boolean | undefined;
+    /** Whether more threads can be loaded. */
+    hasMore?: boolean | undefined;
+    /** Called when the user scrolls near the bottom of the list. */
+    onLoadMore?: (() => void) | undefined;
 }
 
 type ThreadFilter = "active" | "archived";
@@ -73,10 +77,40 @@ export function ThreadListPanel({
     onArchiveToggle,
     onNewThread,
     loading = false,
+    hasMore = false,
+    onLoadMore,
 }: ThreadListPanelProps): ReactElement {
     const [filter, setFilter] = useState<ThreadFilter>("active");
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     const filtered = threads.filter((t) => (filter === "archived" ? !!t.archivedAt : !t.archivedAt));
+
+    const handleScroll = useCallback(() => {
+        const el = scrollRef.current;
+        if (!el || !hasMore || !onLoadMore) return;
+        // Trigger when scrolled within 100px of the bottom.
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+            onLoadMore();
+        }
+    }, [hasMore, onLoadMore]);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        el.addEventListener("scroll", handleScroll, { passive: true });
+        return () => {
+            el.removeEventListener("scroll", handleScroll);
+        };
+    }, [handleScroll]);
+
+    // If the content doesn't fill the container (no scrollbar), keep loading.
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el || !hasMore || !onLoadMore || loading) return;
+        if (el.scrollHeight <= el.clientHeight) {
+            onLoadMore();
+        }
+    }, [hasMore, onLoadMore, loading, filtered.length]);
 
     return (
         <Box
@@ -114,8 +148,8 @@ export function ThreadListPanel({
                 </Select>
             </Box>
             <Divider />
-            <Box sx={{ flex: 1, overflow: "auto" }}>
-                {loading ? (
+            <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto" }}>
+                {loading && threads.length === 0 ? (
                     <Box sx={{ display: "flex", justifyContent: "center", pt: 3 }}>
                         <CircularProgress size={24} />
                     </Box>
@@ -134,6 +168,11 @@ export function ThreadListPanel({
                                 onArchiveToggle={onArchiveToggle}
                             />
                         ))}
+                        {loading && (
+                            <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+                                <CircularProgress size={20} />
+                            </Box>
+                        )}
                     </List>
                 )}
             </Box>

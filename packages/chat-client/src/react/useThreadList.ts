@@ -15,6 +15,8 @@ import { useChatClient } from "./context.js";
 export interface UseThreadListOptions {
     /** Whether to include archived threads. Defaults to `false`. */
     includeArchived?: boolean | undefined;
+    /** Number of threads to fetch per page. Defaults to 20. */
+    pageSize?: number | undefined;
 }
 
 /** Return value of {@link useThreadList}. */
@@ -25,11 +27,11 @@ export interface UseThreadListResult {
     loading: boolean;
     /** The most recent fetch error message, or `null`. */
     error: string | null;
-    /** Re-fetch the thread list immediately. */
+    /** Re-fetch the thread list from scratch. */
     refresh: () => void;
-    /** Archive or unarchive a thread by ID and refresh the list. */
+    /** Archive or unarchive a thread by ID. */
     setArchived: (threadId: string, archived: boolean) => Promise<void>;
-    /** Rename a thread and refresh the list. */
+    /** Rename a thread. */
     renameThread: (threadId: string, title: string) => Promise<void>;
     /**
      * Update a single thread's title in-place without re-fetching.
@@ -37,6 +39,10 @@ export interface UseThreadListResult {
      * thread already has `titleManuallySet === true` and the incoming value is `false`.
      */
     updateThreadTitle: (threadId: string, title: string, titleManuallySet?: boolean) => void;
+    /** `true` when there are more threads to load. */
+    hasMore: boolean;
+    /** Load the next page of threads. */
+    loadMore: () => void;
 }
 
 /**
@@ -44,38 +50,77 @@ export interface UseThreadListResult {
  *
  * Automatically refreshes whenever `includeArchived` changes.
  */
-export function useThreadList({ includeArchived = false }: UseThreadListOptions = {}): UseThreadListResult {
+export function useThreadList({
+    includeArchived = false,
+    pageSize = 20,
+}: UseThreadListOptions = {}): UseThreadListResult {
     const client = useChatClient();
     const [threads, setThreads] = useState<Thread[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const refreshCountRef = useRef(0);
+    const [hasMore, setHasMore] = useState(false);
+    const loadingRef = useRef(false);
 
     const sortByUpdatedAt = (list: Thread[]): Thread[] =>
         [...list].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
-    const fetchThreads = useCallback(async (): Promise<void> => {
+    const fetchPage = useCallback(
+        async (offset: number): Promise<{ data: Thread[]; hasMore: boolean }> => {
+            const query: Record<string, string> = { limit: String(pageSize), offset: String(offset) };
+            if (includeArchived) query.includeArchived = "true";
+            const data = await typedFetch(client, THREADS_PATH, threadListWireSchema, { query });
+            return { data, hasMore: data.length === pageSize };
+        },
+        [client, includeArchived, pageSize],
+    );
+
+    const fetchInitial = useCallback(async (): Promise<void> => {
+        if (loadingRef.current) return;
+        loadingRef.current = true;
         setLoading(true);
         setError(null);
         try {
-            const query = includeArchived ? { includeArchived: "true" } : undefined;
-            const data = await typedFetch(client, THREADS_PATH, threadListWireSchema, { query });
-            setThreads(sortByUpdatedAt(data));
+            const result = await fetchPage(0);
+            setThreads(sortByUpdatedAt(result.data));
+            setHasMore(result.hasMore);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Failed to load threads");
         } finally {
             setLoading(false);
+            loadingRef.current = false;
         }
-    }, [client, includeArchived]);
+    }, [fetchPage]);
 
     const refresh = useCallback(() => {
-        refreshCountRef.current += 1;
-        void fetchThreads();
-    }, [fetchThreads]);
+        void fetchInitial();
+    }, [fetchInitial]);
 
     useEffect(() => {
-        void fetchThreads();
-    }, [fetchThreads]);
+        void fetchInitial();
+    }, [fetchInitial]);
+
+    const loadMore = useCallback(() => {
+        if (loadingRef.current || !hasMore) return;
+        loadingRef.current = true;
+        setLoading(true);
+        void (async () => {
+            try {
+                const result = await fetchPage(threads.length);
+                setThreads((prev) => {
+                    // Deduplicate in case new threads were inserted via WS.
+                    const existingIds = new Set(prev.map((t) => t.id));
+                    const newThreads = result.data.filter((t) => !existingIds.has(t.id));
+                    return sortByUpdatedAt([...prev, ...newThreads]);
+                });
+                setHasMore(result.hasMore);
+            } catch (e: unknown) {
+                setError(e instanceof Error ? e.message : "Failed to load threads");
+            } finally {
+                setLoading(false);
+                loadingRef.current = false;
+            }
+        })();
+    }, [fetchPage, hasMore, threads.length]);
 
     const setArchived = useCallback(
         async (threadId: string, archived: boolean): Promise<void> => {
@@ -133,5 +178,5 @@ export function useThreadList({ includeArchived = false }: UseThreadListOptions 
         };
     }, [client]);
 
-    return { threads, loading, error, refresh, setArchived, renameThread, updateThreadTitle };
+    return { threads, loading, error, refresh, setArchived, renameThread, updateThreadTitle, hasMore, loadMore };
 }

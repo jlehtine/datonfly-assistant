@@ -16,6 +16,10 @@ export interface ListThreadsOptions {
     userId: string;
     /** Whether to include archived threads in the results. */
     includeArchived?: boolean | undefined;
+    /** Maximum number of threads to return. */
+    limit?: number | undefined;
+    /** Number of threads to skip (for offset-based pagination). */
+    offset?: number | undefined;
 }
 
 /** Options for appending a message to a thread. */

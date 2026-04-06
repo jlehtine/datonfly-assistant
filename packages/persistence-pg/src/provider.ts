@@ -115,7 +115,16 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             query = query.where("thread.archived_at", "is", null);
         }
 
-        const rows = await query.orderBy("thread.updated_at", "desc").execute();
+        query = query.orderBy("thread.updated_at", "desc").orderBy("thread.id", "asc");
+
+        if (options.offset !== undefined) {
+            query = query.offset(options.offset);
+        }
+        if (options.limit !== undefined) {
+            query = query.limit(options.limit);
+        }
+
+        const rows = await query.execute();
         return rows.map(toThread);
     }
 

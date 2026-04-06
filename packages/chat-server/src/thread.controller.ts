@@ -56,9 +56,16 @@ export class ThreadController {
     }
 
     @Get()
-    async list(@ResolvedUser() user: User, @Query("includeArchived") includeArchivedStr?: string): Promise<Thread[]> {
+    async list(
+        @ResolvedUser() user: User,
+        @Query("includeArchived") includeArchivedStr?: string,
+        @Query("limit") limitStr?: string,
+        @Query("offset") offsetStr?: string,
+    ): Promise<Thread[]> {
         const includeArchived = includeArchivedStr === "true";
-        return this.persistence.listThreads({ userId: user.id, includeArchived });
+        const limit = limitStr !== undefined ? Math.min(Math.max(parseInt(limitStr, 10) || 20, 1), 100) : undefined;
+        const offset = offsetStr !== undefined ? Math.max(parseInt(offsetStr, 10) || 0, 0) : undefined;
+        return this.persistence.listThreads({ userId: user.id, includeArchived, limit, offset });
     }
 
     @Get(":id/messages")

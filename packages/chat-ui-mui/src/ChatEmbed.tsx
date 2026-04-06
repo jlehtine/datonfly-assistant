@@ -206,6 +206,7 @@ function ChatInner({
                 onLoadMore={loadMore}
             />
             <Composer
+                key={threadId ?? "new"}
                 onSend={sendMessage}
                 disabled={!connected || isStreaming}
                 inputComponent={inputComponent}

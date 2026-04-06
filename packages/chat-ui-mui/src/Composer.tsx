@@ -73,9 +73,8 @@ function DefaultInput({
     const [toolCtx, setToolCtx] = useState({ text: "", selectionStart: 0, selectionEnd: 0 });
 
     useEffect(() => {
-        if (autoFocus) {
-            inputRef.current?.focus();
-        }
+        if (!autoFocus) return;
+        inputRef.current?.focus();
     }, [autoFocus]);
 
     const handleDone = (result: InputToolResult | null): void => {

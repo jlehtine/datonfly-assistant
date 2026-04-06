@@ -199,7 +199,13 @@ export function useMessages(
                 streamingIdRef.current = event.messageId;
                 setMessages((prev) => [
                     ...prev,
-                    { id: event.messageId, role: "assistant", text: event.delta, streaming: true },
+                    {
+                        id: event.messageId,
+                        role: "assistant",
+                        text: event.delta,
+                        streaming: true,
+                        createdAt: new Date(),
+                    },
                 ]);
             } else {
                 setMessages((prev) =>
@@ -247,6 +253,7 @@ export function useMessages(
                 role: "user",
                 text,
                 streaming: false,
+                createdAt: new Date(),
             };
             setMessages((prev) => [...prev, userMsg]);
             setIsStreaming(true);

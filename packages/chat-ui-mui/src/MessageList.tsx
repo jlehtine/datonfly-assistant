@@ -1,11 +1,14 @@
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import { keyframes } from "@mui/material/styles";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import { useEffect, useRef, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
 import type { ChatMessage } from "@datonfly-assistant/chat-hooks";
 
+import { formatTimestamp, formatTimestampFull, shouldShowTimestamp } from "./formatTimestamp.js";
 import { MessageBubble } from "./MessageBubble.js";
 
 const bounce = keyframes`
@@ -41,6 +44,22 @@ function ThinkingBubble(): ReactElement {
                 ))}
             </Box>
         </Box>
+    );
+}
+
+function TimestampDivider({ date }: { date: Date }): ReactElement {
+    const label = formatTimestamp(date);
+    const fullLabel = formatTimestampFull(date);
+    return (
+        <Tooltip title={fullLabel}>
+            <Typography
+                variant="caption"
+                aria-label={fullLabel}
+                sx={{ display: "block", textAlign: "center", my: 1, color: "text.disabled", cursor: "default" }}
+            >
+                {label}
+            </Typography>
+        </Tooltip>
     );
 }
 
@@ -128,9 +147,15 @@ export function MessageList({
                     <CircularProgress size={20} />
                 </Box>
             )}
-            {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} components={components} />
-            ))}
+            {messages.flatMap((msg, i) => {
+                const prev = i > 0 ? messages[i - 1] : undefined;
+                const elements: ReactElement[] = [];
+                if (msg.createdAt && shouldShowTimestamp(prev?.createdAt, msg.createdAt)) {
+                    elements.push(<TimestampDivider key={`ts-${msg.id}`} date={msg.createdAt} />);
+                }
+                elements.push(<MessageBubble key={msg.id} message={msg} components={components} />);
+                return elements;
+            })}
             {showThinking && <ThinkingBubble />}
             <div ref={endRef} />
         </Box>

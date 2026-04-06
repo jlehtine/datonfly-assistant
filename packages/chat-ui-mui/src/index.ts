@@ -2,6 +2,7 @@ export { ChatEmbed } from "./ChatEmbed.js";
 export type { ChatEmbedConfig, ChatEmbedProps } from "./ChatEmbed.js";
 export { ChatHistoryEmbed } from "./ChatHistoryEmbed.js";
 export type { ChatHistoryEmbedConfig, ChatHistoryEmbedProps } from "./ChatHistoryEmbed.js";
+export { formatTimestamp, formatTimestampFull } from "./formatTimestamp.js";
 export { MessageList } from "./MessageList.js";
 export type { MessageListProps } from "./MessageList.js";
 export { MessageBubble } from "./MessageBubble.js";

@@ -10,10 +10,11 @@ import Select from "@mui/material/Select";
 import SvgIcon from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { formatDistanceToNow } from "date-fns";
 import { useState, type ReactElement } from "react";
 
 import type { Thread } from "@datonfly-assistant/core";
+
+import { formatTimestamp } from "./formatTimestamp.js";
 
 /** Archive inbox icon (Material Design path). */
 function ArchiveIcon(): ReactElement {
@@ -149,7 +150,7 @@ interface ThreadListItemProps {
 
 function ThreadListItem({ thread, selected, onSelect, onArchiveToggle }: ThreadListItemProps): ReactElement {
     const isArchived = !!thread.archivedAt;
-    const relativeTime = formatDistanceToNow(thread.updatedAt, { addSuffix: true });
+    const relativeTime = formatTimestamp(thread.updatedAt);
 
     return (
         <ListItemButton

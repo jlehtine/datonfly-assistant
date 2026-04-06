@@ -63,6 +63,18 @@ importers:
 
   packages/backend:
     dependencies:
+      '@datonfly-assistant/agent-langchain':
+        specifier: workspace:*
+        version: link:../agent-langchain
+      '@datonfly-assistant/core':
+        specifier: workspace:*
+        version: link:../core
+      '@datonfly-assistant/persistence-pg':
+        specifier: workspace:*
+        version: link:../persistence-pg
+      '@datonfly-assistant/realtime':
+        specifier: workspace:*
+        version: link:../realtime
       '@nestjs/common':
         specifier: ^11.1.0
         version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -78,18 +90,6 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.1.0
         version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)
-      '@datonfly-assistant/agent-langchain':
-        specifier: workspace:*
-        version: link:../agent-langchain
-      '@datonfly-assistant/core':
-        specifier: workspace:*
-        version: link:../core
-      '@datonfly-assistant/persistence-pg':
-        specifier: workspace:*
-        version: link:../persistence-pg
-      '@datonfly-assistant/realtime':
-        specifier: workspace:*
-        version: link:../realtime
       dotenv:
         specifier: ^17.4.0
         version: 17.4.0
@@ -137,30 +137,30 @@ importers:
         specifier: ^4.8.0
         version: 4.8.3
     devDependencies:
-      '@langchain/core':
-        specifier: ^1.1.39
-        version: 1.1.39(ws@8.18.3)
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
+      '@langchain/core':
+        specifier: ^1.1.39
+        version: 1.1.39(ws@8.18.3)
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
 
   packages/chat-hooks:
     devDependencies:
-      '@langchain/core':
-        specifier: ^1.1.39
-        version: 1.1.39(ws@8.18.3)
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.14
       '@datonfly-assistant/chat-client':
         specifier: workspace:*
         version: link:../chat-client
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
+      '@langchain/core':
+        specifier: ^1.1.39
+        version: 1.1.39(ws@8.18.3)
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
       react:
         specifier: ^19.0.0
         version: 19.2.4
@@ -170,9 +170,6 @@ importers:
 
   packages/chat-ui-mui:
     dependencies:
-      date-fns:
-        specifier: ^4.1.0
-        version: 4.1.0
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.14)(react@19.2.4)
@@ -180,6 +177,15 @@ importers:
         specifier: ^4.0.0
         version: 4.0.1
     devDependencies:
+      '@datonfly-assistant/chat-client':
+        specifier: workspace:*
+        version: link:../chat-client
+      '@datonfly-assistant/chat-hooks':
+        specifier: workspace:*
+        version: link:../chat-hooks
+      '@datonfly-assistant/core':
+        specifier: workspace:*
+        version: link:../core
       '@emotion/react':
         specifier: ^11.0.0
         version: 11.14.0(@types/react@19.2.14)(react@19.2.4)
@@ -204,15 +210,6 @@ importers:
       '@uiw/react-md-editor':
         specifier: ^4.0.0
         version: 4.1.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@datonfly-assistant/chat-client':
-        specifier: workspace:*
-        version: link:../chat-client
-      '@datonfly-assistant/chat-hooks':
-        specifier: workspace:*
-        version: link:../chat-hooks
-      '@datonfly-assistant/core':
-        specifier: workspace:*
-        version: link:../core
       emoji-picker-react:
         specifier: ^4.0.0
         version: 4.18.0(react@19.2.4)
@@ -244,6 +241,12 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@datonfly-assistant/chat-ui-mui':
+        specifier: workspace:*
+        version: link:../chat-ui-mui
+      '@datonfly-assistant/core':
+        specifier: workspace:*
+        version: link:../core
       '@emotion/react':
         specifier: ^11.14.0
         version: 11.14.0(@types/react@19.2.14)(react@19.2.4)
@@ -256,12 +259,6 @@ importers:
       '@uiw/react-md-editor':
         specifier: ^4.1.0
         version: 4.1.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@datonfly-assistant/chat-ui-mui':
-        specifier: workspace:*
-        version: link:../chat-ui-mui
-      '@datonfly-assistant/core':
-        specifier: workspace:*
-        version: link:../core
       emoji-picker-react:
         specifier: ^4.0.0
         version: 4.18.0(react@19.2.4)
@@ -303,12 +300,12 @@ importers:
         specifier: ^8.16.0
         version: 8.20.0
     devDependencies:
-      '@types/pg':
-        specifier: ^8.15.4
-        version: 8.20.0
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
+      '@types/pg':
+        specifier: ^8.15.4
+        version: 8.20.0
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -319,12 +316,12 @@ importers:
         specifier: ^4.8.0
         version: 4.8.3
     devDependencies:
-      '@langchain/core':
-        specifier: ^1.1.39
-        version: 1.1.39(ws@8.18.3)
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
+      '@langchain/core':
+        specifier: ^1.1.39
+        version: 1.1.39(ws@8.18.3)
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -1394,9 +1391,6 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
-
-  date-fns@4.1.0:
-    resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -3980,8 +3974,6 @@ snapshots:
   css-selector-parser@3.3.0: {}
 
   csstype@3.2.3: {}
-
-  date-fns@4.1.0: {}
 
   debug@4.4.3:
     dependencies:

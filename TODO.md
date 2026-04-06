@@ -15,9 +15,3 @@ or `SameSite=Strict`).
 No rate limiting is applied to any endpoint. Add rate limiting middleware (e.g.
 `@nestjs/throttler`) to protect login, OIDC callback, thread creation, and
 WebSocket message sending against brute-force and abuse.
-
-### Operation audit logging
-
-Security-sensitive operations (login, thread creation/deletion, membership
-changes) are not audit-logged. Add structured audit logging for these events to
-support incident investigation and compliance.

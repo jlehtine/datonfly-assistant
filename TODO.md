@@ -10,16 +10,6 @@ browser history, extensions, or crash reports. Switch to an HTTP-only secure
 cookie for the session token and add CSRF protection (e.g. double-submit cookie
 or `SameSite=Strict`).
 
-### Input validation of API bodies
-
-Request bodies accepted by the REST API (e.g. thread creation, thread update)
-have TypeScript types but no runtime validation. Zod schemas exist for
-wire-format response validation on the client side
-(`core/src/endpoints/schemas`), but the server does not yet validate incoming
-request bodies. Add NestJS `ValidationPipe` with Zod-based DTOs or
-`class-validator` DTOs to enforce maximum lengths, allowed values, and correct
-types at the boundary.
-
 ### Rate limiting
 
 No rate limiting is applied to any endpoint. Add rate limiting middleware (e.g.

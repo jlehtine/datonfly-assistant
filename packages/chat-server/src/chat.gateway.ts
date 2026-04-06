@@ -16,7 +16,7 @@ import type {
     User,
 } from "@datonfly-assistant/core";
 
-import { WS_PATH } from "@datonfly-assistant/core";
+import { WS_PATH, chatRequestSchema } from "@datonfly-assistant/core";
 
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
 import { threadMessagesToAgentMessages } from "./messages.js";
@@ -108,7 +108,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     }
 
     private async handleSendMessage(socket: Socket, data: SendMessageEvent): Promise<void> {
-        const { threadId, content } = data;
+        const parsed = chatRequestSchema.safeParse(data);
+        if (!parsed.success) {
+            const errorMessage = parsed.error.issues[0]?.message ?? "Invalid message";
+            socket.emit("error", { event: "error", message: errorMessage });
+            return;
+        }
+
+        const { threadId, content } = parsed.data;
         const messageId = randomUUID();
         const user = (socket.data as { user?: User | undefined }).user;
         const userId = user?.id ?? "anonymous";

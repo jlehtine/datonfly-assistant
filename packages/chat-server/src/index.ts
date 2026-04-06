@@ -4,6 +4,7 @@ export { ChatGateway } from "./chat.gateway.js";
 export { ThreadController } from "./thread.controller.js";
 export { RequireUserGuard } from "./guards/require-user.guard.js";
 export { ResolvedUser } from "./decorators/user.decorator.js";
+export { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
 export {
     PERSISTENCE_PROVIDER,
     AGENT_PROVIDER,

@@ -13,12 +13,25 @@ import {
     Query,
     UseGuards,
 } from "@nestjs/common";
+import { z } from "zod";
 
-import type { IPersistenceProvider, Thread, ThreadMessage, User } from "@datonfly-assistant/core";
+import {
+    createThreadRequestSchema,
+    paginationQuerySchema,
+    updateThreadRequestSchema,
+    type CreateThreadRequest,
+    type IPersistenceProvider,
+    type PaginationQuery,
+    type Thread,
+    type ThreadMessage,
+    type UpdateThreadRequest,
+    type User,
+} from "@datonfly-assistant/core";
 
 import { PERSISTENCE_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
+import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
 
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
@@ -26,9 +39,12 @@ export class ThreadController {
     constructor(@Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider) {}
 
     @Post()
-    async create(@ResolvedUser() user: User, @Body() body?: { title?: string }): Promise<Thread> {
+    async create(
+        @ResolvedUser() user: User,
+        @Body(new ZodValidationPipe(createThreadRequestSchema)) body: CreateThreadRequest,
+    ): Promise<Thread> {
         return this.persistence.createThread({
-            title: body?.title ?? "Conversation",
+            title: body.title,
             creatorId: user.id,
         });
     }
@@ -42,24 +58,22 @@ export class ThreadController {
     @Get(":id/messages")
     async listMessages(
         @ResolvedUser() user: User,
-        @Param("id") threadId: string,
-        @Query("limit") limitStr?: string,
-        @Query("before") beforeStr?: string,
+        @Param("id", new ZodValidationPipe(z.uuid())) threadId: string,
+        @Query(new ZodValidationPipe(paginationQuerySchema)) query: PaginationQuery,
     ): Promise<ThreadMessage[]> {
         const isMember = await this.persistence.isMember(threadId, user.id);
         if (!isMember) {
             throw new ForbiddenException("Not a member of this thread");
         }
 
-        const limit = limitStr !== undefined ? Math.min(100, Math.max(1, parseInt(limitStr, 10) || 50)) : undefined;
-        const parsedBefore = beforeStr !== undefined ? new Date(beforeStr) : undefined;
-        const before = parsedBefore !== undefined && !isNaN(parsedBefore.getTime()) ? parsedBefore : undefined;
-
-        return this.persistence.loadMessages({ threadId, limit, before });
+        return this.persistence.loadMessages({ threadId, limit: query.limit, before: query.before });
     }
 
     @Get(":id")
-    async getOne(@ResolvedUser() user: User, @Param("id") threadId: string): Promise<Thread> {
+    async getOne(
+        @ResolvedUser() user: User,
+        @Param("id", new ZodValidationPipe(z.uuid())) threadId: string,
+    ): Promise<Thread> {
         const isMember = await this.persistence.isMember(threadId, user.id);
         if (!isMember) {
             throw new ForbiddenException("Not a member of this thread");
@@ -75,8 +89,8 @@ export class ThreadController {
     @Patch(":id")
     async update(
         @ResolvedUser() user: User,
-        @Param("id") threadId: string,
-        @Body() body: { title?: string; archivedAt?: string | null; memoryEnabled?: boolean },
+        @Param("id", new ZodValidationPipe(z.uuid())) threadId: string,
+        @Body(new ZodValidationPipe(updateThreadRequestSchema)) body: UpdateThreadRequest,
     ): Promise<Thread> {
         const role = await this.persistence.getMemberRole(threadId, user.id);
         if (!role) {
@@ -98,7 +112,7 @@ export class ThreadController {
         }
         if (body.memoryEnabled !== undefined) updates.memoryEnabled = body.memoryEnabled;
         if (body.archivedAt !== undefined) {
-            updates.archivedAt = body.archivedAt === null ? undefined : new Date(body.archivedAt);
+            updates.archivedAt = body.archivedAt ?? undefined;
         }
 
         return this.persistence.updateThread(threadId, updates);
@@ -106,7 +120,10 @@ export class ThreadController {
 
     @Delete(":id")
     @HttpCode(204)
-    async remove(@ResolvedUser() user: User, @Param("id") threadId: string): Promise<void> {
+    async remove(
+        @ResolvedUser() user: User,
+        @Param("id", new ZodValidationPipe(z.uuid())) threadId: string,
+    ): Promise<void> {
         const role = await this.persistence.getMemberRole(threadId, user.id);
         if (!role) {
             throw new ForbiddenException("Not a member of this thread");

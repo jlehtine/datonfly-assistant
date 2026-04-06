@@ -70,6 +70,21 @@ export class AuthService {
 
     // ── Public API (mode-agnostic) ──
 
+    /**
+     * Build the full callback URL from the configured redirect URI and the
+     * incoming request's path + query string, so we don't depend on
+     * X-Forwarded-* headers being set correctly.
+     */
+    buildCallbackUrl(originalUrl: string): URL {
+        const base = this.config.oidc?.redirectUri ?? "http://localhost:3000/auth/callback";
+        const baseUrl = new URL(base);
+        const queryStart = originalUrl.indexOf("?");
+        if (queryStart !== -1) {
+            baseUrl.search = originalUrl.slice(queryStart);
+        }
+        return baseUrl;
+    }
+
     async getLoginUrl(): Promise<string> {
         if (this.config.mode === "fake") return "/";
         return this.buildOidcLoginUrl();

@@ -26,9 +26,7 @@ export class AuthController {
     @Public()
     @Get("callback")
     async callback(@Req() req: Request, @Res() res: Response): Promise<void> {
-        const protocol = req.headers["x-forwarded-proto"] ?? req.protocol;
-        const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost";
-        const callbackUrl = new URL(`${String(protocol)}://${String(host)}${req.originalUrl}`);
+        const callbackUrl = this.authService.buildCallbackUrl(req.originalUrl);
 
         try {
             const redirectUrl = await this.authService.handleCallback(callbackUrl);

@@ -7,6 +7,10 @@ import { threadMessagesToBaseMessages } from "./messages.js";
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const TITLE_MESSAGE_WINDOW = 20;
 
+function isPowerOfTwo(n: number): boolean {
+    return n > 0 && (n & (n - 1)) === 0;
+}
+
 /** Callback that generates a thread title from a list of conversation messages. */
 export type GenerateTitleFn = (messages: BaseMessage[]) => Promise<string>;
 
@@ -27,8 +31,8 @@ export interface ThreadTitleGeneratorConfig {
  * Automatically generates and updates thread titles using an LLM.
  *
  * **Trigger strategy:**
- * - First generation after 2 messages on the thread.
- * - Re-generation at most once per hour, only if new messages arrived since the last generation.
+ * - Re-generation when the total message count is a power of two or a power of two plus one.
+ * - Re-generation when at least one hour has passed since the last generation.
  * - Threads with `titleManuallySet === true` are never auto-titled.
  */
 export class ThreadTitleGenerator {
@@ -56,18 +60,15 @@ export class ThreadTitleGenerator {
             // Never overwrite a manually-set title.
             if (thread.titleManuallySet) return;
 
-            // Need at least 2 messages to have enough context.
             const messageCount = await this.persistence.countMessages(threadId);
-            if (messageCount < 2) return;
-
             const now = Date.now();
 
-            if (thread.titleGeneratedAt) {
-                // Already generated — only regenerate if ≥1 hour has passed AND new messages exist.
-                const elapsed = now - thread.titleGeneratedAt.getTime();
-                if (elapsed < ONE_HOUR_MS) return;
-                if (thread.updatedAt.getTime() <= thread.titleGeneratedAt.getTime()) return;
-            }
+            const hourElapsed =
+                thread.titleGeneratedAt != null && now - thread.titleGeneratedAt.getTime() >= ONE_HOUR_MS;
+
+            const countTrigger = isPowerOfTwo(messageCount) || isPowerOfTwo(messageCount - 1);
+
+            if (!countTrigger && !hourElapsed) return;
 
             // Load recent messages for context.
             const allMessages = await this.persistence.loadMessages({ threadId });

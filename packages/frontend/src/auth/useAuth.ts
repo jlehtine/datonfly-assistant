@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type { AuthUser } from "@datonfly-assistant/core";
+import type { UserIdentity } from "@datonfly-assistant/core";
 
 interface AuthState {
-    user: AuthUser | null;
+    user: UserIdentity | null;
     token: string | null;
     loading: boolean;
 }
 
 export interface UseAuthResult {
-    user: AuthUser | null;
+    user: UserIdentity | null;
     token: string | null;
     loading: boolean;
     login: () => void;
@@ -52,7 +52,7 @@ export function useAuth(): UseAuthResult {
                     return;
                 }
 
-                const data = (await res.json()) as { user: AuthUser; token: string };
+                const data = (await res.json()) as { user: UserIdentity; token: string };
 
                 setState({ user: data.user, token: data.token, loading: false });
             } catch {

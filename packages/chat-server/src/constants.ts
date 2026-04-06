@@ -1,0 +1,5 @@
+export const PERSISTENCE_PROVIDER = Symbol("PERSISTENCE_PROVIDER");
+export const AGENT_PROVIDER = Symbol("AGENT_PROVIDER");
+export const VALIDATE_TOKEN_FN = Symbol("VALIDATE_TOKEN_FN");
+export const GENERATE_TITLE_FN = Symbol("GENERATE_TITLE_FN");
+export const CHAT_CORS_OPTIONS = Symbol("CHAT_CORS_OPTIONS");

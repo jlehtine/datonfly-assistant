@@ -1,6 +1,6 @@
 // Types
 export type {
-    AuthUser,
+    UserIdentity,
     User,
     Thread,
     ThreadMember,

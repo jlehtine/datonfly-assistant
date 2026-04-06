@@ -1,18 +1,14 @@
-import { randomUUID } from "node:crypto";
-
 import { Injectable } from "@nestjs/common";
 import jsonwebtoken from "jsonwebtoken";
 import * as client from "openid-client";
 
-import type { AuthUser, IPersistenceProvider } from "@datonfly-assistant/core";
+import type { UserIdentity } from "@datonfly-assistant/core";
 
 export interface AuthConfig {
     mode: "fake" | "oidc";
     jwtSecret: string;
     /** Frontend origin URL, used for OIDC callback redirects. */
     frontendUrl?: string | undefined;
-    /** Optional persistence provider for user upsert (stable IDs). */
-    persistence?: IPersistenceProvider | undefined;
     /** Only required when mode === "oidc" */
     oidc?:
         | {
@@ -51,8 +47,6 @@ export class AuthService {
     private oidcConfig: client.Configuration | null = null;
     /** Maps state → PKCE session data. */
     private readonly pkceSessions = new Map<string, PkceSession>();
-    /** Resolved fake user (DB-backed when persistence is available). */
-    private resolvedFakeUser: AuthUser | null = null;
 
     constructor(config: AuthConfig) {
         this.config = config;
@@ -72,23 +66,6 @@ export class AuthService {
             }
             this.oidcConfig = await client.discovery(new URL(oidc.issuerUrl), oidc.clientId, oidc.clientSecret);
         }
-
-        // Upsert fake user to DB at startup for stable IDs
-        if (this.config.mode === "fake" && this.config.persistence) {
-            const fakeUser = this.config.fakeUser ?? { email: "dev@localhost", name: "Dev User" };
-            const dbUser = await this.config.persistence.upsertUser({
-                id: "00000000-0000-0000-0000-000000000000",
-                email: fakeUser.email,
-                name: fakeUser.name,
-                lastLoginAt: new Date(),
-            });
-            this.resolvedFakeUser = {
-                id: dbUser.id,
-                email: dbUser.email,
-                name: dbUser.name,
-                avatarUrl: dbUser.avatarUrl,
-            };
-        }
     }
 
     // ── Public API (mode-agnostic) ──
@@ -106,12 +83,12 @@ export class AuthService {
         return `${frontendUrl}/#token=${accessToken}`;
     }
 
-    authenticateRequest(authorizationHeader: string | undefined): AuthUser | null {
+    authenticateRequest(authorizationHeader: string | undefined): UserIdentity | null {
         if (this.config.mode === "fake") return this.getFakeUser();
         return this.verifyBearerHeader(authorizationHeader);
     }
 
-    getAuthInfo(authorizationHeader: string | undefined): { user: AuthUser; token: string } | null {
+    getAuthInfo(authorizationHeader: string | undefined): { user: UserIdentity; token: string } | null {
         if (this.config.mode === "fake") {
             const user = this.getFakeUser();
             return { user, token: this.signToken(user) };
@@ -123,27 +100,24 @@ export class AuthService {
         return { user, token };
     }
 
-    authenticateToken(token: string): AuthUser | null {
+    authenticateToken(token: string): UserIdentity | null {
         if (this.config.mode === "fake") return this.getFakeUser();
         return this.verifyToken(token);
     }
 
     // ── Internal helpers ──
 
-    private getFakeUser(): AuthUser {
-        if (this.resolvedFakeUser) return this.resolvedFakeUser;
+    private getFakeUser(): UserIdentity {
         const fakeUser = this.config.fakeUser ?? { email: "dev@localhost", name: "Dev User" };
         return {
-            id: "00000000-0000-0000-0000-000000000000",
             email: fakeUser.email,
             name: fakeUser.name,
         };
     }
 
-    private signToken(user: AuthUser): string {
+    private signToken(user: UserIdentity): string {
         return jsonwebtoken.sign(
             {
-                sub: user.id,
                 email: user.email,
                 name: user.name,
                 avatarUrl: user.avatarUrl,
@@ -153,11 +127,10 @@ export class AuthService {
         );
     }
 
-    private verifyToken(token: string): AuthUser | null {
+    private verifyToken(token: string): UserIdentity | null {
         try {
             const payload = jsonwebtoken.verify(token, this.config.jwtSecret) as jsonwebtoken.JwtPayload;
             return {
-                id: payload.sub ?? "",
                 email: (payload.email as string | undefined) ?? "",
                 name: (payload.name as string | undefined) ?? "",
                 avatarUrl: (payload.avatarUrl as string | undefined) ?? undefined,
@@ -167,7 +140,7 @@ export class AuthService {
         }
     }
 
-    private verifyBearerHeader(authorizationHeader: string | undefined): AuthUser | null {
+    private verifyBearerHeader(authorizationHeader: string | undefined): UserIdentity | null {
         if (!authorizationHeader?.startsWith("Bearer ")) return null;
         return this.verifyToken(authorizationHeader.slice(7));
     }
@@ -199,7 +172,7 @@ export class AuthService {
         return url.href;
     }
 
-    private async performOidcCallback(callbackUrl: URL): Promise<{ accessToken: string; user: AuthUser }> {
+    private async performOidcCallback(callbackUrl: URL): Promise<{ accessToken: string; user: UserIdentity }> {
         const config = this.oidcConfig;
         if (!config) {
             throw new Error("OIDC config is required when AUTH_MODE=oidc");
@@ -240,29 +213,11 @@ export class AuthService {
             }
         }
 
-        let user: AuthUser = {
-            id: randomUUID(),
+        const user: UserIdentity = {
             email,
             name: (claims.name as string | undefined) ?? (email || "Unknown"),
             avatarUrl: (claims.picture as string | undefined) ?? undefined,
         };
-
-        // Upsert to DB for stable IDs across logins
-        if (this.config.persistence) {
-            const dbUser = await this.config.persistence.upsertUser({
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                avatarUrl: user.avatarUrl,
-                lastLoginAt: new Date(),
-            });
-            user = {
-                id: dbUser.id,
-                email: dbUser.email,
-                name: dbUser.name,
-                avatarUrl: dbUser.avatarUrl,
-            };
-        }
 
         const accessToken = this.signToken(user);
         return { accessToken, user };

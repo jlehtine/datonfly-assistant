@@ -8,7 +8,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
-import type { AuthUser } from "@datonfly-assistant/core";
+import type { UserIdentity } from "@datonfly-assistant/core";
 
 import { AuthService } from "../auth/auth.service.js";
 
@@ -35,7 +35,7 @@ export class JwtAuthGuard implements CanActivate {
             throw new UnauthorizedException("Missing or invalid Authorization header");
         }
 
-        (request as Request & { user: AuthUser }).user = user;
+        (request as Request & { user: UserIdentity }).user = user;
         return true;
     }
 }

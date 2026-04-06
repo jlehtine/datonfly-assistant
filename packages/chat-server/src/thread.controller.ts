@@ -11,44 +11,41 @@ import {
     Patch,
     Post,
     Query,
-    Req,
+    UseGuards,
 } from "@nestjs/common";
-import type { Request } from "express";
 
-import type { AuthUser, IPersistenceProvider, Thread, ThreadMessage } from "@datonfly-assistant/core";
+import type { IPersistenceProvider, Thread, ThreadMessage, User } from "@datonfly-assistant/core";
 
 import { PERSISTENCE_PROVIDER } from "./constants.js";
+import { ResolvedUser } from "./decorators/user.decorator.js";
+import { RequireUserGuard } from "./guards/require-user.guard.js";
 
 @Controller("threads")
+@UseGuards(RequireUserGuard)
 export class ThreadController {
     constructor(@Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider) {}
 
     @Post()
-    async create(@Req() req: Request, @Body() body: { title?: string }): Promise<Thread> {
-        const user = (req as Request & { user: AuthUser }).user;
-        const thread = await this.persistence.createThread({
+    async create(@ResolvedUser() user: User, @Body() body: { title?: string }): Promise<Thread> {
+        return this.persistence.createThread({
             title: body.title ?? "Conversation",
             creatorId: user.id,
         });
-        return thread;
     }
 
     @Get()
-    async list(@Req() req: Request, @Query("includeArchived") includeArchivedStr?: string): Promise<Thread[]> {
-        const user = (req as Request & { user: AuthUser }).user;
+    async list(@ResolvedUser() user: User, @Query("includeArchived") includeArchivedStr?: string): Promise<Thread[]> {
         const includeArchived = includeArchivedStr === "true";
         return this.persistence.listThreads({ userId: user.id, includeArchived });
     }
 
     @Get(":id/messages")
     async listMessages(
-        @Req() req: Request,
+        @ResolvedUser() user: User,
         @Param("id") threadId: string,
         @Query("limit") limitStr?: string,
         @Query("before") beforeStr?: string,
     ): Promise<ThreadMessage[]> {
-        const user = (req as Request & { user: AuthUser }).user;
-
         const isMember = await this.persistence.isMember(threadId, user.id);
         if (!isMember) {
             throw new ForbiddenException("Not a member of this thread");
@@ -62,9 +59,7 @@ export class ThreadController {
     }
 
     @Get(":id")
-    async getOne(@Req() req: Request, @Param("id") threadId: string): Promise<Thread> {
-        const user = (req as Request & { user: AuthUser }).user;
-
+    async getOne(@ResolvedUser() user: User, @Param("id") threadId: string): Promise<Thread> {
         const isMember = await this.persistence.isMember(threadId, user.id);
         if (!isMember) {
             throw new ForbiddenException("Not a member of this thread");
@@ -79,12 +74,10 @@ export class ThreadController {
 
     @Patch(":id")
     async update(
-        @Req() req: Request,
+        @ResolvedUser() user: User,
         @Param("id") threadId: string,
         @Body() body: { title?: string; archivedAt?: string | null; memoryEnabled?: boolean },
     ): Promise<Thread> {
-        const user = (req as Request & { user: AuthUser }).user;
-
         const role = await this.persistence.getMemberRole(threadId, user.id);
         if (!role) {
             throw new ForbiddenException("Not a member of this thread");
@@ -113,9 +106,7 @@ export class ThreadController {
 
     @Delete(":id")
     @HttpCode(204)
-    async remove(@Req() req: Request, @Param("id") threadId: string): Promise<void> {
-        const user = (req as Request & { user: AuthUser }).user;
-
+    async remove(@ResolvedUser() user: User, @Param("id") threadId: string): Promise<void> {
         const role = await this.persistence.getMemberRole(threadId, user.id);
         if (!role) {
             throw new ForbiddenException("Not a member of this thread");

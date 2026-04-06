@@ -2,19 +2,17 @@ import "reflect-metadata";
 
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import type { Server } from "node:http";
 import { resolve } from "node:path";
 
 import { NestFactory } from "@nestjs/core";
 import { config } from "dotenv";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
-import { ChatRealtimeServer } from "@datonfly-assistant/chat-server";
+import { ChatModule } from "@datonfly-assistant/chat-server";
 import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
 
 import { AppModule } from "./app.module.js";
 import { AuthModule, AuthService, type AuthConfig } from "./auth/index.js";
-import { ThreadModule } from "./thread/thread.module.js";
 
 // Load .env from monorepo root (two levels up from packages/backend)
 for (const candidate of [".env", "../../.env"]) {
@@ -47,7 +45,6 @@ async function bootstrap(): Promise<void> {
         mode: authMode,
         jwtSecret,
         frontendUrl,
-        persistence,
         allowedEmailDomain,
         oidc:
             authMode === "oidc"
@@ -72,16 +69,6 @@ async function bootstrap(): Promise<void> {
     const authService = new AuthService(authConfig);
     await authService.initialize();
 
-    const extraModules = [ThreadModule.create(persistence)];
-
-    const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules));
-
-    app.enableCors({
-        origin: frontendUrl,
-    });
-
-    const httpServer = app.getHttpAdapter().getHttpServer() as Server;
-
     const model = process.env.ANTHROPIC_MODEL;
     if (!model) {
         throw new Error("ANTHROPIC_MODEL environment variable is required");
@@ -101,16 +88,21 @@ async function bootstrap(): Promise<void> {
           })
         : undefined;
 
-    const realtime = new ChatRealtimeServer({
+    const chatModule = ChatModule.forRoot({
         agent,
         persistence,
-        cors: {
-            origin: frontendUrl,
-        },
         validateToken: (token: string) => authService.authenticateToken(token),
         generateTitle,
+        cors: { origin: frontendUrl },
     });
-    realtime.attach(httpServer);
+
+    const extraModules = [chatModule];
+
+    const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules));
+
+    app.enableCors({
+        origin: frontendUrl,
+    });
 
     const port = process.env.PORT ?? "3000";
     await app.listen(port);
@@ -119,7 +111,6 @@ async function bootstrap(): Promise<void> {
     // Graceful shutdown
     const shutdown = async (): Promise<void> => {
         console.log("Shutting down...");
-        await realtime.close();
         await app.close();
         await destroyPersistence();
         process.exit(0);

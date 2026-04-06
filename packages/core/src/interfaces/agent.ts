@@ -1,5 +1,7 @@
-/** The role of an agent message. */
-export type AgentMessageRole = "human" | "ai" | "system";
+import type { MessageRole } from "../types/message.js";
+
+/** The role of an agent message. Extends {@link MessageRole} with any agent-specific roles. */
+export type AgentMessageRole = MessageRole | "system";
 
 /** A message in the format used by the agent service API. */
 export interface AgentMessage {

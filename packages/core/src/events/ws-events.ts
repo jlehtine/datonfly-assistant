@@ -1,4 +1,4 @@
-import type { ContentPart } from "../types/message.js";
+import type { ContentPart, MessageRole } from "../types/message.js";
 
 // ─── Client → Server Events ───
 
@@ -78,7 +78,7 @@ export interface NewMessageEvent {
     event: "new-message";
     threadId: string;
     messageId: string;
-    role: "user" | "assistant" | "system";
+    role: MessageRole;
     content: ContentPart[];
     /** User ID of the author, or `null` for system/agent messages. */
     authorId: string | null;

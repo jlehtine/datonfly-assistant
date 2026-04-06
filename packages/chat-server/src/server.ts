@@ -129,7 +129,7 @@ export class ChatRealtimeServer {
         // Persist the user message
         await this.persistence.appendMessage({
             threadId,
-            role: "user",
+            role: "human",
             content,
             authorId: user?.id ?? null,
         });
@@ -159,7 +159,7 @@ export class ChatRealtimeServer {
             // Persist assistant response
             await this.persistence.appendMessage({
                 threadId,
-                role: "assistant",
+                role: "ai",
                 content: [{ type: "text", text: fullText }],
                 authorId: null,
             });

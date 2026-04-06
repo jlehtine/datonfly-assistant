@@ -37,7 +37,7 @@ export interface ThreadMembersTable {
 export interface MessagesTable {
     id: Generated<string>;
     thread_id: string;
-    role: "user" | "assistant" | "system";
+    role: "human" | "ai";
     content: ColumnType<unknown[], string, never>;
     author_id: string | null;
     created_at: ColumnType<Date, Date | undefined, never>;

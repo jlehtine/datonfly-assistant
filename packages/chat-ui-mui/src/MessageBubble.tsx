@@ -27,7 +27,7 @@ export interface MessageBubbleProps {
  * messages are left-aligned. Markdown content is rendered via `react-markdown`.
  */
 export function MessageBubble({ message, components }: MessageBubbleProps): ReactElement {
-    const isUser = message.role === "user";
+    const isUser = message.role === "human";
 
     return (
         <Box

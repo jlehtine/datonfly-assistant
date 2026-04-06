@@ -44,16 +44,13 @@ export function threadMessagesToAgentMessages(messages: ThreadMessage[]): AgentM
         }
         const text = extractText(msg.content);
         switch (msg.role) {
-            case "user": {
+            case "human": {
                 const body = needsTimestamp ? `@ ${formatTimestamp(messageTimestamp)}\n\n${text}` : text;
                 result.push({ role: "human", content: body });
                 break;
             }
-            case "assistant":
+            case "ai":
                 result.push({ role: "ai", content: text });
-                break;
-            case "system":
-                result.push({ role: "system", content: text });
                 break;
         }
     }

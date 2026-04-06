@@ -1,5 +1,5 @@
 /** The role of a message author. */
-export type MessageRole = "user" | "assistant" | "system";
+export type MessageRole = "human" | "ai";
 
 /** A plain-text content part. */
 export interface TextContentPart {

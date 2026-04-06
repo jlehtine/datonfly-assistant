@@ -9,7 +9,7 @@ export interface ChatMessage {
     /** Unique client-side message identifier. */
     id: string;
     /** Whether the message was sent by the user or the assistant. */
-    role: "user" | "assistant";
+    role: "human" | "ai";
     /** Plain-text or Markdown message body. */
     text: string;
     /** `true` while the assistant is still streaming this message. */
@@ -58,7 +58,6 @@ function extractText(msg: ThreadMessage): string {
 
 /** Convert a {@link ThreadMessage} from the REST API to a {@link ChatMessage}. */
 function toChat(msg: ThreadMessage): ChatMessage | null {
-    if (msg.role !== "user" && msg.role !== "assistant") return null;
     const text = extractText(msg);
     return { id: msg.id, role: msg.role, text, streaming: false, createdAt: msg.createdAt };
 }
@@ -201,7 +200,7 @@ export function useMessages(
                     ...prev,
                     {
                         id: event.messageId,
-                        role: "assistant",
+                        role: "ai",
                         text: event.delta,
                         streaming: true,
                         createdAt: new Date(),
@@ -250,7 +249,7 @@ export function useMessages(
         (text: string) => {
             const userMsg: ChatMessage = {
                 id: crypto.randomUUID(),
-                role: "user",
+                role: "human",
                 text,
                 streaming: false,
                 createdAt: new Date(),

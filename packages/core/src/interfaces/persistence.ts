@@ -1,4 +1,4 @@
-import type { ContentPart, ThreadMessage } from "../types/message.js";
+import type { ContentPart, MessageRole, ThreadMessage } from "../types/message.js";
 import type { Thread, ThreadMember, ThreadMemberRole } from "../types/thread.js";
 import type { User } from "../types/user.js";
 
@@ -23,7 +23,7 @@ export interface AppendMessageOptions {
     /** Target thread ID. */
     threadId: string;
     /** Role of the message author. */
-    role: "user" | "assistant" | "system";
+    role: MessageRole;
     /** Ordered content parts making up the message body. */
     content: ContentPart[];
     /** User ID of the author, or `null` for system/agent messages. */

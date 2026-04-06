@@ -141,7 +141,7 @@ export function MessageList({
     }, [hasMore, onLoadMore, isLoadingHistory]);
 
     return (
-        <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto", p: 2 }}>
+        <Box ref={scrollRef} className="datonfly-message-list" sx={{ flex: 1, overflow: "auto", p: 2 }}>
             {isLoadingHistory && (
                 <Box sx={{ display: "flex", justifyContent: "center", pb: 1 }}>
                     <CircularProgress size={20} />
@@ -157,7 +157,7 @@ export function MessageList({
                 return elements;
             })}
             {showThinking && <ThinkingBubble />}
-            <div ref={endRef} />
+            <div ref={endRef} className="datonfly-message-list-end" />
         </Box>
     );
 }

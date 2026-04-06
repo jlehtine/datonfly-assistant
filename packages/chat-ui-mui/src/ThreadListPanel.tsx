@@ -154,6 +154,7 @@ function ThreadListItem({ thread, selected, onSelect, onArchiveToggle }: ThreadL
 
     return (
         <ListItemButton
+            className="datonfly-thread-item"
             selected={selected}
             onClick={() => {
                 onSelect(thread.id);

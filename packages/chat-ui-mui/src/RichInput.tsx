@@ -9,6 +9,18 @@ import { useEffect, useRef, useState, type ReactElement, type KeyboardEvent as R
 import type { ComposerInputProps } from "./Composer.js";
 import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 
+function ToolPopoverContent({
+    tool,
+    ctx,
+    onDone,
+}: {
+    tool: InputTool;
+    ctx: InputToolContext;
+    onDone: (result: InputToolResult | null) => void;
+}): ReactElement {
+    return <>{tool.onActivate(ctx, onDone)}</>;
+}
+
 const LINE_HEIGHT = 21;
 const TOOLBAR_HEIGHT = 37;
 
@@ -65,7 +77,8 @@ export function RichInput({
     const resolvedMaxRows = maxRows ?? 6;
     const [expanded, setExpanded] = useState(false);
     const [activeTool, setActiveTool] = useState<InputTool | null>(null);
-    const anchorElRef = useRef<HTMLElement | null>(null);
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const [toolCtx, setToolCtx] = useState({ text: "", selectionStart: 0, selectionEnd: 0 });
     const textApiRef = useRef<TextAreaTextApi | null>(null);
     const textFieldRef = useRef<HTMLInputElement>(null);
     const editorWrapRef = useRef<HTMLDivElement>(null);
@@ -127,12 +140,6 @@ export function RichInput({
         setActiveTool(null);
     };
 
-    const ctx: InputToolContext = {
-        text: value,
-        selectionStart: selectionRef.current.start,
-        selectionEnd: selectionRef.current.end,
-    };
-
     const toolCommands: ICommand[] = (inputTools ?? []).map(
         (tool): ICommand => ({
             name: tool.name,
@@ -140,7 +147,12 @@ export function RichInput({
             icon: tool.icon,
             execute: (_state, api) => {
                 textApiRef.current = api;
-                anchorElRef.current = document.querySelector<HTMLElement>(`[data-name="${tool.name}"]`);
+                setAnchorEl(document.querySelector<HTMLElement>(`[data-name="${tool.name}"]`));
+                setToolCtx({
+                    text: value,
+                    selectionStart: selectionRef.current.start,
+                    selectionEnd: selectionRef.current.end,
+                });
                 setActiveTool(tool);
             },
             buttonProps: { "data-name": tool.name } as React.ButtonHTMLAttributes<HTMLButtonElement>,
@@ -223,17 +235,17 @@ export function RichInput({
                         size="small"
                     />
                 )}
-                {activeTool && anchorElRef.current && (
+                {activeTool && anchorEl && (
                     <Popover
                         open
-                        anchorEl={anchorElRef.current}
+                        anchorEl={anchorEl}
                         onClose={() => {
                             setActiveTool(null);
                         }}
                         anchorOrigin={{ vertical: "top", horizontal: "left" }}
                         transformOrigin={{ vertical: "bottom", horizontal: "left" }}
                     >
-                        {activeTool.onActivate(ctx, handleDone)}
+                        <ToolPopoverContent tool={activeTool} ctx={toolCtx} onDone={handleDone} />
                     </Popover>
                 )}
             </Box>

@@ -25,13 +25,6 @@ export function EditableTitle({ title, onSave }: EditableTitleProps): ReactEleme
     const [draft, setDraft] = useState(title);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Sync draft when the title prop changes externally (e.g. auto-generated title).
-    useEffect(() => {
-        if (!editing) {
-            setDraft(title);
-        }
-    }, [title, editing]);
-
     const startEditing = useCallback(() => {
         setDraft(title);
         setEditing(true);

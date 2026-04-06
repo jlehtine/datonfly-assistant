@@ -8,6 +8,18 @@ import { useComposer } from "@datonfly-assistant/chat-client/react";
 
 import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 
+function ToolPopoverContent({
+    tool,
+    ctx,
+    onDone,
+}: {
+    tool: InputTool;
+    ctx: InputToolContext;
+    onDone: (result: InputToolResult | null) => void;
+}): ReactElement {
+    return <>{tool.onActivate(ctx, onDone)}</>;
+}
+
 /** Props passed to a custom composer input component. */
 export interface ComposerInputProps {
     /** Current text value. */
@@ -56,8 +68,9 @@ function DefaultInput({
     const selectionRef = useRef({ start: 0, end: 0 });
     const [activeTool, setActiveTool] = useState<InputTool | null>(null);
     const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
-    const anchorElRef = useRef<HTMLElement | null>(null);
-    const menuAnchorRef = useRef<HTMLElement | null>(null);
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+    const [toolCtx, setToolCtx] = useState({ text: "", selectionStart: 0, selectionEnd: 0 });
 
     useEffect(() => {
         if (autoFocus) {
@@ -79,10 +92,12 @@ function DefaultInput({
         setActiveTool(null);
     };
 
-    const ctx: InputToolContext = {
-        text: value,
-        selectionStart: selectionRef.current.start,
-        selectionEnd: selectionRef.current.end,
+    const snapshotToolCtx = (): void => {
+        setToolCtx({
+            text: value,
+            selectionStart: selectionRef.current.start,
+            selectionEnd: selectionRef.current.end,
+        });
     };
 
     const hasMultipleTools = (inputTools?.length ?? 0) > 1;
@@ -94,7 +109,7 @@ function DefaultInput({
                     size="small"
                     aria-label="Tools"
                     onClick={(e) => {
-                        menuAnchorRef.current = e.currentTarget;
+                        setMenuAnchor(e.currentTarget);
                         setToolsMenuOpen(true);
                     }}
                     sx={{ mb: 0.5 }}
@@ -108,7 +123,8 @@ function DefaultInput({
                         size="small"
                         aria-label={tool.name}
                         onClick={(e) => {
-                            anchorElRef.current = e.currentTarget;
+                            setAnchorEl(e.currentTarget);
+                            snapshotToolCtx();
                             setActiveTool(tool);
                         }}
                         sx={{ mb: 0.5 }}
@@ -136,10 +152,10 @@ function DefaultInput({
                 className="datonfly-composer-input"
                 sx={{ flex: 1 }}
             />
-            {hasMultipleTools && menuAnchorRef.current && (
+            {hasMultipleTools && menuAnchor && (
                 <Popover
                     open={toolsMenuOpen}
-                    anchorEl={menuAnchorRef.current}
+                    anchorEl={menuAnchor}
                     onClose={() => {
                         setToolsMenuOpen(false);
                     }}
@@ -154,7 +170,8 @@ function DefaultInput({
                                 aria-label={tool.name}
                                 onClick={(e) => {
                                     setToolsMenuOpen(false);
-                                    anchorElRef.current = e.currentTarget;
+                                    setAnchorEl(e.currentTarget);
+                                    snapshotToolCtx();
                                     setActiveTool(tool);
                                 }}
                             >
@@ -164,17 +181,17 @@ function DefaultInput({
                     </Box>
                 </Popover>
             )}
-            {activeTool && anchorElRef.current && (
+            {activeTool && anchorEl && (
                 <Popover
                     open
-                    anchorEl={anchorElRef.current}
+                    anchorEl={anchorEl}
                     onClose={() => {
                         setActiveTool(null);
                     }}
                     anchorOrigin={{ vertical: "top", horizontal: "left" }}
                     transformOrigin={{ vertical: "bottom", horizontal: "left" }}
                 >
-                    {activeTool.onActivate(ctx, handleDone)}
+                    <ToolPopoverContent tool={activeTool} ctx={toolCtx} onDone={handleDone} />
                 </Popover>
             )}
         </Box>

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { sendAndWaitForReply } from "./helpers";
+import { composerInput, sendAndWaitForReply } from "./helpers";
 
 const SECRET_WORD = "Serendipity";
 
@@ -10,7 +10,7 @@ test("assistant remembers a word from earlier in the thread", async ({ page }) =
     await page.goto("/");
 
     // Wait for fake-auth + websocket connection
-    const composer = page.getByPlaceholder("Type a message...");
+    const composer = composerInput(page);
     await expect(composer).toBeEnabled({ timeout: 10_000 });
 
     // Step 1: tell the assistant to remember a word

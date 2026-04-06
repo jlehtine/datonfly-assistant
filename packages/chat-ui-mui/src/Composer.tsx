@@ -133,6 +133,7 @@ function DefaultInput({
                 }}
                 disabled={disabled}
                 size="small"
+                className="datonfly-composer-input"
                 sx={{ flex: 1 }}
             />
             {hasMultipleTools && menuAnchorRef.current && (

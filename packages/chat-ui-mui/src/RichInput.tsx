@@ -56,7 +56,7 @@ export function RichInput({
     onKeyDown,
     placeholder,
     disabled,
-    autoFocus: _autoFocus,
+    autoFocus,
     inputTools,
     maxRows,
 }: ComposerInputProps): ReactElement {
@@ -70,6 +70,17 @@ export function RichInput({
     const textFieldRef = useRef<HTMLInputElement>(null);
     const editorWrapRef = useRef<HTMLDivElement>(null);
     const selectionRef = useRef({ start: 0, end: 0 });
+
+    useEffect(() => {
+        if (autoFocus) {
+            if (expanded) {
+                const textarea = editorWrapRef.current?.querySelector<HTMLTextAreaElement>("textarea");
+                textarea?.focus();
+            } else {
+                textFieldRef.current?.focus();
+            }
+        }
+    }, [autoFocus, expanded]);
 
     useEffect(() => {
         const sel = selectionRef.current;
@@ -198,6 +209,7 @@ export function RichInput({
                         multiline
                         maxRows={resolvedMaxRows}
                         placeholder={placeholder}
+                        className="datonfly-composer-input"
                         value={value}
                         onChange={(e) => {
                             onChange(e.target.value);

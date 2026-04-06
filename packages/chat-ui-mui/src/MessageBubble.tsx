@@ -32,7 +32,7 @@ export function MessageBubble({ message, components }: MessageBubbleProps): Reac
     return (
         <Box
             sx={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start", mb: 1 }}
-            data-role={message.role}
+            className={isUser ? "datonfly-message-human" : "datonfly-message-ai"}
         >
             <Paper
                 elevation={1}

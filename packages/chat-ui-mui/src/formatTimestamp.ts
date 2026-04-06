@@ -1,13 +1,15 @@
 const ONE_MINUTE_MS = 60_000;
 const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
+const TWELVE_HOURS_MS = 12 * ONE_HOUR_MS;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 
 /**
  * Format a timestamp into a human-friendly display string with tiered logic:
  *
  * - < 1 minute ago → "Just now"
- * - < 1 hour ago → relative, e.g. "5 minutes ago"
- * - Today, ≥ 1 hour ago → time only, e.g. "14:30"
+ * - < 1 hour ago → relative minutes, e.g. "5 minutes ago"
+ * - < 12 hours ago → relative hours, e.g. "3 hours ago"
+ * - Today, ≥ 12 hours ago → time only, e.g. "14:30"
  * - Yesterday → "Yesterday, 14:30"
  * - Past 6 days → weekday + time, e.g. "Monday, 14:30"
  * - This year → short date + time, e.g. "Apr 3, 14:30"
@@ -32,6 +34,12 @@ export function formatTimestamp(date: Date, now: Date = new Date(), locale?: str
         const minutes = Math.floor(diffMs / ONE_MINUTE_MS);
         const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
         return rtf.format(-minutes, "minute");
+    }
+
+    if (diffMs < TWELVE_HOURS_MS) {
+        const hours = Math.floor(diffMs / ONE_HOUR_MS);
+        const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+        return rtf.format(-hours, "hour");
     }
 
     const timeFmt = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" });

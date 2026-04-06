@@ -79,7 +79,7 @@ datonfly-assistant/
 │   │
 │   │  ─── BACKEND LIBRARIES (framework-agnostic) ───
 │   │
-│   ├── realtime/                     # @datonfly-assistant/realtime
+│   ├── chat-server/                   # @datonfly-assistant/chat-server
 │   │   └── src/                      # WebSocket protocol handler (Socket.IO)
 │   │       ├── server.ts             # ChatRealtimeServer — bootstrap with injected providers
 │   │       ├── handlers/             # Event handlers: message, join, leave, typing, invite
@@ -309,7 +309,7 @@ Key types to define:
   state checkpointing
 - System prompt variants (personal vs room, with member names context)
 
-### Step 2.6 — Realtime library (`packages/realtime` → `@datonfly-assistant/realtime`) (_depends on 2.1, 2.5_)
+### Step 2.6 — Chat server library (`packages/chat-server` → `@datonfly-assistant/chat-server`) (_depends on 2.1, 2.5_)
 
 - `ChatRealtimeServer`: bootstraps Socket.IO server with injected providers
   (`IChatAgent`, `IPersistenceProvider`, `ISearchProvider`)
@@ -505,7 +505,7 @@ Key types to define:
 
 - `@datonfly-assistant/core` (peer)
 
-### `@datonfly-assistant/realtime`
+### `@datonfly-assistant/chat-server`
 
 - `socket.io`
 - `@datonfly-assistant/core` (peer)
@@ -587,9 +587,9 @@ Backend libraries:
 - `packages/agent-langchain/src/graph.ts` — LangGraph definition
 - `packages/agent-langchain/src/should-respond.ts` — room gating node
 - `packages/agent-langchain/src/tool-adapter.ts` — `ITool` → LangChain adapter
-- `packages/realtime/src/server.ts` — `ChatRealtimeServer`
-- `packages/realtime/src/handlers/` — event handlers
-- `packages/realtime/src/presence.ts` — `PresenceTracker`
+- `packages/chat-server/src/server.ts` — `ChatRealtimeServer`
+- `packages/chat-server/src/handlers/` — event handlers
+- `packages/chat-server/src/presence.ts` — `PresenceTracker`
 - `packages/tool-web-search/src/tool.ts` — `WebSearchTool`
 - `packages/tool-code-execution/src/tool.ts` — `CodeExecutionTool`
 

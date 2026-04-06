@@ -9,8 +9,8 @@ import { NestFactory } from "@nestjs/core";
 import { config } from "dotenv";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
+import { ChatRealtimeServer } from "@datonfly-assistant/chat-server";
 import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
-import { ChatRealtimeServer } from "@datonfly-assistant/realtime";
 
 import { AppModule } from "./app.module.js";
 import { AuthModule, AuthService, type AuthConfig } from "./auth/index.js";

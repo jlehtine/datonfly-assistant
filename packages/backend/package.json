@@ -21,7 +21,7 @@
         "@datonfly-assistant/agent-langchain": "workspace:*",
         "@datonfly-assistant/core": "workspace:*",
         "@datonfly-assistant/persistence-pg": "workspace:*",
-        "@datonfly-assistant/realtime": "workspace:*",
+        "@datonfly-assistant/chat-server": "workspace:*",
         "dotenv": "^17.4.0",
         "jsonwebtoken": "^9.0.3",
         "openid-client": "^6.8.2",

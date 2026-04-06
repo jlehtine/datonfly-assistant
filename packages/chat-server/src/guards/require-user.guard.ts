@@ -5,6 +5,7 @@ import type { Request } from "express";
 
 import type { IPersistenceProvider, User, UserIdentity } from "@datonfly-assistant/core";
 
+import { AuditLogger } from "../audit-logger.js";
 import { PERSISTENCE_PROVIDER } from "../constants.js";
 
 /**
@@ -20,13 +21,17 @@ import { PERSISTENCE_PROVIDER } from "../constants.js";
  */
 @Injectable()
 export class RequireUserGuard implements CanActivate {
-    constructor(@Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider) {}
+    constructor(
+        @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
+        private readonly auditLogger: AuditLogger,
+    ) {}
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest<Request>();
         const identity = (request as Request & { user?: UserIdentity | undefined }).user;
 
         if (!identity?.email) {
+            this.auditLogger.audit("error", "auth.rejected", { error: "User identity not provided" });
             throw new UnauthorizedException("User identity not provided");
         }
 

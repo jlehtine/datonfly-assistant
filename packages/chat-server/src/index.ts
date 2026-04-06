@@ -1,3 +1,5 @@
+export { AuditLogger } from "./audit-logger.js";
+export type { AuditData } from "./audit-logger.js";
 export { ChatModule } from "./chat.module.js";
 export type { ChatModuleConfig } from "./chat.module.js";
 export { ChatGateway } from "./chat.gateway.js";

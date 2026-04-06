@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
+import { PinoLogger } from "nestjs-pino";
 
 import type { UserIdentity } from "@datonfly-assistant/core";
 
@@ -20,7 +21,10 @@ export class JwtAuthGuard implements CanActivate {
     constructor(
         private readonly authService: AuthService,
         private readonly reflector: Reflector,
-    ) {}
+        private readonly logger: PinoLogger,
+    ) {
+        this.logger.setContext("JwtAuthGuard");
+    }
 
     canActivate(context: ExecutionContext): boolean {
         const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -32,6 +36,7 @@ export class JwtAuthGuard implements CanActivate {
         const request = context.switchToHttp().getRequest<Request>();
         const user = this.authService.authenticateRequest(request.headers.authorization);
         if (!user) {
+            this.logger.error({ audit: true, op: "auth.rejected", error: "Invalid or missing bearer token" });
             throw new UnauthorizedException("Missing or invalid Authorization header");
         }
 

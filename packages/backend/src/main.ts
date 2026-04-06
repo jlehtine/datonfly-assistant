@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 
 import { NestFactory } from "@nestjs/core";
 import { config } from "dotenv";
+import { Logger } from "nestjs-pino";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
 import { ChatModule } from "@datonfly-assistant/chat-server";
@@ -40,7 +41,6 @@ async function bootstrap(): Promise<void> {
     const pg = await createPostgresPersistence({ connectionString: databaseUrl });
     const persistence = pg.provider;
     const destroyPersistence = pg.destroy;
-    console.log("PostgreSQL persistence initialized");
 
     const allowedEmailDomain = process.env.OIDC_ALLOWED_EMAIL_DOMAIN;
 
@@ -110,7 +110,10 @@ async function bootstrap(): Promise<void> {
 
     const extraModules = [chatModule];
 
-    const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules));
+    const app = await NestFactory.create(AppModule.register(AuthModule.create(authService), extraModules), {
+        bufferLogs: true,
+    });
+    app.useLogger(app.get(Logger));
 
     app.enableCors({
         origin: frontendUrl,
@@ -122,11 +125,13 @@ async function bootstrap(): Promise<void> {
         throw new Error(`PORT must be an integer between 1 and 65535, got "${port}"`);
     }
     await app.listen(port);
-    console.log(`Backend listening on port ${port}`);
+
+    const logger = app.get(Logger);
+    logger.log(`Backend listening on port ${port}`);
 
     // Graceful shutdown
     const shutdown = async (): Promise<void> => {
-        console.log("Shutting down...");
+        logger.log("Shutting down...");
         await app.close();
         await destroyPersistence();
         process.exit(0);

@@ -1,5 +1,6 @@
 import type { AgentMessage, IPersistenceProvider, ThreadMessage } from "@datonfly-assistant/core";
 
+import type { AuditLogger } from "./audit-logger.js";
 import { threadMessagesToAgentMessages } from "./messages.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -23,6 +24,8 @@ export interface ThreadTitleGeneratorConfig {
     generateTitle: GenerateTitleFn;
     /** Called after a title has been persisted so the caller can broadcast the update. */
     onTitleUpdated: OnTitleUpdatedFn;
+    /** Optional audit logger for structured audit events. */
+    auditLogger?: AuditLogger | undefined;
 }
 
 /**
@@ -37,11 +40,13 @@ export class ThreadTitleGenerator {
     private readonly persistence: IPersistenceProvider;
     private readonly generateTitle: GenerateTitleFn;
     private readonly onTitleUpdated: OnTitleUpdatedFn;
+    private readonly auditLogger?: AuditLogger | undefined;
 
     constructor(config: ThreadTitleGeneratorConfig) {
         this.persistence = config.persistence;
         this.generateTitle = config.generateTitle;
         this.onTitleUpdated = config.onTitleUpdated;
+        this.auditLogger = config.auditLogger;
     }
 
     /**
@@ -85,9 +90,10 @@ export class ThreadTitleGenerator {
                 .slice(0, 200);
 
             if (!title) {
-                console.warn(
-                    `Title generation returned empty for thread ${threadId}, raw response: ${JSON.stringify(rawTitle)}`,
-                );
+                this.auditLogger?.audit("error", "title.generate.error", {
+                    threadId,
+                    error: "empty title returned",
+                });
                 return;
             }
 
@@ -102,8 +108,10 @@ export class ThreadTitleGenerator {
             });
 
             this.onTitleUpdated(threadId, title, false);
+            this.auditLogger?.audit("info", "title.generate", { threadId });
         } catch (err: unknown) {
-            console.error("Title generation failed:", err);
+            const message = err instanceof Error ? err.message : "Unknown error";
+            this.auditLogger?.audit("error", "title.generate.error", { threadId, error: message });
         }
     }
 }

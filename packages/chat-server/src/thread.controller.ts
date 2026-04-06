@@ -28,6 +28,7 @@ import {
     type User,
 } from "@datonfly-assistant/core";
 
+import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
 import { PERSISTENCE_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
@@ -40,6 +41,7 @@ export class ThreadController {
     constructor(
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         private readonly gateway: ChatGateway,
+        private readonly auditLogger: AuditLogger,
     ) {}
 
     @Post()
@@ -51,6 +53,7 @@ export class ThreadController {
             title: body.title,
             creatorId: user.id,
         });
+        this.auditLogger.audit("info", "thread.create", { userId: user.id, threadId: thread.id });
         this.gateway.notifyThreadCreated(thread);
         return thread;
     }
@@ -128,7 +131,9 @@ export class ThreadController {
             updates.archivedAt = body.archivedAt ?? undefined;
         }
 
-        return this.persistence.updateThread(threadId, updates);
+        const updated = await this.persistence.updateThread(threadId, updates);
+        this.auditLogger.audit("info", "thread.update", { userId: user.id, threadId });
+        return updated;
     }
 
     @Delete(":id")
@@ -146,5 +151,6 @@ export class ThreadController {
         }
 
         await this.persistence.deleteThread(threadId);
+        this.auditLogger.audit("info", "thread.delete", { userId: user.id, threadId });
     }
 }

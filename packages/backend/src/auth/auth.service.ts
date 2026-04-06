@@ -56,7 +56,7 @@ export class AuthService {
 
     async initialize(): Promise<void> {
         if (this.config.mode === "fake") {
-            console.log("AUTH_MODE=fake — using fake authentication (no login required)");
+            // Logged at startup via NestJS logger in main.ts bootstrap.
         }
 
         if (this.config.mode === "oidc") {

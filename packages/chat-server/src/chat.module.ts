@@ -1,8 +1,10 @@
 import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
+import { LoggerModule } from "nestjs-pino";
 
 import type { IAgentProvider, IPersistenceProvider } from "@datonfly-assistant/core";
 
+import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
 import {
     AGENT_PROVIDER,
@@ -48,6 +50,28 @@ export class ChatModule {
     static forRoot(config: ChatModuleConfig): DynamicModule {
         return {
             module: ChatModule,
+            imports: [
+                LoggerModule.forRoot({
+                    pinoHttp: {
+                        level: process.env.LOG_LEVEL ?? "info",
+                        ...(process.env.LOG_FORMAT === "json"
+                            ? {}
+                            : { transport: { target: "pino-pretty", options: { singleLine: true } } }),
+                        redact: {
+                            paths: ["email", "name", "content", "text", "*.email", "*.name", "*.content", "*.text"],
+                            censor: "[REDACTED]",
+                        },
+                        serializers: {
+                            req(req: { method: string; url: string; remoteAddress: string }) {
+                                return { method: req.method, url: req.url, ip: req.remoteAddress };
+                            },
+                            res(res: { statusCode: number }) {
+                                return { statusCode: res.statusCode };
+                            },
+                        },
+                    },
+                }),
+            ],
             controllers: [ThreadController],
             providers: [
                 { provide: AGENT_PROVIDER, useValue: config.agent },
@@ -56,9 +80,10 @@ export class ChatModule {
                 { provide: GENERATE_TITLE_FN, useValue: config.generateTitle ?? null },
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 RequireUserGuard,
+                AuditLogger,
                 ChatGateway,
             ],
-            exports: [PERSISTENCE_PROVIDER, AGENT_PROVIDER],
+            exports: [PERSISTENCE_PROVIDER, AGENT_PROVIDER, AuditLogger],
         };
     }
 }

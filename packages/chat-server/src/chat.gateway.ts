@@ -21,6 +21,7 @@ import type {
 
 import { WS_PATH, chatRequestSchema } from "@datonfly-assistant/core";
 
+import { AuditLogger } from "./audit-logger.js";
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
 import { threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
@@ -49,6 +50,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
         @Optional() @Inject(GENERATE_TITLE_FN) private readonly generateTitleFn: GenerateTitleFn | null,
+        private readonly auditLogger: AuditLogger,
     ) {}
 
     afterInit(_server: Server): void {
@@ -58,14 +60,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             const validate = this.validateToken;
             const persistence = this.persistence;
 
+            const auditLogger = this.auditLogger;
             server.use((socket: Socket, next) => {
                 const token = socket.handshake.auth.token as string | undefined;
                 if (!token) {
+                    auditLogger.audit("error", "auth.rejected", { error: "Authentication required" });
                     next(new Error("Authentication required"));
                     return;
                 }
                 const identity = validate(token);
                 if (!identity) {
+                    auditLogger.audit("error", "auth.rejected", { error: "Invalid token" });
                     next(new Error("Invalid token"));
                     return;
                 }
@@ -94,6 +99,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             this.titleGenerator = new ThreadTitleGenerator({
                 persistence: this.persistence,
                 generateTitle: this.generateTitleFn,
+                auditLogger: this.auditLogger,
                 onTitleUpdated: (threadId: string, title: string, titleManuallySet: boolean): void => {
                     const event: ThreadUpdatedEvent = {
                         event: "thread-updated",
@@ -142,6 +148,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             content,
             authorId: user?.id ?? null,
         });
+        this.auditLogger.audit("info", "message.send", { userId, threadId, messageId });
 
         // Load full history and convert to AgentMessage[]
         const history = await this.persistence.loadMessages({ threadId });
@@ -180,6 +187,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 content: [{ type: "text", text: fullText }],
             };
             socket.emit("message-complete", completeEvent);
+            this.auditLogger.audit("info", "agent.complete", { userId, threadId, messageId });
 
             // Fire-and-forget title generation.
             if (this.titleGenerator) {
@@ -188,6 +196,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Unknown error";
             socket.emit("error", { event: "error", message });
+            this.auditLogger.audit("error", "agent.error", { userId, threadId, messageId, error: message });
         }
     }
 

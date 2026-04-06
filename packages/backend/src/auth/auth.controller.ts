@@ -1,5 +1,6 @@
 import { Controller, Get, Redirect, Req, Res, UnauthorizedException } from "@nestjs/common";
 import type { Request, Response } from "express";
+import { PinoLogger } from "nestjs-pino";
 
 import { Public } from "../guards/jwt-auth.guard.js";
 
@@ -7,7 +8,12 @@ import { AuthService } from "./auth.service.js";
 
 @Controller("auth")
 export class AuthController {
-    constructor(private readonly authService: AuthService) {}
+    constructor(
+        private readonly authService: AuthService,
+        private readonly logger: PinoLogger,
+    ) {
+        this.logger.setContext("AuthController");
+    }
 
     @Public()
     @Get("login")
@@ -29,6 +35,7 @@ export class AuthController {
             res.redirect(redirectUrl);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Authentication failed";
+            this.logger.error({ audit: true, op: "auth.callback.failed", error: message });
             throw new UnauthorizedException(message);
         }
     }
@@ -37,6 +44,7 @@ export class AuthController {
     me(@Req() req: Request): object {
         const info = this.authService.getAuthInfo(req.headers.authorization);
         if (!info) {
+            this.logger.error({ audit: true, op: "auth.rejected", error: "Invalid or missing bearer token" });
             throw new UnauthorizedException("Missing or invalid Authorization header");
         }
         return info;

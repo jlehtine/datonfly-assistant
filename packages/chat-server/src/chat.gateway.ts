@@ -12,6 +12,8 @@ import type {
     MessageCompleteEvent,
     MessageDeltaEvent,
     SendMessageEvent,
+    Thread,
+    ThreadCreatedEvent,
     ThreadUpdatedEvent,
     User,
     UserIdentity,
@@ -99,7 +101,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                         title,
                         titleManuallySet,
                     };
-                    server.emit("thread-updated", event);
+                    void this.emitToThreadMembers(threadId, "thread-updated", event);
                 },
             });
         }
@@ -186,6 +188,41 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Unknown error";
             socket.emit("error", { event: "error", message });
+        }
+    }
+
+    /** Broadcast a thread-created event to connected clients that are members of the thread. */
+    notifyThreadCreated(thread: Thread): void {
+        const event: ThreadCreatedEvent = {
+            event: "thread-created",
+            thread: {
+                id: thread.id,
+                title: thread.title,
+                createdAt: thread.createdAt.toISOString(),
+                updatedAt: thread.updatedAt.toISOString(),
+                archivedAt: thread.archivedAt?.toISOString() ?? null,
+                memoryEnabled: thread.memoryEnabled,
+                titleGeneratedAt: thread.titleGeneratedAt?.toISOString() ?? null,
+                titleManuallySet: thread.titleManuallySet,
+            },
+        };
+        void this.emitToThreadMembers(thread.id, "thread-created", event);
+    }
+
+    /**
+     * Emit an event only to connected sockets whose authenticated user is a
+     * member of the given thread.
+     */
+    private async emitToThreadMembers(threadId: string, eventName: string, payload: unknown): Promise<void> {
+        const members = await this.persistence.listMembers(threadId);
+        const memberUserIds = new Set(members.map((m) => m.userId));
+
+        const sockets = await this.server.fetchSockets();
+        for (const socket of sockets) {
+            const user = (socket.data as { user?: User | undefined }).user;
+            if (user && memberUserIds.has(user.id)) {
+                socket.emit(eventName, payload);
+            }
         }
     }
 }

@@ -56,6 +56,7 @@ export type {
     MemberJoinedEvent,
     MemberLeftEvent,
     ThreadUpdatedEvent,
+    ThreadCreatedEvent,
     ErrorEvent,
     ServerToClientEvent,
 } from "./events/index.js";

@@ -6,6 +6,7 @@ import {
     type MessageCompleteEvent,
     type MessageDeltaEvent,
     type SendMessageEvent,
+    type ThreadCreatedEvent,
     type ThreadUpdatedEvent,
 } from "@datonfly-assistant/core";
 
@@ -17,6 +18,8 @@ export interface ChatClientEventMap {
     "message-complete": (event: MessageCompleteEvent) => void;
     /** Fired when one or more mutable thread properties have been updated. */
     "thread-updated": (event: ThreadUpdatedEvent) => void;
+    /** Fired when a new thread has been created. */
+    "thread-created": (event: ThreadCreatedEvent) => void;
     /** Fired when the server reports an error. */
     error: (event: ErrorEvent) => void;
     /** Fired when the WebSocket connection is established. */

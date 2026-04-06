@@ -126,6 +126,22 @@ export interface ThreadUpdatedEvent {
     memoryEnabled?: boolean | undefined;
 }
 
+/** A new thread has been created. */
+export interface ThreadCreatedEvent {
+    event: "thread-created";
+    /** The full thread object (with ISO-8601 date strings). */
+    thread: {
+        id: string;
+        title: string;
+        createdAt: string;
+        updatedAt: string;
+        archivedAt?: string | null | undefined;
+        memoryEnabled: boolean;
+        titleGeneratedAt?: string | null | undefined;
+        titleManuallySet: boolean;
+    };
+}
+
 /** Server-side error related to the current connection or a specific operation. */
 export interface ErrorEvent {
     event: "error";
@@ -145,4 +161,5 @@ export type ServerToClientEvent =
     | MemberJoinedEvent
     | MemberLeftEvent
     | ThreadUpdatedEvent
+    | ThreadCreatedEvent
     | ErrorEvent;

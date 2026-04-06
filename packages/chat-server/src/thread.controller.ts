@@ -28,6 +28,7 @@ import {
     type User,
 } from "@datonfly-assistant/core";
 
+import { ChatGateway } from "./chat.gateway.js";
 import { PERSISTENCE_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
@@ -36,17 +37,22 @@ import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
 export class ThreadController {
-    constructor(@Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider) {}
+    constructor(
+        @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
+        private readonly gateway: ChatGateway,
+    ) {}
 
     @Post()
     async create(
         @ResolvedUser() user: User,
         @Body(new ZodValidationPipe(createThreadRequestSchema)) body: CreateThreadRequest,
     ): Promise<Thread> {
-        return this.persistence.createThread({
+        const thread = await this.persistence.createThread({
             title: body.title,
             creatorId: user.id,
         });
+        this.gateway.notifyThreadCreated(thread);
+        return thread;
     }
 
     @Get()

@@ -113,5 +113,23 @@ export function useThreadList({ includeArchived = false }: UseThreadListOptions 
         );
     }, []);
 
+    // Listen for new threads created by other clients (or this client in another tab).
+    useEffect(() => {
+        const handler = (event: { thread: Record<string, unknown> }): void => {
+            const parsed = threadWireSchema.safeParse(event.thread);
+            if (!parsed.success) return;
+            const newThread = parsed.data;
+            setThreads((prev) => {
+                // Avoid duplicates.
+                if (prev.some((t) => t.id === newThread.id)) return prev;
+                return [newThread, ...prev];
+            });
+        };
+        client.on("thread-created", handler as Parameters<typeof client.on<"thread-created">>[1]);
+        return () => {
+            client.off("thread-created", handler as Parameters<typeof client.off<"thread-created">>[1]);
+        };
+    }, [client]);
+
     return { threads, loading, error, refresh, setArchived, renameThread, updateThreadTitle };
 }

@@ -7,7 +7,12 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useEffect, type ComponentType, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import { ChatClientContext, useChatClient, useChatConnection, useMessages } from "@datonfly-assistant/chat-hooks";
+import {
+    ChatClientContext,
+    useChatClient,
+    useChatConnection,
+    useMessages,
+} from "@datonfly-assistant/chat-client/react";
 import type { Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
 import { Composer, type ComposerInputProps } from "./Composer.js";

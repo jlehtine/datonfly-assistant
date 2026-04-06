@@ -4,7 +4,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useRef, useState, type ComponentType, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import { useThreadList } from "@datonfly-assistant/chat-hooks";
+import { useThreadList } from "@datonfly-assistant/chat-client/react";
 import type { Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
 import { ChatEmbed } from "./ChatEmbed.js";

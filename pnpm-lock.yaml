@@ -143,21 +143,6 @@ importers:
       '@langchain/core':
         specifier: ^1.1.39
         version: 1.1.39(ws@8.18.3)
-      typescript:
-        specifier: ^6.0.2
-        version: 6.0.2
-
-  packages/chat-hooks:
-    devDependencies:
-      '@datonfly-assistant/chat-client':
-        specifier: workspace:*
-        version: link:../chat-client
-      '@datonfly-assistant/core':
-        specifier: workspace:*
-        version: link:../core
-      '@langchain/core':
-        specifier: ^1.1.39
-        version: 1.1.39(ws@8.18.3)
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
@@ -214,9 +199,6 @@ importers:
       '@datonfly-assistant/chat-client':
         specifier: workspace:*
         version: link:../chat-client
-      '@datonfly-assistant/chat-hooks':
-        specifier: workspace:*
-        version: link:../chat-hooks
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core

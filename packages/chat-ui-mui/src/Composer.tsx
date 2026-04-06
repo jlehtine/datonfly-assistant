@@ -4,7 +4,7 @@ import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactElement } from "react";
 
-import { useComposer } from "@datonfly-assistant/chat-hooks";
+import { useComposer } from "@datonfly-assistant/chat-client/react";
 
 import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 

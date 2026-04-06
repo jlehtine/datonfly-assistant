@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { ChatMessage } from "@datonfly-assistant/chat-hooks";
+import type { ChatMessage } from "@datonfly-assistant/chat-client/react";
 
 /** Props for the {@link MessageBubble} component. */
 export interface MessageBubbleProps {

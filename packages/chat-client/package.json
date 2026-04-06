@@ -9,6 +9,17 @@
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
+        },
+        "./react": {
+            "types": "./dist/react/index.d.ts",
+            "import": "./dist/react/index.js"
+        }
+    },
+    "typesVersions": {
+        "*": {
+            "react": [
+                "./dist/react/index.d.ts"
+            ]
         }
     },
     "scripts": {
@@ -21,11 +32,19 @@
         "socket.io-client": "^4.8.0"
     },
     "peerDependencies": {
-        "@datonfly-assistant/core": "workspace:*"
+        "@datonfly-assistant/core": "workspace:*",
+        "react": "^19.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
         "@langchain/core": "^1.1.39",
+        "@types/react": "^19.0.0",
+        "react": "^19.0.0",
         "typescript": "^6.0.2"
     }
 }

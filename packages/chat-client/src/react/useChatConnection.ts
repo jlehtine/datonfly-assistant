@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { ChatClient } from "@datonfly-assistant/chat-client";
+import { ChatClient } from "../client.js";
 
 /** Configuration options for {@link useChatConnection}. */
 export interface UseChatConnectionConfig {

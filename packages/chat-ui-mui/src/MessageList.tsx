@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import { useEffect, useRef, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import type { ChatMessage } from "@datonfly-assistant/chat-hooks";
+import type { ChatMessage } from "@datonfly-assistant/chat-client/react";
 
 import { formatTimestamp, formatTimestampFull, shouldShowTimestamp } from "./formatTimestamp.js";
 import { MessageBubble } from "./MessageBubble.js";

@@ -1,5 +1,5 @@
 {
-    "name": "@verbal-assistant/agent-langchain",
+    "name": "@datonfly-assistant/agent-langchain",
     "version": "0.0.1",
     "private": true,
     "type": "module",
@@ -22,10 +22,10 @@
         "@langchain/core": "^1.1.39"
     },
     "peerDependencies": {
-        "@verbal-assistant/core": "workspace:*"
+        "@datonfly-assistant/core": "workspace:*"
     },
     "devDependencies": {
-        "@verbal-assistant/core": "workspace:*",
+        "@datonfly-assistant/core": "workspace:*",
         "typescript": "^6.0.2"
     }
 }

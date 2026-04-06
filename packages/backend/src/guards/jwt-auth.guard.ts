@@ -8,7 +8,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
-import type { AuthUser } from "@verbal-assistant/core";
+import type { AuthUser } from "@datonfly-assistant/core";
 
 import { AuthService } from "../auth/auth.service.js";
 

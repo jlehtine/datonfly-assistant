@@ -2,7 +2,7 @@
     "printWidth": 120,
     "tabWidth": 4,
     "plugins": ["@ianvs/prettier-plugin-sort-imports"],
-    "importOrder": ["<BUILTIN_MODULES>", "", "<THIRD_PARTY_MODULES>", "", "^@verbal-assistant/(.*)$", "", "^[.]"],
+    "importOrder": ["<BUILTIN_MODULES>", "", "<THIRD_PARTY_MODULES>", "", "^@datonfly-assistant/(.*)$", "", "^[.]"],
     "importOrderTypeScriptVersion": "5.8.3",
     "overrides": [
         {

@@ -1,6 +1,6 @@
 import type { BaseMessage } from "@langchain/core/messages";
 
-import type { IPersistenceProvider, ThreadMessage } from "@verbal-assistant/core";
+import type { IPersistenceProvider, ThreadMessage } from "@datonfly-assistant/core";
 
 import { threadMessagesToBaseMessages } from "./messages.js";
 

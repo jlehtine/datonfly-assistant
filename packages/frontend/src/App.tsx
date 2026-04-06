@@ -7,10 +7,10 @@ import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type { ReactElement } from "react";
 
-import { ChatHistoryEmbed } from "@verbal-assistant/chat-ui-mui";
-import { emojiPickerTool } from "@verbal-assistant/chat-ui-mui/emoji";
-import { highlightComponents } from "@verbal-assistant/chat-ui-mui/highlight";
-import { RichInput } from "@verbal-assistant/chat-ui-mui/rich";
+import { ChatHistoryEmbed } from "@datonfly-assistant/chat-ui-mui";
+import { emojiPickerTool } from "@datonfly-assistant/chat-ui-mui/emoji";
+import { highlightComponents } from "@datonfly-assistant/chat-ui-mui/highlight";
+import { RichInput } from "@datonfly-assistant/chat-ui-mui/rich";
 
 import { useAuth } from "./auth";
 import { LoginPage } from "./pages/LoginPage";
@@ -43,7 +43,7 @@ export function App(): ReactElement {
             <AppBar position="static" elevation={0}>
                 <Toolbar>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                        Verbal Assistant
+                        Datonfly Assistant
                     </Typography>
                     <Typography variant="body2" sx={{ mr: 2 }}>
                         {user.name}

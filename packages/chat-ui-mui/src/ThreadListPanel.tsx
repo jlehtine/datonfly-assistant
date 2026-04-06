@@ -13,7 +13,7 @@ import Typography from "@mui/material/Typography";
 import { formatDistanceToNow } from "date-fns";
 import { useState, type ReactElement } from "react";
 
-import type { Thread } from "@verbal-assistant/core";
+import type { Thread } from "@datonfly-assistant/core";
 
 /** Archive inbox icon (Material Design path). */
 function ArchiveIcon(): ReactElement {
@@ -101,7 +101,9 @@ export function ThreadListPanel({
                 )}
                 <Select
                     value={filter}
-                    onChange={(e) => { setFilter(e.target.value as ThreadFilter); }}
+                    onChange={(e) => {
+                        setFilter(e.target.value as ThreadFilter);
+                    }}
                     size="small"
                     variant="outlined"
                     sx={{ flex: 1, fontSize: "0.8125rem" }}

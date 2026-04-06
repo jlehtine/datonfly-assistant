@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Thread } from "@verbal-assistant/core";
+import type { Thread } from "@datonfly-assistant/core";
 
 /** Options for {@link useThreadList}. */
 export interface UseThreadListOptions {

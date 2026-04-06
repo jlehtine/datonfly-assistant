@@ -6,7 +6,7 @@ import type {
     MessageDeltaEvent,
     SendMessageEvent,
     ThreadUpdatedEvent,
-} from "@verbal-assistant/core";
+} from "@datonfly-assistant/core";
 
 /** Map of event names to their handler signatures for {@link ChatClient}. */
 export interface ChatClientEventMap {
@@ -33,7 +33,7 @@ export interface ChatClientConfig {
 }
 
 /**
- * WebSocket client for the Verbal Assistant real-time chat server.
+ * WebSocket client for the Datonfly Assistant real-time chat server.
  *
  * Manages the Socket.io connection, exposes typed event subscriptions,
  * and provides a {@link sendMessage} method to submit user messages.

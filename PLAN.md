@@ -1,16 +1,16 @@
-# Plan: Verbal Assistant
+# Plan: Datonfly Assistant
 
-> **Verbal Assistant** — _Verbal Assistant for teams of people_
+> **Datonfly Assistant** — _Datonfly Assistant for teams of people_
 
 ## TL;DR
 
-Build **Verbal Assistant**, a full-stack AI chat platform for teams. NestJS
+Build **Datonfly Assistant**, a full-stack AI chat platform for teams. NestJS
 backend, React/MUI frontend (custom chat UI), LangChain + Claude with built-in
 tools, PostgreSQL for chat persistence, Qdrant for semantic search, OIDC auth
 (Google initially), and **multi-user chat rooms** with WebSocket real-time sync.
 The AI participates in all threads — always responds in personal chats,
 selectively responds in rooms based on conversation context. Plugin architecture
-with `@verbal-assistant/*` npm packages. pnpm monorepo, Docker Compose +
+with `@datonfly-assistant/*` npm packages. pnpm monorepo, Docker Compose +
 Kubernetes deployment.
 
 ---
@@ -19,7 +19,7 @@ Kubernetes deployment.
 
 ```
 ┌──────────────────────────────────────────┐
-│  Verbal Assistant (Frontend)             │
+│  Datonfly Assistant (Frontend)             │
 │  React + MUI (Custom Chat)              │
 │  Socket.IO client for all real-time      │
 └────────────┬─────────────────────────────┘
@@ -27,7 +27,7 @@ Kubernetes deployment.
              │ JWT auth on handshake + headers
              ▼
 ┌──────────────────────────────────────────┐
-│  Verbal Assistant (Backend)              │
+│  Datonfly Assistant (Backend)              │
 │  NestJS                                  │
 │  ├─ AuthModule (OIDC → JWT)              │
 │  ├─ ChatGateway (WebSocket, Socket.IO)   │
@@ -50,7 +50,7 @@ PostgreSQL   Qdrant    HF TEI (Embeddings)
 ## Project Structure (pnpm Monorepo)
 
 ```
-verbal-assistant/
+datonfly-assistant/
 ├── pnpm-workspace.yaml
 ├── package.json              # root: scripts, devDeps (prettier, eslint, turborepo)
 ├── turbo.json                # Turborepo config for build orchestration
@@ -64,7 +64,7 @@ verbal-assistant/
 │   │
 │   │  ─── SHARED CONTRACTS ───
 │   │
-│   ├── core/                         # @verbal-assistant/core
+│   ├── core/                         # @datonfly-assistant/core
 │   │   └── src/                      # TypeScript interfaces & types (peer dep: @langchain/core)
 │   │       ├── types/                # Message, Thread, User, ContentPart, ToolCall
 │   │       ├── events/               # WebSocket event discriminated unions (client↔server)
@@ -79,54 +79,54 @@ verbal-assistant/
 │   │
 │   │  ─── BACKEND LIBRARIES (framework-agnostic) ───
 │   │
-│   ├── realtime/                     # @verbal-assistant/realtime
+│   ├── realtime/                     # @datonfly-assistant/realtime
 │   │   └── src/                      # WebSocket protocol handler (Socket.IO)
 │   │       ├── server.ts             # ChatRealtimeServer — bootstrap with injected providers
 │   │       ├── handlers/             # Event handlers: message, join, leave, typing, invite
 │   │       ├── presence.ts           # In-memory presence tracker
 │   │       └── middleware/           # Auth middleware (accepts token validator function)
 │   │
-│   ├── agent-langchain/              # @verbal-assistant/agent-langchain
+│   ├── agent-langchain/              # @datonfly-assistant/agent-langchain
 │   │   └── src/                      # IChatAgent implementation: LangGraph + ChatAnthropic
 │   │       ├── agent.ts              # LangGraphAgent — implements IChatAgent
 │   │       ├── graph.ts              # LangGraph graph definition (ShouldRespond → Agent → Stream)
 │   │       ├── should-respond.ts     # Gating node for rooms
 │   │       └── tool-adapter.ts       # Adapts ITool plugins to LangChain tool() format
 │   │
-│   ├── persistence-pg/               # @verbal-assistant/persistence-pg
+│   ├── persistence-pg/               # @datonfly-assistant/persistence-pg
 │   │   └── src/                      # IPersistenceProvider + IMemoryProvider via PostgreSQL
 │   │       ├── provider.ts           # PostgresPersistenceProvider — implements IPersistenceProvider
 │   │       ├── memory-provider.ts    # PostgresMemoryProvider — implements IMemoryProvider (relational side)
 │   │       ├── entities/             # TypeORM entities: User, Thread, Message, ThreadMember, Memory
 │   │       └── migrations/           # TypeORM migrations
 │   │
-│   ├── search-qdrant/                # @verbal-assistant/search-qdrant
+│   ├── search-qdrant/                # @datonfly-assistant/search-qdrant
 │   │   └── src/                      # ISearchProvider + IMemoryProvider (vector side) via Qdrant
 │   │       ├── provider.ts           # QdrantSearchProvider — implements ISearchProvider
 │   │       ├── memory-search.ts      # QdrantMemorySearch — vector side of IMemoryProvider
 │   │       └── collections.ts        # Collection schemas & initialization
 │   │
-│   ├── embeddings-local/             # @verbal-assistant/embeddings-local
+│   ├── embeddings-local/             # @datonfly-assistant/embeddings-local
 │   │   └── src/                      # IEmbeddingsProvider via HuggingFace TEI HTTP API
 │   │       └── provider.ts           # TEIEmbeddingsProvider — implements IEmbeddingsProvider
 │   │
-│   ├── tool-web-search/              # @verbal-assistant/tool-web-search
+│   ├── tool-web-search/              # @datonfly-assistant/tool-web-search
 │   │   └── src/                      # ITool implementation: Anthropic built-in web_search
 │   │       └── tool.ts               # WebSearchTool — implements ITool
 │   │
-│   ├── tool-code-execution/          # @verbal-assistant/tool-code-execution
+│   ├── tool-code-execution/          # @datonfly-assistant/tool-code-execution
 │   │   └── src/                      # ITool implementation: Anthropic built-in code_execution
 │   │       └── tool.ts               # CodeExecutionTool — implements ITool
 │   │
 │   │  ─── FRONTEND LIBRARIES ───
 │   │
-│   ├── chat-client/                  # @verbal-assistant/chat-client
+│   ├── chat-client/                  # @datonfly-assistant/chat-client
 │   │   └── src/                      # Socket.IO client wrapper — React-independent
 │   │       ├── client.ts             # ChatClient class — connect, auth, emit, subscribe
 │   │       ├── reconnection.ts       # Reconnection strategy with backoff
-│   │       └── types.ts              # Re-exports event types from @verbal-assistant/core
+│   │       └── types.ts              # Re-exports event types from @datonfly-assistant/core
 │   │
-│   ├── chat-hooks/                   # @verbal-assistant/chat-hooks
+│   ├── chat-hooks/                   # @datonfly-assistant/chat-hooks
 │   │   └── src/                      # Headless React hooks — ZERO UI, any design system
 │   │       ├── useChatConnection.ts  # Manages ChatClient lifecycle, auth token refresh
 │   │       ├── useMessages.ts        # Message list, streaming, history loading, optimistic updates
@@ -136,8 +136,8 @@ verbal-assistant/
 │   │       ├── useMemory.ts          # Long-term memory search/list/delete
 │   │       └── context.ts            # ChatProvider context (wraps ChatClient for hook tree)
 │   │
-│   ├── chat-ui-mui/                  # @verbal-assistant/chat-ui-mui
-│   │   └── src/                      # MUI-based components — uses @verbal-assistant/chat-hooks
+│   ├── chat-ui-mui/                  # @datonfly-assistant/chat-ui-mui
+│   │   └── src/                      # MUI-based components — uses @datonfly-assistant/chat-hooks
 │   │       ├── ChatEmbed.tsx         # <ChatEmbed config={...} /> — all-in-one embedding component
 │   │       ├── MessageList.tsx       # Virtualized message list (MUI + react-window)
 │   │       ├── MessageBubble.tsx     # Markdown + code blocks + tool results + author
@@ -151,7 +151,7 @@ verbal-assistant/
 │   │
 │   │  ─── STANDALONE APPLICATION ───
 │   │
-│   ├── backend/                      # @verbal-assistant/backend — Standalone NestJS app
+│   ├── backend/                      # @datonfly-assistant/backend — Standalone NestJS app
 │   │   └── src/
 │   │       ├── main.ts               # Bootstrap: wires all library providers together
 │   │       ├── app.module.ts         # Root module — imports & configures everything
@@ -159,7 +159,7 @@ verbal-assistant/
 │   │       ├── auth/                 # OIDC + JWT (standalone-specific auth strategy)
 │   │       └── api/                  # REST controllers (threads, search, memory, health)
 │   │
-│   └── frontend/                     # @verbal-assistant/frontend — Standalone React + Vite app
+│   └── frontend/                     # @datonfly-assistant/frontend — Standalone React + Vite app
 │       └── src/
 │           ├── main.tsx
 │           ├── App.tsx               # Routing, auth wrapper
@@ -203,7 +203,7 @@ Services:
   `BAAI/bge-large-en-v1.5`
 - Volumes for persistent data
 
-### Step 1.4 — Core package (`packages/core` → `@verbal-assistant/core`)
+### Step 1.4 — Core package (`packages/core` → `@datonfly-assistant/core`)
 
 Key types to define:
 
@@ -229,7 +229,7 @@ Key types to define:
   - **Principle**: Prefer re-exporting or extending `@langchain/core` types
     (e.g., `BaseMessage`, `Document`, `ToolDefinition`) over inventing parallel
     type hierarchies. This minimizes adapter code in
-    `@verbal-assistant/agent-langchain` and lets consumers who already use
+    `@datonfly-assistant/agent-langchain` and lets consumers who already use
     LangChain interop naturally.
 - **WebSocket events** (`events/` — discriminated union by `event` field):
   - Client→Server: `send-message`, `join-thread`, `leave-thread`,
@@ -244,10 +244,10 @@ Key types to define:
 
 ## Phase 2: Backend Libraries & Standalone App
 
-### Step 2.1 — Persistence library (`packages/persistence-pg` → `@verbal-assistant/persistence-pg`) (_depends on 1.4_)
+### Step 2.1 — Persistence library (`packages/persistence-pg` → `@datonfly-assistant/persistence-pg`) (_depends on 1.4_)
 
 - Implements `IPersistenceProvider` and `IMemoryProvider` (relational side) from
-  `@verbal-assistant/core`
+  `@datonfly-assistant/core`
 - TypeORM entities: `UserEntity`, `ThreadEntity`, `MessageEntity`,
   `ThreadMemberEntity`, `MemoryEntity`
 - `PostgresPersistenceProvider`:
@@ -261,17 +261,17 @@ Key types to define:
 - TypeORM migrations
 - Framework-agnostic: exports plain classes, consumer provides DataSource config
 
-### Step 2.2 — Embeddings library (`packages/embeddings-local` → `@verbal-assistant/embeddings-local`) (_depends on 1.4, parallel with 2.1_)
+### Step 2.2 — Embeddings library (`packages/embeddings-local` → `@datonfly-assistant/embeddings-local`) (_depends on 1.4, parallel with 2.1_)
 
-- Implements `IEmbeddingsProvider` from `@verbal-assistant/core`
+- Implements `IEmbeddingsProvider` from `@datonfly-assistant/core`
 - `TEIEmbeddingsProvider`: wraps HTTP calls to HuggingFace TEI container
   (`POST /embed`)
 - Batch embedding support
 - Configurable base URL (default `http://localhost:8080`)
 
-### Step 2.3 — Search library (`packages/search-qdrant` → `@verbal-assistant/search-qdrant`) (_depends on 2.2_)
+### Step 2.3 — Search library (`packages/search-qdrant` → `@datonfly-assistant/search-qdrant`) (_depends on 2.2_)
 
-- Implements `ISearchProvider` from `@verbal-assistant/core`
+- Implements `ISearchProvider` from `@datonfly-assistant/core`
 - `QdrantSearchProvider` wrapping `@qdrant/js-client-rest`
 - Collections: `chat_messages`, `long_term_memory`
 - Index: accepts text → calls injected `IEmbeddingsProvider` → upserts vector +
@@ -284,14 +284,14 @@ Key types to define:
 
 ### Step 2.4 — Tool plugins (_depends on 1.4, parallel with 2.1-2.3_)
 
-- `packages/tool-web-search` → `@verbal-assistant/tool-web-search`
+- `packages/tool-web-search` → `@datonfly-assistant/tool-web-search`
   - Implements `ITool` — wraps Anthropic built-in `web_search` tool
-- `packages/tool-code-execution` → `@verbal-assistant/tool-code-execution`
+- `packages/tool-code-execution` → `@datonfly-assistant/tool-code-execution`
   - Implements `ITool` — wraps Anthropic built-in `code_execution` tool
 
-### Step 2.5 — Agent library (`packages/agent-langchain` → `@verbal-assistant/agent-langchain`) (_depends on 2.3, 2.4_)
+### Step 2.5 — Agent library (`packages/agent-langchain` → `@datonfly-assistant/agent-langchain`) (_depends on 2.3, 2.4_)
 
-- Implements `IChatAgent` from `@verbal-assistant/core`
+- Implements `IChatAgent` from `@datonfly-assistant/core`
 - `LangGraphAgent`:
   - Constructor accepts: model config, `ITool[]`, `ISearchProvider`,
     `IMemoryProvider`, `IPersistenceProvider`
@@ -309,7 +309,7 @@ Key types to define:
   state checkpointing
 - System prompt variants (personal vs room, with member names context)
 
-### Step 2.6 — Realtime library (`packages/realtime` → `@verbal-assistant/realtime`) (_depends on 2.1, 2.5_)
+### Step 2.6 — Realtime library (`packages/realtime` → `@datonfly-assistant/realtime`) (_depends on 2.1, 2.5_)
 
 - `ChatRealtimeServer`: bootstraps Socket.IO server with injected providers
   (`IChatAgent`, `IPersistenceProvider`, `ISearchProvider`)
@@ -327,7 +327,7 @@ Key types to define:
 - `PresenceTracker` (`presence.ts`): in-memory `Map<userId, Set<socketId>>`,
   computes online members per thread, broadcasts `presence-update`
 
-### Step 2.7 — Standalone backend (`packages/backend` → `@verbal-assistant/backend`) (_depends on 2.1-2.6_)
+### Step 2.7 — Standalone backend (`packages/backend` → `@datonfly-assistant/backend`) (_depends on 2.1-2.6_)
 
 - NestJS application that **wires all library packages together**
 - `main.ts`: bootstrap NestJS + attach Socket.IO via `ChatRealtimeServer`
@@ -359,19 +359,19 @@ Key types to define:
 
 ## Phase 3: Frontend Libraries & Standalone App
 
-### Step 3.1 — Chat client library (`packages/chat-client` → `@verbal-assistant/chat-client`) (_depends on 1.4_)
+### Step 3.1 — Chat client library (`packages/chat-client` → `@datonfly-assistant/chat-client`) (_depends on 1.4_)
 
 - React-independent Socket.IO client wrapper
 - `ChatClient` class:
   - `connect(url, getToken)` — connects Socket.IO, passes JWT in handshake
   - `disconnect()` — clean disconnect
   - `emit(event, payload)` — typed emit using event types from
-    `@verbal-assistant/core`
+    `@datonfly-assistant/core`
   - `on(event, handler)` / `off()` — typed subscriptions
   - Auto-reconnect with exponential backoff + fresh token on reconnect
-- Re-exports event types from `@verbal-assistant/core`
+- Re-exports event types from `@datonfly-assistant/core`
 
-### Step 3.2 — Chat hooks library (`packages/chat-hooks` → `@verbal-assistant/chat-hooks`) (_depends on 3.1_)
+### Step 3.2 — Chat hooks library (`packages/chat-hooks` → `@datonfly-assistant/chat-hooks`) (_depends on 3.1_)
 
 - Headless React hooks — ZERO UI, works with any design system
 - `ChatProvider` context: wraps `ChatClient` instance for the hook tree
@@ -386,9 +386,9 @@ Key types to define:
 - `usePresence(threadId)` — online users set, typing users list
 - `useMemory()` — long-term memory search/list/delete via REST
 
-### Step 3.3 — Chat UI MUI library (`packages/chat-ui-mui` → `@verbal-assistant/chat-ui-mui`) (_depends on 3.2_)
+### Step 3.3 — Chat UI MUI library (`packages/chat-ui-mui` → `@datonfly-assistant/chat-ui-mui`) (_depends on 3.2_)
 
-- MUI-based components using `@verbal-assistant/chat-hooks` internally
+- MUI-based components using `@datonfly-assistant/chat-hooks` internally
 - `<ChatEmbed config={{url, getToken, threadId}} />` — all-in-one drop-in
   component for embedding
 - `MessageList` — virtualized (MUI + `react-window`), author names + avatars in
@@ -406,10 +406,10 @@ Key types to define:
 - `StreamingText` — progressive text rendering
 - `tools/` — `WebSearchResult`, `CodeExecutionOutput` renderers
 
-### Step 3.4 — Standalone frontend (`packages/frontend` → `@verbal-assistant/frontend`) (_depends on 3.3_)
+### Step 3.4 — Standalone frontend (`packages/frontend` → `@datonfly-assistant/frontend`) (_depends on 3.3_)
 
-- Vite + React application — the standalone Verbal Assistant UI
-- Uses `@verbal-assistant/chat-ui-mui` for all chat components
+- Vite + React application — the standalone Datonfly Assistant UI
+- Uses `@datonfly-assistant/chat-ui-mui` for all chat components
 - Standalone-specific features:
   - `auth/` — OIDC login flow (redirect to `GET /auth/login` → Google →
     callback), JWT in memory, `useAuth` hook, protected routes
@@ -474,71 +474,71 @@ Key types to define:
 
 ## Key Packages (npm dependencies per library)
 
-### `@verbal-assistant/core`
+### `@datonfly-assistant/core`
 
 - `zod` (validation schemas)
 - `@langchain/core` (peer — re-exports `BaseMessage`, `Document`, `Embeddings`,
   `StructuredTool` types)
 
-### `@verbal-assistant/persistence-pg`
+### `@datonfly-assistant/persistence-pg`
 
 - `typeorm`, `pg`
-- `@verbal-assistant/core` (peer)
+- `@datonfly-assistant/core` (peer)
 
-### `@verbal-assistant/embeddings-local`
+### `@datonfly-assistant/embeddings-local`
 
-- `@verbal-assistant/core` (peer)
+- `@datonfly-assistant/core` (peer)
 
-### `@verbal-assistant/search-qdrant`
+### `@datonfly-assistant/search-qdrant`
 
 - `@qdrant/js-client-rest`
-- `@verbal-assistant/core` (peer)
+- `@datonfly-assistant/core` (peer)
 
-### `@verbal-assistant/agent-langchain`
+### `@datonfly-assistant/agent-langchain`
 
 - `@langchain/anthropic`, `@langchain/core`, `@langchain/langgraph`
 - `@langchain/langgraph-checkpoint-postgres`
 - `zod`
-- `@verbal-assistant/core` (peer)
+- `@datonfly-assistant/core` (peer)
 
-### `@verbal-assistant/tool-web-search` / `@verbal-assistant/tool-code-execution`
+### `@datonfly-assistant/tool-web-search` / `@datonfly-assistant/tool-code-execution`
 
-- `@verbal-assistant/core` (peer)
+- `@datonfly-assistant/core` (peer)
 
-### `@verbal-assistant/realtime`
+### `@datonfly-assistant/realtime`
 
 - `socket.io`
-- `@verbal-assistant/core` (peer)
+- `@datonfly-assistant/core` (peer)
 
-### `@verbal-assistant/chat-client`
+### `@datonfly-assistant/chat-client`
 
 - `socket.io-client`
-- `@verbal-assistant/core` (peer)
+- `@datonfly-assistant/core` (peer)
 
-### `@verbal-assistant/chat-hooks`
+### `@datonfly-assistant/chat-hooks`
 
 - `react` (peer)
-- `@verbal-assistant/chat-client`, `@verbal-assistant/core` (peers)
+- `@datonfly-assistant/chat-client`, `@datonfly-assistant/core` (peers)
 
-### `@verbal-assistant/chat-ui-mui`
+### `@datonfly-assistant/chat-ui-mui`
 
 - `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`
   (peers)
 - `react-markdown`, `remark-gfm`, `react-syntax-highlighter`, `react-window`
-- `@verbal-assistant/chat-hooks` (peer)
+- `@datonfly-assistant/chat-hooks` (peer)
 
-### `@verbal-assistant/backend` (standalone)
+### `@datonfly-assistant/backend` (standalone)
 
 - `@nestjs/core`, `@nestjs/common`, `@nestjs/platform-express`, `@nestjs/config`
 - `@nestjs/passport`, `passport`, `passport-openidconnect`, `@nestjs/jwt`,
   `passport-jwt`
-- All `@verbal-assistant/*` backend libraries
+- All `@datonfly-assistant/*` backend libraries
 
-### `@verbal-assistant/frontend` (standalone)
+### `@datonfly-assistant/frontend` (standalone)
 
 - `react`, `react-dom`, `react-router-dom`
 - `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`
-- `@verbal-assistant/chat-ui-mui`
+- `@datonfly-assistant/chat-ui-mui`
 
 ### Dev/Root
 
@@ -655,7 +655,7 @@ Standalone frontend:
     Qdrant memory
 12. `POST /search/history` returns ranked semantic results
 13. **Embeddability**: `<ChatEmbed />` component from
-    `@verbal-assistant/chat-ui-mui` renders and functions in an isolated test
+    `@datonfly-assistant/chat-ui-mui` renders and functions in an isolated test
     app (separate Vite project importing only the library packages)
 14. Playwright suite passes all scenarios (including multi-user with two browser
     contexts)
@@ -664,20 +664,21 @@ Standalone frontend:
 
 ## Decisions
 
-- **Project name**: Verbal Assistant — "Verbal Assistant for teams of people"
-- **npm scope**: `@verbal-assistant/*`
-- **LangChain types as interface foundation** — `@verbal-assistant/core`
+- **Project name**: Datonfly Assistant — "Datonfly Assistant for teams of
+  people"
+- **npm scope**: `@datonfly-assistant/*`
+- **LangChain types as interface foundation** — `@datonfly-assistant/core`
   interfaces use `@langchain/core` types (`BaseMessage`, `Document`,
   `Embeddings`, `StructuredTool`) rather than inventing parallel type
   hierarchies. Minimizes adapter code and enables natural interop for LangChain
   users.
 - **Plugin architecture** — All backend services implement interfaces from
-  `@verbal-assistant/core`; swappable implementations (e.g., replace Qdrant with
-  Pinecone by implementing `ISearchProvider`)
+  `@datonfly-assistant/core`; swappable implementations (e.g., replace Qdrant
+  with Pinecone by implementing `ISearchProvider`)
 - **Framework-agnostic backend libs** — Library packages export plain classes;
-  only `@verbal-assistant/backend` depends on NestJS
-- **Headless frontend hooks** — `@verbal-assistant/chat-hooks` has zero UI;
-  `@verbal-assistant/chat-ui-mui` provides MUI components; consumers can use
+  only `@datonfly-assistant/backend` depends on NestJS
+- **Headless frontend hooks** — `@datonfly-assistant/chat-hooks` has zero UI;
+  `@datonfly-assistant/chat-ui-mui` provides MUI components; consumers can use
   hooks with any design system
 - **No assistant-ui** — Custom MUI chat UI for full consistency; avoids
   Tailwind/shadcn conflict

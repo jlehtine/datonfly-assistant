@@ -1,7 +1,7 @@
 import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
 
-import type { IPersistenceProvider } from "@verbal-assistant/core";
+import type { IPersistenceProvider } from "@datonfly-assistant/core";
 
 import { PERSISTENCE_PROVIDER } from "./constants.js";
 import { ThreadController } from "./thread.controller.js";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type { AuthUser } from "@verbal-assistant/core";
+import type { AuthUser } from "@datonfly-assistant/core";
 
 interface AuthState {
     user: AuthUser | null;

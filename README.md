@@ -1,4 +1,4 @@
-# Verbal Assistant
+# Datonfly Assistant
 
 AI chat platform for teams.
 

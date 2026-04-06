@@ -5,7 +5,7 @@ import { CodeHighlighter, type CodeProps } from "./CodeHighlighter.js";
 
 /**
  * A `react-markdown` `components` map that enables syntax highlighting for
- * fenced code blocks.  Import from `@verbal-assistant/chat-ui-mui/highlight`
+ * fenced code blocks.  Import from `@datonfly-assistant/chat-ui-mui/highlight`
  * and pass to {@link MessageBubble} via its `components` prop.
  *
  * `react-syntax-highlighter` must be installed as a peer dependency when
@@ -13,8 +13,8 @@ import { CodeHighlighter, type CodeProps } from "./CodeHighlighter.js";
  *
  * @example
  * ```tsx
- * import { MessageBubble } from "@verbal-assistant/chat-ui-mui";
- * import { highlightComponents } from "@verbal-assistant/chat-ui-mui/highlight";
+ * import { MessageBubble } from "@datonfly-assistant/chat-ui-mui";
+ * import { highlightComponents } from "@datonfly-assistant/chat-ui-mui/highlight";
  *
  * <MessageBubble message={msg} components={highlightComponents} />
  * ```

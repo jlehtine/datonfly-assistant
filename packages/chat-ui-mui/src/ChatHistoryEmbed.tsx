@@ -4,8 +4,8 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useRef, useState, type ComponentType, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import { useThreadList } from "@verbal-assistant/chat-hooks";
-import type { Thread, ThreadUpdatedEvent } from "@verbal-assistant/core";
+import { useThreadList } from "@datonfly-assistant/chat-hooks";
+import type { Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
 import { ChatEmbed } from "./ChatEmbed.js";
 import type { ComposerInputProps } from "./Composer.js";
@@ -26,7 +26,7 @@ export interface ChatHistoryEmbedConfig {
     maxRows?: number | undefined;
     /**
      * Optional custom element renderers for message markdown.
-     * Pass `highlightComponents` from `@verbal-assistant/chat-ui-mui/highlight`
+     * Pass `highlightComponents` from `@datonfly-assistant/chat-ui-mui/highlight`
      * to enable syntax highlighting for code blocks in completed messages.
      */
     messageComponents?: Components | undefined;

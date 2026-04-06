@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { ChatMessage } from "@verbal-assistant/chat-hooks";
+import type { ChatMessage } from "@datonfly-assistant/chat-hooks";
 
 /** Props for the {@link MessageBubble} component. */
 export interface MessageBubbleProps {
@@ -14,7 +14,7 @@ export interface MessageBubbleProps {
     /**
      * Optional custom element renderers forwarded to `react-markdown`.
      * Use this to enable syntax highlighting for code blocks by passing
-     * `highlightComponents` imported from `@verbal-assistant/chat-ui-mui/highlight`.
+     * `highlightComponents` imported from `@datonfly-assistant/chat-ui-mui/highlight`.
      * The components are only applied to completed (non-streaming) messages.
      */
     components?: Components | undefined;

@@ -32,7 +32,7 @@ development.
 
 ## Authentication
 
-Verbal Assistant supports two authentication modes, controlled by the
+Datonfly Assistant supports two authentication modes, controlled by the
 `AUTH_MODE` environment variable:
 
 | Mode   | Use case                  | Login required? |
@@ -97,7 +97,7 @@ JWT_SECRET=a-strong-random-secret
 1. Navigate to **APIs & Services → OAuth consent screen**.
 2. Choose **External** user type (or **Internal** for Google Workspace orgs).
 3. Fill in the required fields:
-   - **App name**: Verbal Assistant
+   - **App name**: Datonfly Assistant
    - **User support email**: your email
    - **Developer contact**: your email
 4. Add scopes: `openid`, `email`, `profile`.
@@ -109,7 +109,7 @@ JWT_SECRET=a-strong-random-secret
 2. Click **Create Credentials → OAuth client ID**.
 3. Select **Web application**.
 4. Set:
-   - **Name**: Verbal Assistant (local) — or any label
+   - **Name**: Datonfly Assistant (local) — or any label
    - **Authorized JavaScript origins**:
      - `http://localhost:5173` (local development — Vite dev server)
      - `https://your-domain.com` (production)

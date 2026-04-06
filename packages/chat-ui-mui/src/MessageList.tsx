@@ -4,7 +4,7 @@ import { keyframes } from "@mui/material/styles";
 import { useEffect, useRef, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import type { ChatMessage } from "@verbal-assistant/chat-hooks";
+import type { ChatMessage } from "@datonfly-assistant/chat-hooks";
 
 import { MessageBubble } from "./MessageBubble.js";
 
@@ -56,7 +56,7 @@ export interface MessageListProps {
     /**
      * Optional custom element renderers forwarded to each {@link MessageBubble}.
      * Use this to enable syntax highlighting by passing `highlightComponents`
-     * from `@verbal-assistant/chat-ui-mui/highlight`.
+     * from `@datonfly-assistant/chat-ui-mui/highlight`.
      */
     components?: Components | undefined;
     /** When `true`, a loading spinner is shown at the top while older messages are being fetched. */

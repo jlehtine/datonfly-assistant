@@ -14,7 +14,7 @@ import type {
     ThreadMemberRole,
     ThreadMessage,
     User,
-} from "@verbal-assistant/core";
+} from "@datonfly-assistant/core";
 
 import type { Database, MessageRow, ThreadMemberRow, ThreadRow, UserRow } from "./schema.js";
 

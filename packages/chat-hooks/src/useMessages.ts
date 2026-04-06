@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ErrorEvent, MessageCompleteEvent, MessageDeltaEvent, ThreadMessage } from "@verbal-assistant/core";
+import type { ErrorEvent, MessageCompleteEvent, MessageDeltaEvent, ThreadMessage } from "@datonfly-assistant/core";
 
 import { useChatClient } from "./context.js";
 

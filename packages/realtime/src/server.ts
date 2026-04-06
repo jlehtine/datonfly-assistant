@@ -12,7 +12,7 @@ import type {
     MessageDeltaEvent,
     SendMessageEvent,
     ThreadUpdatedEvent,
-} from "@verbal-assistant/core";
+} from "@datonfly-assistant/core";
 
 import { threadMessagesToBaseMessages } from "./messages.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";

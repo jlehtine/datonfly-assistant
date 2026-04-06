@@ -15,7 +15,7 @@ import {
 } from "@nestjs/common";
 import type { Request } from "express";
 
-import type { AuthUser, IPersistenceProvider, Thread, ThreadMessage } from "@verbal-assistant/core";
+import type { AuthUser, IPersistenceProvider, Thread, ThreadMessage } from "@datonfly-assistant/core";
 
 import { PERSISTENCE_PROVIDER } from "./constants.js";
 

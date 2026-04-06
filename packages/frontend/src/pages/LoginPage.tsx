@@ -19,7 +19,7 @@ export function LoginPage({ onLogin }: LoginPageProps): ReactElement {
                 gap: 3,
             }}
         >
-            <Typography variant="h4">Verbal Assistant</Typography>
+            <Typography variant="h4">Datonfly Assistant</Typography>
             <Typography variant="body1" color="text.secondary">
                 Sign in to continue
             </Typography>

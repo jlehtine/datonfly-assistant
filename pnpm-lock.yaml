@@ -54,7 +54,7 @@ importers:
         specifier: ^1.1.39
         version: 1.1.39(ws@8.18.3)
     devDependencies:
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
       typescript:
@@ -78,16 +78,16 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.1.0
         version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)
-      '@verbal-assistant/agent-langchain':
+      '@datonfly-assistant/agent-langchain':
         specifier: workspace:*
         version: link:../agent-langchain
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
-      '@verbal-assistant/persistence-pg':
+      '@datonfly-assistant/persistence-pg':
         specifier: workspace:*
         version: link:../persistence-pg
-      '@verbal-assistant/realtime':
+      '@datonfly-assistant/realtime':
         specifier: workspace:*
         version: link:../realtime
       dotenv:
@@ -140,7 +140,7 @@ importers:
       '@langchain/core':
         specifier: ^1.1.39
         version: 1.1.39(ws@8.18.3)
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
       typescript:
@@ -155,10 +155,10 @@ importers:
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
-      '@verbal-assistant/chat-client':
+      '@datonfly-assistant/chat-client':
         specifier: workspace:*
         version: link:../chat-client
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
       react:
@@ -204,13 +204,13 @@ importers:
       '@uiw/react-md-editor':
         specifier: ^4.0.0
         version: 4.1.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@verbal-assistant/chat-client':
+      '@datonfly-assistant/chat-client':
         specifier: workspace:*
         version: link:../chat-client
-      '@verbal-assistant/chat-hooks':
+      '@datonfly-assistant/chat-hooks':
         specifier: workspace:*
         version: link:../chat-hooks
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
       emoji-picker-react:
@@ -256,10 +256,10 @@ importers:
       '@uiw/react-md-editor':
         specifier: ^4.1.0
         version: 4.1.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@verbal-assistant/chat-ui-mui':
+      '@datonfly-assistant/chat-ui-mui':
         specifier: workspace:*
         version: link:../chat-ui-mui
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
       emoji-picker-react:
@@ -306,7 +306,7 @@ importers:
       '@types/pg':
         specifier: ^8.15.4
         version: 8.20.0
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
       typescript:
@@ -322,7 +322,7 @@ importers:
       '@langchain/core':
         specifier: ^1.1.39
         version: 1.1.39(ws@8.18.3)
-      '@verbal-assistant/core':
+      '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
       typescript:

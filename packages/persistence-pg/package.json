@@ -1,5 +1,5 @@
 {
-    "name": "@verbal-assistant/persistence-pg",
+    "name": "@datonfly-assistant/persistence-pg",
     "version": "0.0.1",
     "private": true,
     "type": "module",
@@ -22,10 +22,10 @@
         "pg": "^8.16.0"
     },
     "peerDependencies": {
-        "@verbal-assistant/core": "workspace:*"
+        "@datonfly-assistant/core": "workspace:*"
     },
     "devDependencies": {
-        "@verbal-assistant/core": "workspace:*",
+        "@datonfly-assistant/core": "workspace:*",
         "@types/pg": "^8.15.4",
         "typescript": "^6.0.2"
     }

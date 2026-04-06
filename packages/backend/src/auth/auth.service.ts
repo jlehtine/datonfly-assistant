@@ -4,7 +4,7 @@ import { Injectable } from "@nestjs/common";
 import jsonwebtoken from "jsonwebtoken";
 import * as client from "openid-client";
 
-import type { AuthUser, IPersistenceProvider } from "@verbal-assistant/core";
+import type { AuthUser, IPersistenceProvider } from "@datonfly-assistant/core";
 
 export interface AuthConfig {
     mode: "fake" | "oidc";

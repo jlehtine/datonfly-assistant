@@ -1,5 +1,5 @@
 {
-    "name": "verbal-assistant",
+    "name": "datonfly-assistant",
     "private": true,
     "packageManager": "pnpm@10.29.2",
     "scripts": {
@@ -9,11 +9,11 @@
         "lint:fix": "turbo run lint:fix",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "start": "pnpm --filter @verbal-assistant/backend start",
-        "dev": "pnpm --filter @verbal-assistant/frontend dev",
+        "start": "pnpm --filter @datonfly-assistant/backend start",
+        "dev": "pnpm --filter @datonfly-assistant/frontend dev",
         "test:e2e": "playwright test",
         "test:e2e:headed": "playwright test --headed",
-        "psql": "docker compose exec postgres psql -U verbal_assistant -d verbal_assistant",
+        "psql": "docker compose exec postgres psql -U datonfly -d datonfly",
         "prepare": "husky"
     },
     "devDependencies": {

@@ -4,13 +4,13 @@ services:
         ports:
             - "5432:5432"
         environment:
-            POSTGRES_USER: verbal_assistant
-            POSTGRES_PASSWORD: verbal_assistant
-            POSTGRES_DB: verbal_assistant
+            POSTGRES_USER: datonfly
+            POSTGRES_PASSWORD: datonfly
+            POSTGRES_DB: datonfly
         volumes:
             - pgdata:/var/lib/postgresql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U verbal_assistant -d verbal_assistant"]
+            test: ["CMD-SHELL", "pg_isready -U datonfly -d datonfly"]
             interval: 5s
             timeout: 5s
             retries: 5

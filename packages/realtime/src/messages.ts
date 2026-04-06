@@ -1,6 +1,6 @@
 import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 
-import type { ContentPart, ThreadMessage } from "@verbal-assistant/core";
+import type { ContentPart, ThreadMessage } from "@datonfly-assistant/core";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 

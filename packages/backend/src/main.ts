@@ -8,9 +8,9 @@ import { resolve } from "node:path";
 import { NestFactory } from "@nestjs/core";
 import { config } from "dotenv";
 
-import { createTitleGenerateFn, LangGraphAgent } from "@verbal-assistant/agent-langchain";
-import { createPostgresPersistence } from "@verbal-assistant/persistence-pg";
-import { ChatRealtimeServer } from "@verbal-assistant/realtime";
+import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
+import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
+import { ChatRealtimeServer } from "@datonfly-assistant/realtime";
 
 import { AppModule } from "./app.module.js";
 import { AuthModule, AuthService, type AuthConfig } from "./auth/index.js";

@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 
-import type { ChatClient } from "@verbal-assistant/chat-client";
+import type { ChatClient } from "@datonfly-assistant/chat-client";
 
 /** React context that provides a shared {@link ChatClient} instance to descendant components. */
 export const ChatClientContext = createContext<ChatClient | null>(null);

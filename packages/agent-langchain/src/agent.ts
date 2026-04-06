@@ -4,7 +4,7 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import type { AIMessageChunk, BaseMessage } from "@langchain/core/messages";
 import type { IterableReadableStream } from "@langchain/core/utils/stream";
 
-import type { IChatAgent, ShouldRespondResult, ThreadMessage } from "@verbal-assistant/core";
+import type { IChatAgent, ShouldRespondResult, ThreadMessage } from "@datonfly-assistant/core";
 
 /** Configuration options for {@link LangGraphAgent}. */
 export interface LangGraphAgentConfig {

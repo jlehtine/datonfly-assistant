@@ -51,14 +51,16 @@ export function useThreadList({ includeArchived = false }: UseThreadListOptions 
     const [error, setError] = useState<string | null>(null);
     const refreshCountRef = useRef(0);
 
+    const sortByUpdatedAt = (list: Thread[]): Thread[] =>
+        [...list].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
     const fetchThreads = useCallback(async (): Promise<void> => {
         setLoading(true);
         setError(null);
         try {
             const query = includeArchived ? { includeArchived: "true" } : undefined;
             const data = await typedFetch(client, THREADS_PATH, threadListWireSchema, { query });
-            const sorted = [...data].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-            setThreads(sorted);
+            setThreads(sortByUpdatedAt(data));
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Failed to load threads");
         } finally {
@@ -78,13 +80,13 @@ export function useThreadList({ includeArchived = false }: UseThreadListOptions 
     const setArchived = useCallback(
         async (threadId: string, archived: boolean): Promise<void> => {
             const body = { archivedAt: archived ? new Date().toISOString() : null };
-            await typedFetch(client, threadPath(threadId), threadWireSchema, {
+            const updated = await typedFetch(client, threadPath(threadId), threadWireSchema, {
                 method: "PATCH",
                 body,
             });
-            void fetchThreads();
+            setThreads((prev) => sortByUpdatedAt(prev.map((t) => (t.id === threadId ? updated : t))));
         },
-        [client, fetchThreads],
+        [client],
     );
 
     const renameThread = useCallback(
@@ -92,13 +94,13 @@ export function useThreadList({ includeArchived = false }: UseThreadListOptions 
             // Optimistically mark the thread as manually titled so incoming
             // auto-title events don't overwrite it while the request is in flight.
             setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, title, titleManuallySet: true } : t)));
-            await typedFetch(client, threadPath(threadId), threadWireSchema, {
+            const updated = await typedFetch(client, threadPath(threadId), threadWireSchema, {
                 method: "PATCH",
                 body: { title },
             });
-            void fetchThreads();
+            setThreads((prev) => sortByUpdatedAt(prev.map((t) => (t.id === threadId ? updated : t))));
         },
-        [client, fetchThreads],
+        [client],
     );
 
     const updateThreadTitle = useCallback((threadId: string, title: string, titleManuallySet?: boolean): void => {

@@ -13,7 +13,7 @@ function isPowerOfTwo(n: number): boolean {
 export type GenerateTitleFn = (messages: AgentMessage[]) => Promise<string>;
 
 /** Callback invoked after the title has been updated in the database. */
-export type OnTitleUpdatedFn = (threadId: string, title: string) => void;
+export type OnTitleUpdatedFn = (threadId: string, title: string, titleManuallySet: boolean) => void;
 
 /** Configuration for {@link ThreadTitleGenerator}. */
 export interface ThreadTitleGeneratorConfig {
@@ -91,12 +91,17 @@ export class ThreadTitleGenerator {
                 return;
             }
 
+            // Re-check the thread before writing — the user may have manually
+            // renamed it while the LLM was generating a title.
+            const freshThread = await this.persistence.getThread(threadId);
+            if (!freshThread || freshThread.titleManuallySet) return;
+
             await this.persistence.updateThread(threadId, {
                 title,
                 titleGeneratedAt: new Date(),
             });
 
-            this.onTitleUpdated(threadId, title);
+            this.onTitleUpdated(threadId, title, false);
         } catch (err: unknown) {
             console.error("Title generation failed:", err);
         }

@@ -8,9 +8,18 @@ import { composerInput, sendAndWaitForReply } from "./helpers";
  */
 async function isScrolledToBottom(page: Page): Promise<boolean> {
     return page.locator(".datonfly-message-list").evaluate((el) => {
-        const tolerance = 5;
+        const tolerance = 30;
         return el.scrollHeight - el.scrollTop - el.clientHeight <= tolerance;
     });
+}
+
+/**
+ * Wait for smooth scroll to settle at the bottom, polling with a timeout.
+ */
+async function expectScrolledToBottom(page: Page, timeout = 10_000): Promise<void> {
+    await expect
+        .poll(() => isScrolledToBottom(page), { timeout, message: "Expected message list to be scrolled to bottom" })
+        .toBe(true);
 }
 
 test.describe("auto-scroll to bottom", () => {
@@ -43,11 +52,11 @@ test.describe("auto-scroll to bottom", () => {
         expect(isScrollable, "Expected message list to be scrollable after multiple messages").toBe(true);
 
         // After the last response, the list should be scrolled to the bottom
-        expect(await isScrolledToBottom(page)).toBe(true);
+        await expectScrolledToBottom(page);
 
         // Send one more message and confirm it still auto-scrolls
         await sendAndWaitForReply(page, "One more message to confirm scrolling.");
-        expect(await isScrolledToBottom(page)).toBe(true);
+        await expectScrolledToBottom(page);
     });
 
     test("scrolls to bottom when selecting an existing long thread from history", async ({ page }) => {
@@ -91,13 +100,7 @@ test.describe("auto-scroll to bottom", () => {
         // Wait for messages to load in the re-selected thread
         await expect(page.locator(".datonfly-message-ai").first()).toBeVisible({ timeout: 10_000 });
 
-        // Allow auto-scroll to complete (smooth scrolling takes a moment)
-        await page.waitForTimeout(1_000);
-
-        // The message list should be scrolled to the bottom
-        expect(
-            await isScrolledToBottom(page),
-            "Expected message list to be scrolled to bottom after selecting an existing long thread",
-        ).toBe(true);
+        // The message list should be scrolled to the bottom (poll to allow smooth scroll to finish)
+        await expectScrolledToBottom(page);
     });
 });

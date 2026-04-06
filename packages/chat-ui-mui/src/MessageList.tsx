@@ -108,6 +108,7 @@ export function MessageList({
     const lastMsg = messages[messages.length - 1];
     const showThinking = isStreaming === true && !lastMsg?.streaming;
     const prevLengthRef = useRef(messages.length);
+    const wasStreamingRef = useRef(false);
 
     // Scroll to bottom on new messages or streaming state change
     useEffect(() => {
@@ -115,10 +116,14 @@ export function MessageList({
         const didAppend = messages.length > prevLen;
         prevLengthRef.current = messages.length;
 
+        const streamingJustEnded = wasStreamingRef.current && !lastMsg?.streaming;
+        wasStreamingRef.current = !!lastMsg?.streaming;
+
         // Auto-scroll when messages are appended, during streaming content updates,
-        // or when the thinking indicator is shown — but NOT when old messages are
-        // prepended at the top via history loading.
-        if (didAppend || showThinking || lastMsg?.streaming) {
+        // when the thinking indicator is shown, or when streaming just completed
+        // (the bubble may resize when syntax highlighting kicks in) — but NOT when
+        // old messages are prepended at the top via history loading.
+        if (didAppend || showThinking || lastMsg?.streaming || streamingJustEnded) {
             endRef.current?.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages, showThinking, lastMsg?.streaming]);

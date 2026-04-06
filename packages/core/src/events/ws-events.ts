@@ -121,6 +121,7 @@ export interface ThreadUpdatedEvent {
     event: "thread-updated";
     threadId: string;
     title?: string | undefined;
+    titleManuallySet?: boolean | undefined;
     archived?: boolean | undefined;
     memoryEnabled?: boolean | undefined;
 }

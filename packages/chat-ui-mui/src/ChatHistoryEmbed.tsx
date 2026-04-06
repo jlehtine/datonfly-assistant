@@ -139,7 +139,7 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
     const handleThreadUpdated = useCallback(
         (event: ThreadUpdatedEvent) => {
             if (event.title !== undefined) {
-                updateThreadTitle(event.threadId, event.title);
+                updateThreadTitle(event.threadId, event.title, event.titleManuallySet ?? false);
             }
         },
         [updateThreadTitle],

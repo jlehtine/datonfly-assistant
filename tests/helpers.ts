@@ -11,6 +11,12 @@ export function composerInput(page: Page): Locator {
  */
 export async function sendAndWaitForReply(page: Page, text: string): Promise<string> {
     const composer = composerInput(page);
+
+    // Capture the assistant message count BEFORE sending so fast responses
+    // don't cause a race where countBefore is already incremented.
+    const assistantMsgs = page.locator(".datonfly-message-ai");
+    const countBefore = await assistantMsgs.count();
+
     await composer.fill(text);
     await page.getByRole("button", { name: "Send" }).click();
 
@@ -19,8 +25,6 @@ export async function sendAndWaitForReply(page: Page, text: string): Promise<str
     await expect(userMsg).toBeVisible({ timeout: 5_000 });
 
     // Wait for a new assistant bubble to appear
-    const assistantMsgs = page.locator(".datonfly-message-ai");
-    const countBefore = await assistantMsgs.count();
     await expect(assistantMsgs).toHaveCount(countBefore + 1, { timeout: 20_000 });
 
     // Wait for streaming to finish (● indicator disappears from the last bubble)

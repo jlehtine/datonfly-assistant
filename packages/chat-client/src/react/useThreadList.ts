@@ -31,8 +31,12 @@ export interface UseThreadListResult {
     setArchived: (threadId: string, archived: boolean) => Promise<void>;
     /** Rename a thread and refresh the list. */
     renameThread: (threadId: string, title: string) => Promise<void>;
-    /** Update a single thread's title in-place without re-fetching. */
-    updateThreadTitle: (threadId: string, title: string) => void;
+    /**
+     * Update a single thread's title in-place without re-fetching.
+     * When `titleManuallySet` is provided, the update is skipped if the local
+     * thread already has `titleManuallySet === true` and the incoming value is `false`.
+     */
+    updateThreadTitle: (threadId: string, title: string, titleManuallySet?: boolean) => void;
 }
 
 /**
@@ -85,6 +89,9 @@ export function useThreadList({ includeArchived = false }: UseThreadListOptions 
 
     const renameThread = useCallback(
         async (threadId: string, title: string): Promise<void> => {
+            // Optimistically mark the thread as manually titled so incoming
+            // auto-title events don't overwrite it while the request is in flight.
+            setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, title, titleManuallySet: true } : t)));
             await typedFetch(client, threadPath(threadId), threadWireSchema, {
                 method: "PATCH",
                 body: { title },
@@ -94,8 +101,16 @@ export function useThreadList({ includeArchived = false }: UseThreadListOptions 
         [client, fetchThreads],
     );
 
-    const updateThreadTitle = useCallback((threadId: string, title: string): void => {
-        setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, title } : t)));
+    const updateThreadTitle = useCallback((threadId: string, title: string, titleManuallySet?: boolean): void => {
+        setThreads((prev) =>
+            prev.map((t) => {
+                if (t.id !== threadId) return t;
+                // If the local thread was manually renamed but the incoming
+                // update is an auto-generated title, skip the update.
+                if (t.titleManuallySet && titleManuallySet === false) return t;
+                return { ...t, title, ...(titleManuallySet !== undefined ? { titleManuallySet } : {}) };
+            }),
+        );
     }, []);
 
     return { threads, loading, error, refresh, setArchived, renameThread, updateThreadTitle };

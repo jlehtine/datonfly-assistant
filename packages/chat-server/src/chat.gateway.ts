@@ -92,11 +92,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             this.titleGenerator = new ThreadTitleGenerator({
                 persistence: this.persistence,
                 generateTitle: this.generateTitleFn,
-                onTitleUpdated: (threadId: string, title: string): void => {
+                onTitleUpdated: (threadId: string, title: string, titleManuallySet: boolean): void => {
                     const event: ThreadUpdatedEvent = {
                         event: "thread-updated",
                         threadId,
                         title,
+                        titleManuallySet,
                     };
                     server.emit("thread-updated", event);
                 },

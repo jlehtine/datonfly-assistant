@@ -34,10 +34,11 @@ export class JwtAuthGuard implements CanActivate {
         if (isPublic) return true;
 
         const request = context.switchToHttp().getRequest<Request>();
-        const user = this.authService.authenticateRequest(request.headers.authorization);
+        const cookieToken = (request.cookies as Record<string, string> | undefined)?.dfa_token;
+        const user = this.authService.authenticateRequest(cookieToken);
         if (!user) {
-            this.logger.error({ audit: true, op: "auth.rejected", error: "Invalid or missing bearer token" });
-            throw new UnauthorizedException("Missing or invalid Authorization header");
+            this.logger.error({ audit: true, op: "auth.rejected", error: "Invalid or missing token" });
+            throw new UnauthorizedException("Missing or invalid authentication");
         }
 
         (request as Request & { user: UserIdentity }).user = user;

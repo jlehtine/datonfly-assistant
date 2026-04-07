@@ -22,8 +22,6 @@ import { ThreadListPanel } from "./ThreadListPanel.js";
 export interface ChatHistoryEmbedConfig {
     /** WebSocket and REST server base URL. */
     url: string;
-    /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
-    getToken?: (() => string | null) | undefined;
     /**
      * Optional path prefix prepended to all endpoint paths.
      * @see ChatClientConfig.basePath
@@ -63,8 +61,8 @@ export interface ChatHistoryEmbedProps {
  * thread creation on first send. On narrow viewports the sidebar is hidden.
  */
 export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElement {
-    const { url, getToken, basePath } = config;
-    const { client } = useChatConnection({ url, getToken, basePath });
+    const { url, basePath } = config;
+    const { client } = useChatConnection({ url, basePath });
 
     return (
         <ChatClientContext.Provider value={client}>
@@ -74,7 +72,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
 }
 
 function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
-    const { url, getToken, basePath, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
+    const { url, basePath, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
 
     const client = useChatClient();
 
@@ -197,7 +195,6 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
                 <ChatEmbed
                     config={{
                         url,
-                        getToken,
                         basePath,
                         threadId: selectedThreadId ?? undefined,
                         onBeforeSend: onBeforeSend ?? ensureThread,

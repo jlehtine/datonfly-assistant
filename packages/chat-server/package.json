@@ -18,6 +18,7 @@
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
+        "cookie": "^1.1.1",
         "nestjs-pino": "^4.6.1",
         "pino": "^10.3.1",
         "socket.io": "^4.8.0"

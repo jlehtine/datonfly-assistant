@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import type { CookieOptions } from "express";
 import jsonwebtoken from "jsonwebtoken";
 import * as client from "openid-client";
 
@@ -9,6 +10,10 @@ export interface AuthConfig {
     jwtSecret: string;
     /** Frontend origin URL, used for OIDC callback redirects. */
     frontendUrl?: string | undefined;
+    /** Whether to set the Secure flag on the session cookie. */
+    secureCookie: boolean;
+    /** Session idle timeout in milliseconds. Applies to both JWT expiry and cookie maxAge. */
+    sessionTtlMs: number;
     /** Only required when mode === "oidc" */
     oidc?:
         | {
@@ -35,6 +40,9 @@ interface PkceSession {
     nonce: string;
     createdAt: number;
 }
+
+/** Name of the HTTP-only session cookie. */
+export const SESSION_COOKIE_NAME = "dfa_token";
 
 /** Maximum number of concurrent PKCE sessions to prevent memory exhaustion. */
 const MAX_PKCE_SESSIONS = 1000;
@@ -90,34 +98,57 @@ export class AuthService {
         return this.buildOidcLoginUrl();
     }
 
-    async handleCallback(callbackUrl: URL): Promise<string> {
-        if (this.config.mode === "fake") return "/";
+    async handleCallback(callbackUrl: URL): Promise<{ redirectUrl: string; token: string | null }> {
+        if (this.config.mode === "fake") return { redirectUrl: "/", token: null };
 
         const { accessToken } = await this.performOidcCallback(callbackUrl);
         const frontendUrl = this.config.frontendUrl ?? "http://localhost:5173";
-        return `${frontendUrl}/#token=${accessToken}`;
+        return { redirectUrl: frontendUrl, token: accessToken };
     }
 
-    authenticateRequest(authorizationHeader: string | undefined): UserIdentity | null {
+    authenticateRequest(cookieToken: string | undefined): UserIdentity | null {
         if (this.config.mode === "fake") return this.getFakeUser();
-        return this.verifyBearerHeader(authorizationHeader);
+        if (!cookieToken) return null;
+        return this.verifyToken(cookieToken);
     }
 
-    getAuthInfo(authorizationHeader: string | undefined): { user: UserIdentity; token: string } | null {
+    getAuthInfo(cookieToken: string | undefined): { user: UserIdentity; token: string } | null {
         if (this.config.mode === "fake") {
             const user = this.getFakeUser();
             return { user, token: this.signToken(user) };
         }
-        if (!authorizationHeader?.startsWith("Bearer ")) return null;
-        const token = authorizationHeader.slice(7);
-        const user = this.verifyToken(token);
+        // Use cookie token
+        if (!cookieToken) return null;
+        const user = this.verifyToken(cookieToken);
         if (!user) return null;
-        return { user, token };
+        // Re-sign token to implement sliding session expiry
+        return { user, token: this.signToken(user) };
     }
 
     authenticateToken(token: string): UserIdentity | null {
         if (this.config.mode === "fake") return this.getFakeUser();
         return this.verifyToken(token);
+    }
+
+    /** Cookie options for the session cookie. */
+    getCookieOptions(): CookieOptions {
+        return {
+            httpOnly: true,
+            secure: this.config.secureCookie,
+            sameSite: "strict",
+            path: "/",
+            maxAge: this.config.sessionTtlMs,
+        };
+    }
+
+    /** Cookie options for clearing the session cookie. */
+    getClearCookieOptions(): CookieOptions {
+        return {
+            httpOnly: true,
+            secure: this.config.secureCookie,
+            sameSite: "strict",
+            path: "/",
+        };
     }
 
     // ── Internal helpers ──
@@ -131,6 +162,7 @@ export class AuthService {
     }
 
     private signToken(user: UserIdentity): string {
+        const expiresInSeconds = Math.floor(this.config.sessionTtlMs / 1000);
         return jsonwebtoken.sign(
             {
                 email: user.email,
@@ -138,7 +170,7 @@ export class AuthService {
                 avatarUrl: user.avatarUrl,
             },
             this.config.jwtSecret,
-            { expiresIn: "24h" },
+            { expiresIn: expiresInSeconds },
         );
     }
 
@@ -155,11 +187,6 @@ export class AuthService {
         } catch {
             return null;
         }
-    }
-
-    private verifyBearerHeader(authorizationHeader: string | undefined): UserIdentity | null {
-        if (!authorizationHeader?.startsWith("Bearer ")) return null;
-        return this.verifyToken(authorizationHeader.slice(7));
     }
 
     private async buildOidcLoginUrl(): Promise<string> {

@@ -11,8 +11,6 @@ export interface UseChatConnectionConfig {
      * @see {@link ChatClientConfig.basePath}
      */
     basePath?: string | undefined;
-    /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
-    getToken?: (() => string | null) | undefined;
 }
 
 /**
@@ -29,7 +27,6 @@ export function useChatConnection(config: UseChatConnectionConfig): { client: Ch
     clientRef.current ??= new ChatClient({
         url: config.url,
         basePath: config.basePath,
-        getToken: config.getToken,
     });
     const client = clientRef.current;
 

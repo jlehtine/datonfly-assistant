@@ -43,8 +43,6 @@ export interface ChatClientConfig {
      * @default ""
      */
     basePath?: string | undefined;
-    /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
-    getToken?: (() => string | null) | undefined;
 }
 
 /**
@@ -59,27 +57,16 @@ export class ChatClient {
     /** Path prefix prepended to all REST endpoint paths. */
     readonly basePath: string;
 
-    /** Auth token callback, or `undefined` for anonymous access. */
-    readonly getToken: (() => string | null) | undefined;
-
     /** Create a new client. The socket is not connected until {@link connect} is called. */
     constructor(config: ChatClientConfig) {
         this.basePath = config.basePath ?? "";
-        this.getToken = config.getToken;
 
         const opts: Parameters<typeof io>[1] = {
             transports: ["websocket", "polling"],
             autoConnect: false,
             path: this.basePath + WS_PATH,
+            withCredentials: true,
         };
-
-        if (config.getToken) {
-            const getToken = config.getToken;
-            opts.auth = (cb: (data: Record<string, unknown>) => void) => {
-                const token = getToken();
-                cb(token ? { token } : {});
-            };
-        }
 
         this.socket = io(config.url, opts);
     }

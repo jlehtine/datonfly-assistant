@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import type { OnGatewayInit, OnGatewayConnection } from "@nestjs/websockets";
+import { parse as parseCookie } from "cookie";
 import type { Server, Socket } from "socket.io";
 
 import type {
@@ -62,7 +63,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
             const auditLogger = this.auditLogger;
             server.use((socket: Socket, next) => {
-                const token = socket.handshake.auth.token as string | undefined;
+                // Extract token: prefer cookie, fall back to auth payload
+                const cookieHeader = socket.handshake.headers.cookie;
+                const cookies = cookieHeader ? parseCookie(cookieHeader) : {};
+                const token = cookies.dfa_token ?? (socket.handshake.auth.token as string | undefined);
                 if (!token) {
                     auditLogger.audit("error", "auth.rejected", { error: "Authentication required" });
                     next(new Error("Authentication required"));

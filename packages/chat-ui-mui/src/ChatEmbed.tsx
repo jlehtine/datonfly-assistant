@@ -31,8 +31,6 @@ export interface ChatEmbedConfig {
      * @see ChatClientConfig.basePath
      */
     basePath?: string | undefined;
-    /** Optional callback that returns a JWT for authentication, or `null` to connect anonymously. */
-    getToken?: (() => string | null) | undefined;
     /** Optional async callback invoked before each send; must resolve to the thread ID to use. */
     onBeforeSend?: (() => Promise<string>) | undefined;
     /** Override the default plain-text input with a custom component. */
@@ -82,7 +80,6 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
     const { client, connected } = useChatConnection({
         url: config.url,
         basePath: config.basePath,
-        getToken: config.getToken,
     });
     const threadId = config.threadId ?? null;
 

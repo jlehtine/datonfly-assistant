@@ -111,9 +111,9 @@ Dependencies: `@datonfly-assistant/core`.
 Implements the web client side assistant logic. Connects to the endpoints
 declared by `core`. Maintains the client side assistant state, sending requests
 to and receiving updates from the server. Provides a validated fetch wrapper
-(`typedFetch`) that builds URLs from a configurable `basePath`, injects
-authentication headers via a `getToken` callback, and validates responses
-through Zod schemas.
+(`typedFetch`) that builds URLs from a configurable `basePath` and validates
+responses through Zod schemas. Authentication is handled automatically via
+HTTP-only cookies.
 
 Also provides React hooks (via the `@datonfly-assistant/chat-client/react`
 subpath export) for thread listing, message history, real-time streaming, and

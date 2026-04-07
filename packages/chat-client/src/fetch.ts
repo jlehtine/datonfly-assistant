@@ -15,11 +15,11 @@ export interface TypedFetchOptions {
 /**
  * Perform a validated HTTP request through a {@link ChatClient}.
  *
- * Builds the full URL from `client.basePath + path`, injects the
- * authorization header when `client.getToken` is available, and parses
- * the JSON response through the provided Zod schema.
+ * Builds the full URL from `client.basePath + path` and parses
+ * the JSON response through the provided Zod schema. Authentication
+ * is handled automatically via HTTP-only cookies.
  *
- * @param client - The chat client providing `basePath` and `getToken`.
+ * @param client - The chat client providing `basePath`.
  * @param path - Absolute endpoint path (e.g. {@link THREADS_PATH}).
  * @param schema - Zod schema used to parse and validate the response body.
  * @param options - Optional HTTP method, body, and query parameters.
@@ -40,10 +40,6 @@ export async function typedFetch<T>(
     }
 
     const headers: Record<string, string> = {};
-    const token = client.getToken?.();
-    if (token) {
-        headers.Authorization = `Bearer ${token}`;
-    }
     if (body !== undefined) {
         headers["Content-Type"] = "application/json";
     }
@@ -51,6 +47,7 @@ export async function typedFetch<T>(
     const res = await fetch(url, {
         method,
         headers,
+        credentials: "include",
         ...(body !== undefined && { body: JSON.stringify(body) }),
     });
 

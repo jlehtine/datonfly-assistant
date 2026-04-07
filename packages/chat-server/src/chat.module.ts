@@ -29,7 +29,7 @@ export interface ChatModuleConfig {
     /** Callback that generates a thread title from conversation messages. */
     generateTitle?: GenerateTitleFn | undefined;
     /** CORS configuration forwarded to the WebSocket gateway. */
-    cors?: { origin: string | string[] } | undefined;
+    cors?: { origin: string | string[]; credentials?: boolean | undefined } | undefined;
 }
 
 @Module({})

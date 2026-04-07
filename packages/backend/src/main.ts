@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 
 import { NestFactory } from "@nestjs/core";
 import { ServeStaticModule } from "@nestjs/serve-static";
+import cookieParser from "cookie-parser";
 import { config } from "dotenv";
 import { Logger } from "nestjs-pino";
 
@@ -32,6 +33,16 @@ async function bootstrap(): Promise<void> {
     }
     const jwtSecret = process.env.JWT_SECRET ?? randomUUID();
     const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
+    const oidcIssuerUrl = process.env.OIDC_ISSUER_URL ?? "https://accounts.google.com";
+    const secureCookie = authMode !== "fake" && !oidcIssuerUrl.startsWith("http://");
+
+    const defaultSessionTtlSeconds = 7 * 24 * 60 * 60; // 7 days
+    const sessionTtlSeconds = Number(process.env.SESSION_TTL_SECONDS ?? defaultSessionTtlSeconds);
+    if (!Number.isFinite(sessionTtlSeconds) || sessionTtlSeconds < 1) {
+        throw new Error(
+            `SESSION_TTL_SECONDS must be a positive integer, got "${String(process.env.SESSION_TTL_SECONDS)}"`,
+        );
+    }
 
     // ─── Persistence ───
     const databaseUrl = process.env.DATABASE_URL;
@@ -58,11 +69,13 @@ async function bootstrap(): Promise<void> {
         mode: authMode,
         jwtSecret,
         frontendUrl,
+        secureCookie,
+        sessionTtlMs: sessionTtlSeconds * 1000,
         allowedEmailDomain,
         oidc:
             authMode === "oidc"
                 ? {
-                      issuerUrl: process.env.OIDC_ISSUER_URL ?? "https://accounts.google.com",
+                      issuerUrl: oidcIssuerUrl,
                       clientId: process.env.OIDC_CLIENT_ID ?? "",
                       clientSecret: process.env.OIDC_CLIENT_SECRET ?? "",
                       redirectUri:
@@ -106,7 +119,7 @@ async function bootstrap(): Promise<void> {
         persistence,
         validateToken: (token: string) => authService.authenticateToken(token),
         generateTitle,
-        cors: { origin: frontendUrl },
+        cors: { origin: frontendUrl, credentials: true },
     });
 
     const extraModules = [chatModule];
@@ -124,9 +137,11 @@ async function bootstrap(): Promise<void> {
         bufferLogs: true,
     });
     app.useLogger(app.get(Logger));
+    app.use(cookieParser());
 
     app.enableCors({
         origin: frontendUrl,
+        credentials: true,
     });
 
     const port = process.env.PORT ?? "3000";

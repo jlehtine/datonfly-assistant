@@ -18,7 +18,7 @@ import { LoginPage } from "./pages/LoginPage";
 const BACKEND_URL = window.location.origin;
 
 export function App(): ReactElement {
-    const { user, loading, login, logout, getToken } = useAuth();
+    const { user, loading, login, logout } = useAuth();
     const isDesktop = useMediaQuery("(min-height:768px)");
     const maxRows = isDesktop ? 10 : 4;
 
@@ -58,7 +58,6 @@ export function App(): ReactElement {
                     <ChatHistoryEmbed
                         config={{
                             url: BACKEND_URL,
-                            getToken,
                             inputComponent: RichInput,
                             inputTools: [emojiPickerTool],
                             maxRows,

@@ -28,15 +28,21 @@ services:
             timeout: 5s
             retries: 5
 
-    tei:
-        image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    infinity:
+        image: michaelf34/infinity:0.0.77
         ports:
-            - "8080:80"
+            - "8080:8080"
         volumes:
-            - teidata:/data
-        command: --model-id BAAI/bge-large-en-v1.5
+            - infinitydata:/app/.cache
+        command: v2 --model-id BAAI/bge-m3 --port 8080
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+            interval: 10s
+            timeout: 10s
+            retries: 10
+            start_period: 120s
 
 volumes:
     pgdata:
     qdrantdata:
-    teidata:
+    infinitydata:

@@ -24,7 +24,7 @@ export function App(): ReactElement {
 
     if (loading) {
         return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "var(--app-height)" }}>
                 <CircularProgress />
             </Box>
         );
@@ -32,14 +32,14 @@ export function App(): ReactElement {
 
     if (!user) {
         return (
-            <Box sx={{ height: "100vh" }}>
+            <Box sx={{ height: "var(--app-height)" }}>
                 <LoginPage onLogin={login} />
             </Box>
         );
     }
 
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", height: "var(--app-height)" }}>
             <AppBar position="static" elevation={0}>
                 <Toolbar sx={{ maxWidth: "80rem", width: "100%", mx: "auto" }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>

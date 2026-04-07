@@ -8,12 +8,14 @@ import type { Server, Socket } from "socket.io";
 
 import type {
     AgentMessage,
+    AgentStreamChunk,
     IAgentProvider,
     IPersistenceProvider,
     InviteMemberEvent,
     MemberJoinedEvent,
     MessageCompleteEvent,
     MessageDeltaEvent,
+    NewMessageEvent,
     SendMessageEvent,
     Thread,
     ThreadCreatedEvent,
@@ -22,7 +24,7 @@ import type {
     UserIdentity,
 } from "@datonfly-assistant/core";
 
-import { WS_PATH, chatRequestSchema, inviteMemberRequestSchema } from "@datonfly-assistant/core";
+import { INTERRUPTION_MARKER, WS_PATH, chatRequestSchema, inviteMemberRequestSchema } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
@@ -47,6 +49,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly server!: Server;
 
     private titleGenerator: ThreadTitleGenerator | null = null;
+
+    /** Per-thread mutex: thread IDs for which the lock is currently held. */
+    private readonly threadLockHeld = new Set<string>();
+    /** Per-thread mutex: queued resolve callbacks waiting for the lock. */
+    private readonly threadLockQueues = new Map<string, (() => void)[]>();
+
+    /** Active agent streams, keyed by thread ID. */
+    private readonly activeStreams = new Map<
+        string,
+        { controller: AbortController; fullText: string; messageId: string }
+    >();
 
     constructor(
         @Inject(AGENT_PROVIDER) private readonly agent: IAgentProvider,
@@ -136,6 +149,49 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             return;
         }
 
+        const { threadId } = parsed.data;
+
+        // Signal abort on any active stream immediately, before waiting for the
+        // lock, so the streaming loop can break at the next chunk boundary.
+        this.signalAbort(threadId);
+
+        // ── Phase 1: under mutex — finalize interrupt, persist, start stream ──
+        await this.acquireThreadLock(threadId);
+        let streamSetup: {
+            stream: AsyncIterable<AgentStreamChunk>;
+            streamState: { controller: AbortController; fullText: string; messageId: string };
+            userId: string;
+        } | null;
+        try {
+            streamSetup = await this.prepareMessage(socket, data);
+        } finally {
+            this.releaseThreadLock(threadId);
+        }
+
+        if (!streamSetup) return;
+
+        // ── Phase 2: stream with per-chunk mutex ──
+        await this.runStream(socket, threadId, streamSetup);
+    }
+
+    /**
+     * Validate, interrupt any active stream, persist the user message, and
+     * start the agent stream.  Runs under the per-thread mutex.
+     *
+     * @returns Stream context for {@link runStream}, or `null` if the message
+     *   should not proceed (validation failure, not a member, etc.).
+     */
+    private async prepareMessage(
+        socket: Socket,
+        data: SendMessageEvent,
+    ): Promise<{
+        stream: AsyncIterable<AgentStreamChunk>;
+        streamState: { controller: AbortController; fullText: string; messageId: string };
+        userId: string;
+    } | null> {
+        const parsed = chatRequestSchema.safeParse(data);
+        if (!parsed.success) return null;
+
         const { threadId, content } = parsed.data;
         const messageId = randomUUID();
         const user = (socket.data as { user?: User | undefined }).user;
@@ -146,12 +202,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             const isMember = await this.persistence.isMember(threadId, user.id);
             if (!isMember) {
                 socket.emit("error", { event: "error", message: "Not a member of this thread" });
-                return;
+                return null;
             }
         }
 
+        // Finalize any interrupted stream (abort was already signalled by handleSendMessage).
+        await this.interruptActiveStream(threadId);
+
         // Persist the user message
-        await this.persistence.appendMessage({
+        const persistedMsg = await this.persistence.appendMessage({
             threadId,
             role: "human",
             content,
@@ -159,53 +218,153 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         });
         this.auditLogger.audit("info", "message.send", { userId, threadId, messageId });
 
+        // Broadcast new-message to all members except the sender
+        const newMsgEvent: NewMessageEvent = {
+            event: "new-message",
+            threadId,
+            messageId: persistedMsg.id,
+            role: "human",
+            content,
+            authorId: user?.id ?? null,
+            authorName: user?.name ?? null,
+            authorAvatarUrl: user?.avatarUrl ?? null,
+            createdAt: persistedMsg.createdAt.toISOString(),
+        };
+        void this.emitToThreadMembers(threadId, "new-message", newMsgEvent, socket.id);
+
         // Load full history and convert to AgentMessage[]
         const history = await this.persistence.loadMessages({ threadId });
         const messages: AgentMessage[] = threadMessagesToAgentMessages(history);
 
-        try {
-            const stream = await this.agent.stream(messages, threadId, userId);
-            let fullText = "";
+        // Set up abort controller for this stream
+        const controller = new AbortController();
+        const streamState = { controller, fullText: "", messageId };
+        this.activeStreams.set(threadId, streamState);
 
+        const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
+        return { stream, streamState, userId };
+    }
+
+    /**
+     * Consume the agent stream, acquiring the per-thread mutex for each chunk
+     * and for the final persistence step.  Between chunks the mutex is
+     * released, allowing a new user message to interrupt the stream.
+     */
+    private async runStream(
+        socket: Socket,
+        threadId: string,
+        ctx: {
+            stream: AsyncIterable<AgentStreamChunk>;
+            streamState: { controller: AbortController; fullText: string; messageId: string };
+            userId: string;
+        },
+    ): Promise<void> {
+        const { stream, streamState, userId } = ctx;
+        const { controller, messageId } = streamState;
+
+        try {
             for await (const chunk of stream) {
-                const delta = typeof chunk.content === "string" ? chunk.content : "";
-                if (delta) {
-                    fullText += delta;
-                    const deltaEvent: MessageDeltaEvent = {
-                        event: "message-delta",
-                        threadId,
-                        messageId,
-                        delta,
-                    };
-                    socket.emit("message-delta", deltaEvent);
+                await this.acquireThreadLock(threadId);
+                try {
+                    // If we were interrupted while waiting for the lock, bail out.
+                    if (controller.signal.aborted) return;
+
+                    const delta = typeof chunk.content === "string" ? chunk.content : "";
+                    if (delta) {
+                        streamState.fullText += delta;
+                        const deltaEvent: MessageDeltaEvent = {
+                            event: "message-delta",
+                            threadId,
+                            messageId,
+                            delta,
+                        };
+                        void this.emitToThreadMembers(threadId, "message-delta", deltaEvent);
+                    }
+                } finally {
+                    this.releaseThreadLock(threadId);
                 }
             }
 
-            // Persist assistant response
+            // Stream completed normally — persist under mutex.
+            await this.acquireThreadLock(threadId);
+            try {
+                // Re-check: another message may have interrupted between the
+                // last chunk and this lock acquisition.
+                if (controller.signal.aborted) return;
+
+                this.activeStreams.delete(threadId);
+
+                await this.persistence.appendMessage({
+                    threadId,
+                    role: "ai",
+                    content: [{ type: "text", text: streamState.fullText }],
+                    authorId: null,
+                });
+
+                const completeEvent: MessageCompleteEvent = {
+                    event: "message-complete",
+                    threadId,
+                    messageId,
+                    content: [{ type: "text", text: streamState.fullText }],
+                };
+                void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
+                this.auditLogger.audit("info", "agent.complete", { userId, threadId, messageId });
+
+                // Fire-and-forget title generation.
+                if (this.titleGenerator) {
+                    void this.titleGenerator.maybeGenerateTitle(threadId);
+                }
+            } finally {
+                this.releaseThreadLock(threadId);
+            }
+        } catch (error: unknown) {
+            // If aborted, interruptActiveStream already handled persistence
+            // and the message-complete broadcast.
+            if (controller.signal.aborted) {
+                this.auditLogger.audit("info", "agent.interrupted", { userId, threadId, messageId });
+                return;
+            }
+
+            this.activeStreams.delete(threadId);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            socket.emit("error", { event: "error", message });
+            this.auditLogger.audit("error", "agent.error", { userId, threadId, messageId, error: message });
+        }
+    }
+
+    /**
+     * If an agent stream is active for the given thread, abort it, persist
+     * the partial response with an interruption marker, and broadcast a
+     * `message-complete` event with `interrupted: true`.
+     *
+     * Must be called under the per-thread mutex.
+     */
+    private async interruptActiveStream(threadId: string): Promise<void> {
+        const active = this.activeStreams.get(threadId);
+        if (!active) return;
+
+        active.controller.abort();
+        this.activeStreams.delete(threadId);
+
+        // Persist partial response with interruption marker (if any text was generated)
+        if (active.fullText) {
+            const interruptedText = active.fullText + INTERRUPTION_MARKER;
             await this.persistence.appendMessage({
                 threadId,
                 role: "ai",
-                content: [{ type: "text", text: fullText }],
+                content: [{ type: "text", text: interruptedText }],
                 authorId: null,
+                metadata: { interrupted: true },
             });
 
             const completeEvent: MessageCompleteEvent = {
                 event: "message-complete",
                 threadId,
-                messageId,
-                content: [{ type: "text", text: fullText }],
+                messageId: active.messageId,
+                content: [{ type: "text", text: interruptedText }],
+                interrupted: true,
             };
-            socket.emit("message-complete", completeEvent);
-            this.auditLogger.audit("info", "agent.complete", { userId, threadId, messageId });
-
-            // Fire-and-forget title generation.
-            if (this.titleGenerator) {
-                void this.titleGenerator.maybeGenerateTitle(threadId);
-            }
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            socket.emit("error", { event: "error", message });
-            this.auditLogger.audit("error", "agent.error", { userId, threadId, messageId, error: message });
+            void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
         }
     }
 
@@ -261,6 +420,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             role: "member",
         };
         void this.emitToThreadMembers(threadId, "member-joined", event);
+
+        // Notify the invited user so the thread appears in their thread list.
+        // emitToThreadMembers sends to all members; useThreadList deduplicates.
+        const thread = await this.persistence.getThread(threadId);
+        if (thread) this.notifyThreadCreated(thread);
     }
 
     /** Broadcast a thread-created event to connected clients that are members of the thread. */
@@ -282,15 +446,61 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     }
 
     /**
+     * Signal abort on any active agent stream for the given thread.
+     * Called before acquiring the lock so the streaming loop can break
+     * at the next chunk boundary without waiting.
+     */
+    private signalAbort(threadId: string): void {
+        const active = this.activeStreams.get(threadId);
+        if (active) active.controller.abort();
+    }
+
+    /** Acquire the per-thread mutex.  Resolves when the lock is held. */
+    private async acquireThreadLock(threadId: string): Promise<void> {
+        if (!this.threadLockHeld.has(threadId)) {
+            this.threadLockHeld.add(threadId);
+            return;
+        }
+        return new Promise<void>((resolve) => {
+            let queue = this.threadLockQueues.get(threadId);
+            if (!queue) {
+                queue = [];
+                this.threadLockQueues.set(threadId, queue);
+            }
+            queue.push(resolve);
+        });
+    }
+
+    /** Release the per-thread mutex, unblocking the next waiter if any. */
+    private releaseThreadLock(threadId: string): void {
+        const queue = this.threadLockQueues.get(threadId);
+        if (queue && queue.length > 0) {
+            const next = queue.shift();
+            if (queue.length === 0) this.threadLockQueues.delete(threadId);
+            if (next) next();
+        } else {
+            this.threadLockHeld.delete(threadId);
+        }
+    }
+
+    /**
      * Emit an event only to connected sockets whose authenticated user is a
      * member of the given thread.
+     *
+     * @param excludeSocketId - Optional socket ID to exclude (e.g. the sender).
      */
-    private async emitToThreadMembers(threadId: string, eventName: string, payload: unknown): Promise<void> {
+    private async emitToThreadMembers(
+        threadId: string,
+        eventName: string,
+        payload: unknown,
+        excludeSocketId?: string,
+    ): Promise<void> {
         const members = await this.persistence.listMembers(threadId);
         const memberUserIds = new Set(members.map((m) => m.userId));
 
         const sockets = await this.server.fetchSockets();
         for (const socket of sockets) {
+            if (excludeSocketId && socket.id === excludeSocketId) continue;
             const user = (socket.data as { user?: User | undefined }).user;
             if (user && memberUserIds.has(user.id)) {
                 socket.emit(eventName, payload);

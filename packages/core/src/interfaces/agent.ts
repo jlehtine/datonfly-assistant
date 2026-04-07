@@ -36,12 +36,17 @@ export interface IAgentProvider {
     /**
      * Run the agent and return a complete response message.
      */
-    run(messages: AgentMessage[], threadId: string, userId: string): Promise<AgentMessage>;
+    run(messages: AgentMessage[], threadId: string, userId: string, signal?: AbortSignal): Promise<AgentMessage>;
 
     /**
      * Run the agent and return a stream of response chunks.
      */
-    stream(messages: AgentMessage[], threadId: string, userId: string): Promise<AsyncIterable<AgentStreamChunk>>;
+    stream(
+        messages: AgentMessage[],
+        threadId: string,
+        userId: string,
+        signal?: AbortSignal,
+    ): Promise<AsyncIterable<AgentStreamChunk>>;
 
     /**
      * Determine whether the agent should respond in a room context.

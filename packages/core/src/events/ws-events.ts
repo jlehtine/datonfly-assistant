@@ -71,6 +71,8 @@ export interface MessageCompleteEvent {
     messageId: string;
     /** Complete, authoritative content parts for the finished message. */
     content: ContentPart[];
+    /** `true` when the response was interrupted by a new message before completion. */
+    interrupted?: boolean | undefined;
 }
 
 /** A fully-formed message broadcast to all thread members (e.g. another user's message). */
@@ -82,6 +84,10 @@ export interface NewMessageEvent {
     content: ContentPart[];
     /** User ID of the author, or `null` for system/agent messages. */
     authorId: string | null;
+    /** Display name of the author, or `null` for system/agent messages. */
+    authorName: string | null;
+    /** Avatar URL of the author, or `null` if unavailable. */
+    authorAvatarUrl: string | null;
     /** ISO-8601 timestamp of when the message was created. */
     createdAt: string;
 }

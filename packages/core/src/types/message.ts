@@ -1,6 +1,9 @@
 /** The role of a message author. */
 export type MessageRole = "human" | "ai";
 
+/** Text appended to a partial AI response when it is interrupted by a new message. */
+export const INTERRUPTION_MARKER = "\n\n(interrupted)";
+
 /** A plain-text content part. */
 export interface TextContentPart {
     type: "text";

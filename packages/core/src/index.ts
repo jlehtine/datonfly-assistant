@@ -16,6 +16,8 @@ export type {
     MemoryEntry,
 } from "./types/index.js";
 
+export { INTERRUPTION_MARKER } from "./types/index.js";
+
 // Interfaces
 export type {
     IAgentProvider,

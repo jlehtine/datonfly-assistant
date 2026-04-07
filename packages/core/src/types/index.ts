@@ -1,6 +1,7 @@
 export type { UserIdentity } from "./auth.js";
 export type { User } from "./user.js";
 export type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole } from "./thread.js";
+export { INTERRUPTION_MARKER } from "./message.js";
 export type {
     ThreadMessage,
     MessageRole,

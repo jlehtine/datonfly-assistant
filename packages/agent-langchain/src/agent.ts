@@ -51,8 +51,14 @@ export class LangGraphAgent implements IAgentProvider {
     }
 
     /** Run the agent and return a single complete assistant message. */
-    async run(messages: AgentMessage[], _threadId: string, _userId: string): Promise<AgentMessage> {
-        const response = await this.model.invoke(agentMessagesToBaseMessages(messages));
+    async run(
+        messages: AgentMessage[],
+        _threadId: string,
+        _userId: string,
+        signal?: AbortSignal,
+    ): Promise<AgentMessage> {
+        const opts = signal ? { signal } : undefined;
+        const response = await this.model.invoke(agentMessagesToBaseMessages(messages), opts);
         const text = typeof response.content === "string" ? response.content : "";
         return { role: "ai", content: text };
     }
@@ -62,8 +68,10 @@ export class LangGraphAgent implements IAgentProvider {
         messages: AgentMessage[],
         _threadId: string,
         _userId: string,
+        signal?: AbortSignal,
     ): Promise<AsyncIterable<AgentStreamChunk>> {
-        const langchainStream = await this.model.stream(agentMessagesToBaseMessages(messages));
+        const opts = signal ? { signal } : undefined;
+        const langchainStream = await this.model.stream(agentMessagesToBaseMessages(messages), opts);
         return {
             async *[Symbol.asyncIterator]() {
                 for await (const chunk of langchainStream) {

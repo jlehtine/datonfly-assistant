@@ -1,3 +1,6 @@
+import AddIcon from "@mui/icons-material/Add";
+import ArchiveIcon from "@mui/icons-material/Archive";
+import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
@@ -7,7 +10,6 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
-import SvgIcon from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
@@ -15,33 +17,6 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from "rea
 import type { Thread } from "@datonfly-assistant/core";
 
 import { formatTimestamp } from "./formatTimestamp.js";
-
-/** Archive inbox icon (Material Design path). */
-function ArchiveIcon(): ReactElement {
-    return (
-        <SvgIcon fontSize="small">
-            <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.93 1H5.12z" />
-        </SvgIcon>
-    );
-}
-
-/** Unarchive icon (Material Design path). */
-function UnarchiveIcon(): ReactElement {
-    return (
-        <SvgIcon fontSize="small">
-            <path d="M20.55 5.22l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.22C3.17 5.57 3 6.01 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.49-.17-.93-.45-1.28zM12 9.5l5.5 5.5H14v2h-4v-2H6.5L12 9.5zM5.12 5l.82-1h12l.93 1H5.12z" />
-        </SvgIcon>
-    );
-}
-
-/** New-conversation icon (Material Design "edit square" / create). */
-function NewConversationIcon(): ReactElement {
-    return (
-        <SvgIcon fontSize="small">
-            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-        </SvgIcon>
-    );
-}
 
 export interface ThreadListPanelProps {
     /** The list of threads to display. */
@@ -130,7 +105,7 @@ export function ThreadListPanel({
                 {onNewThread && (
                     <Tooltip title="New conversation">
                         <IconButton size="small" onClick={onNewThread} aria-label="New conversation">
-                            <NewConversationIcon />
+                            <AddIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
                 )}
@@ -223,7 +198,7 @@ function ThreadListItem({ thread, selected, onSelect, onArchiveToggle }: ThreadL
                     aria-label={isArchived ? "Unarchive conversation" : "Archive conversation"}
                     sx={{ ml: 0.5, flexShrink: 0 }}
                 >
-                    {isArchived ? <UnarchiveIcon /> : <ArchiveIcon />}
+                    {isArchived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
                 </IconButton>
             </Tooltip>
         </ListItemButton>

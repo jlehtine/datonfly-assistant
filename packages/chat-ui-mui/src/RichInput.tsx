@@ -1,3 +1,5 @@
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import Popover from "@mui/material/Popover";
@@ -37,22 +39,6 @@ const editorCommands: ICommand[] = [
     commands.divider,
     commands.link,
 ];
-
-function ExpandToolbarIcon(): ReactElement {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" />
-        </svg>
-    );
-}
-
-function CollapseToolbarIcon(): ReactElement {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z" />
-        </svg>
-    );
-}
 
 /**
  * Rich-text composer input backed by `@uiw/react-md-editor`.
@@ -187,7 +173,7 @@ export function RichInput({
                 aria-label="Toggle formatting"
                 sx={{ mb: 0.5 }}
             >
-                {expanded ? <CollapseToolbarIcon /> : <ExpandToolbarIcon />}
+                {expanded ? <ExpandMoreIcon sx={{ fontSize: 20 }} /> : <ExpandLessIcon sx={{ fontSize: 20 }} />}
             </IconButton>
             <Box sx={{ flex: 1, minWidth: 0 }}>
                 {expanded ? (

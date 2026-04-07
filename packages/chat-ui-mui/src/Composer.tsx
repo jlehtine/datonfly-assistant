@@ -1,3 +1,5 @@
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import SendIcon from "@mui/icons-material/Send";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import Popover from "@mui/material/Popover";
@@ -113,7 +115,7 @@ function DefaultInput({
                     }}
                     sx={{ mb: 0.5 }}
                 >
-                    <ToolsMenuIcon />
+                    <ExpandLessIcon sx={{ fontSize: 20 }} />
                 </IconButton>
             ) : (
                 inputTools?.map((tool) => (
@@ -197,14 +199,6 @@ function DefaultInput({
     );
 }
 
-function ToolsMenuIcon(): ReactElement {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" />
-        </svg>
-    );
-}
-
 /**
  * Message input bar with a send button.
  *
@@ -256,13 +250,5 @@ export function Composer({
                 <SendIcon />
             </IconButton>
         </Box>
-    );
-}
-
-function SendIcon(): ReactElement {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-        </svg>
     );
 }

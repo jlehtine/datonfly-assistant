@@ -28,6 +28,12 @@ across editors.
 
 All public API interfaces are documented with **JSDoc**.
 
+## User Interface
+
+The UI is built with **Material UI** (`@mui/material`). Use Material UI
+components for all user-facing elements. For icons, use **Material Icons**
+(`@mui/icons-material`).
+
 ## Database
 
 - All tables live in the **`dfa`** (Datonfly Assistant) PostgreSQL schema. This

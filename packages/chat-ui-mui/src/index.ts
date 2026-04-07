@@ -14,3 +14,7 @@ export type { EditableTitleProps } from "./EditableTitle.js";
 export type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 export { ThreadListPanel } from "./ThreadListPanel.js";
 export type { ThreadListPanelProps } from "./ThreadListPanel.js";
+export { InviteAutocomplete } from "./InviteAutocomplete.js";
+export type { InviteAutocompleteProps } from "./InviteAutocomplete.js";
+export { MemberDrawer } from "./MemberDrawer.js";
+export type { MemberDrawerProps } from "./MemberDrawer.js";

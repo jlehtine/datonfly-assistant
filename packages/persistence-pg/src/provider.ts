@@ -11,6 +11,7 @@ import type {
     LoadMessagesOptions,
     Thread,
     ThreadMember,
+    ThreadMemberInfo,
     ThreadMemberRole,
     ThreadMessage,
     User,
@@ -191,6 +192,31 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         return rows.map(toThreadMember);
     }
 
+    async listMembersWithUser(threadId: string): Promise<ThreadMemberInfo[]> {
+        const rows = await this.qb
+            .selectFrom("thread_member")
+            .innerJoin("user", "user.id", "thread_member.user_id")
+            .select([
+                "thread_member.user_id",
+                "thread_member.role",
+                "thread_member.joined_at",
+                "user.name",
+                "user.email",
+                "user.avatar_url",
+            ])
+            .where("thread_member.thread_id", "=", threadId)
+            .orderBy("thread_member.joined_at", "asc")
+            .execute();
+        return rows.map((row) => ({
+            userId: row.user_id,
+            role: row.role,
+            joinedAt: row.joined_at,
+            name: row.name,
+            email: row.email,
+            avatarUrl: row.avatar_url ?? undefined,
+        }));
+    }
+
     async isMember(threadId: string, userId: string): Promise<boolean> {
         const row = await this.qb
             .selectFrom("thread_member")
@@ -261,6 +287,24 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
         const rows = await query.execute();
         return rows.map(toMessage);
+    }
+
+    // ─── Search ───
+
+    async searchUsers(query: string, limit = 20): Promise<User[]> {
+        // Escape LIKE special characters to prevent wildcard injection
+        const escaped = query.replace(/[%_\\]/g, "\\$&");
+        const pattern = `%${escaped}%`;
+
+        const rows = await this.qb
+            .selectFrom("user")
+            .selectAll()
+            .where("deleted_at", "is", null)
+            .where((eb) => eb.or([eb("name", "ilike", pattern), eb("email", "ilike", pattern)]))
+            .orderBy("name", "asc")
+            .limit(limit)
+            .execute();
+        return rows.map(toUser);
     }
 }
 

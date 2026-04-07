@@ -4,6 +4,7 @@ export { ChatModule } from "./chat.module.js";
 export type { ChatModuleConfig } from "./chat.module.js";
 export { ChatGateway } from "./chat.gateway.js";
 export { ThreadController } from "./thread.controller.js";
+export { UserController } from "./user.controller.js";
 export { RequireUserGuard } from "./guards/require-user.guard.js";
 export { ResolvedUser } from "./decorators/user.decorator.js";
 export { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";

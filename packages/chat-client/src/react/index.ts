@@ -7,3 +7,7 @@ export { useComposer } from "./useComposer.js";
 export type { UseComposerResult } from "./useComposer.js";
 export { useThreadList } from "./useThreadList.js";
 export type { UseThreadListOptions, UseThreadListResult } from "./useThreadList.js";
+export { useMembers } from "./useMembers.js";
+export type { UseMembersResult } from "./useMembers.js";
+export { useUserSearch } from "./useUserSearch.js";
+export type { UseUserSearchResult } from "./useUserSearch.js";

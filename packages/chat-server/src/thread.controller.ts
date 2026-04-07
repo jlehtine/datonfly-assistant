@@ -23,6 +23,7 @@ import {
     type IPersistenceProvider,
     type PaginationQuery,
     type Thread,
+    type ThreadMemberInfo,
     type ThreadMessage,
     type UpdateThreadRequest,
     type User,
@@ -83,6 +84,19 @@ export class ThreadController {
         }
 
         return this.persistence.loadMessages({ threadId, limit: query.limit, before: query.before });
+    }
+
+    @Get(":id/members")
+    async listMembers(
+        @ResolvedUser() user: User,
+        @Param("id", new ZodValidationPipe(z.uuid())) threadId: string,
+    ): Promise<ThreadMemberInfo[]> {
+        const isMember = await this.persistence.isMember(threadId, user.id);
+        if (!isMember) {
+            throw new ForbiddenException("Not a member of this thread");
+        }
+
+        return this.persistence.listMembersWithUser(threadId);
     }
 
     @Get(":id")

@@ -3,6 +3,9 @@ import { io, type Socket } from "socket.io-client";
 import {
     WS_PATH,
     type ErrorEvent,
+    type InviteMemberEvent,
+    type MemberJoinedEvent,
+    type MemberLeftEvent,
     type MessageCompleteEvent,
     type MessageDeltaEvent,
     type SendMessageEvent,
@@ -20,6 +23,10 @@ export interface ChatClientEventMap {
     "thread-updated": (event: ThreadUpdatedEvent) => void;
     /** Fired when a new thread has been created. */
     "thread-created": (event: ThreadCreatedEvent) => void;
+    /** Fired when a new member has joined a thread. */
+    "member-joined": (event: MemberJoinedEvent) => void;
+    /** Fired when a member has left a thread. */
+    "member-left": (event: MemberLeftEvent) => void;
     /** Fired when the server reports an error. */
     error: (event: ErrorEvent) => void;
     /** Fired when the WebSocket connection is established. */
@@ -96,6 +103,16 @@ export class ChatClient {
             content: [{ type: "text", text }],
         };
         this.socket.emit("send-message", event);
+    }
+
+    /** Emit an `invite-member` event to invite a user to a thread by email. */
+    inviteMember(threadId: string, email: string): void {
+        const event: InviteMemberEvent = {
+            event: "invite-member",
+            threadId,
+            email,
+        };
+        this.socket.emit("invite-member", event);
     }
 
     /** Subscribe to a typed client event. */

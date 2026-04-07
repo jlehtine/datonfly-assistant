@@ -108,3 +108,28 @@ export const paginationQuerySchema = z.object({
 
 /** Validated pagination query parameters. */
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
+
+// ─── User Search ───
+
+/** Zod schema for user search query parameters. */
+export const userSearchQuerySchema = z.object({
+    q: z.string().min(1).max(200),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+/** Validated user search query parameters. */
+export type UserSearchQuery = z.infer<typeof userSearchQuerySchema>;
+
+/** Zod schema for a user search result item (wire format). */
+export const userSearchResultWireSchema = z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string(),
+    avatarUrl: z.string().nullable().optional(),
+});
+
+/** A user search result item parsed from JSON. */
+export type UserSearchResultWire = z.infer<typeof userSearchResultWireSchema>;
+
+/** Zod schema for the user search result list. */
+export const userSearchResultListWireSchema = z.array(userSearchResultWireSchema);

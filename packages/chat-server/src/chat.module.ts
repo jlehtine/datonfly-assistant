@@ -16,6 +16,7 @@ import {
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import type { GenerateTitleFn } from "./title-generator.js";
 import { ThreadController } from "./thread.controller.js";
+import { UserController } from "./user.controller.js";
 import type { ValidateTokenFn } from "./chat.gateway.js";
 
 /** Configuration for {@link ChatModule.forRoot}. */
@@ -72,7 +73,7 @@ export class ChatModule {
                     },
                 }),
             ],
-            controllers: [ThreadController],
+            controllers: [ThreadController, UserController],
             providers: [
                 { provide: AGENT_PROVIDER, useValue: config.agent },
                 { provide: PERSISTENCE_PROVIDER, useValue: config.persistence },

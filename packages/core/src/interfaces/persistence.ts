@@ -1,5 +1,5 @@
 import type { ContentPart, MessageRole, ThreadMessage } from "../types/message.js";
-import type { Thread, ThreadMember, ThreadMemberRole } from "../types/thread.js";
+import type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole } from "../types/thread.js";
 import type { User } from "../types/user.js";
 
 /** Options for creating a new thread. */
@@ -84,6 +84,8 @@ export interface IPersistenceProvider {
     removeMember(threadId: string, userId: string): Promise<void>;
     /** List all members of a thread. */
     listMembers(threadId: string): Promise<ThreadMember[]>;
+    /** List all members of a thread with their user display information. */
+    listMembersWithUser(threadId: string): Promise<ThreadMemberInfo[]>;
     /** Check whether a user is a member of a thread. */
     isMember(threadId: string, userId: string): Promise<boolean>;
     /** Return the role of a user in a thread, or `null` if not a member. */
@@ -96,4 +98,8 @@ export interface IPersistenceProvider {
     loadMessages(options: LoadMessagesOptions): Promise<ThreadMessage[]>;
     /** Count the total number of messages in a thread. */
     countMessages(threadId: string): Promise<number>;
+
+    // Search
+    /** Search users by name or email (case-insensitive substring match). */
+    searchUsers(query: string, limit?: number): Promise<User[]>;
 }

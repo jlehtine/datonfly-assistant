@@ -16,6 +16,10 @@ export {
     memorySearchRequestSchema,
     // Pagination
     paginationQuerySchema,
+    // User search
+    userSearchQuerySchema,
+    userSearchResultWireSchema,
+    userSearchResultListWireSchema,
 } from "./schemas.js";
 
 export type {
@@ -26,4 +30,6 @@ export type {
     SearchRequest,
     MemorySearchRequest,
     PaginationQuery,
+    UserSearchQuery,
+    UserSearchResultWire,
 } from "./schemas.js";

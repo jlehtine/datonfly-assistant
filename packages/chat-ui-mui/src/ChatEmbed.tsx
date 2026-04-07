@@ -1,16 +1,21 @@
 import MenuIcon from "@mui/icons-material/Menu";
+import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import Alert from "@mui/material/Alert";
+import Avatar from "@mui/material/Avatar";
+import AvatarGroup from "@mui/material/AvatarGroup";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useEffect, type ComponentType, type ReactElement } from "react";
+import { useCallback, useEffect, useState, type ComponentType, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
 import {
     ChatClientContext,
     useChatClient,
     useChatConnection,
+    useMembers,
     useMessages,
 } from "@datonfly-assistant/chat-client/react";
 import type { Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
@@ -18,6 +23,7 @@ import type { Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
 import { Composer, type ComposerInputProps } from "./Composer.js";
 import { EditableTitle } from "./EditableTitle.js";
 import type { InputTool } from "./InputTool.js";
+import { MemberDrawer } from "./MemberDrawer.js";
 import { MessageList } from "./MessageList.js";
 
 /** Configuration options passed to {@link ChatEmbed}. */
@@ -130,6 +136,15 @@ function ChatInner({
     onThreadUpdated,
 }: ChatInnerProps): ReactElement {
     const client = useChatClient();
+    const { members, inviteMember } = useMembers(threadId);
+    const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
+
+    const handleOpenMemberDrawer = useCallback(() => {
+        setMemberDrawerOpen(true);
+    }, []);
+    const handleCloseMemberDrawer = useCallback(() => {
+        setMemberDrawerOpen(false);
+    }, []);
 
     useEffect(() => {
         if (!onThreadUpdated) return;
@@ -180,6 +195,33 @@ function ChatInner({
                             {thread.title}
                         </Typography>
                     ) : null}
+                    {threadId && (
+                        <Box sx={{ display: "flex", alignItems: "center", ml: "auto", gap: 0.5 }}>
+                            {members.length > 0 && (
+                                <AvatarGroup
+                                    max={4}
+                                    sx={{
+                                        "& .MuiAvatar-root": { width: 28, height: 28, fontSize: "0.75rem" },
+                                        cursor: "pointer",
+                                    }}
+                                    onClick={handleOpenMemberDrawer}
+                                >
+                                    {members.map((m) => (
+                                        <Tooltip key={m.userId} title={m.name}>
+                                            <Avatar src={m.avatarUrl} sx={{ width: 28, height: 28 }}>
+                                                {m.name.charAt(0).toUpperCase()}
+                                            </Avatar>
+                                        </Tooltip>
+                                    ))}
+                                </AvatarGroup>
+                            )}
+                            <Tooltip title="Invite member">
+                                <IconButton size="small" aria-label="Invite member" onClick={handleOpenMemberDrawer}>
+                                    <PersonAddAltIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        </Box>
+                    )}
                 </Box>
             ) : null}
             {!connected && (
@@ -208,6 +250,14 @@ function ChatInner({
                 inputTools={inputTools}
                 maxRows={maxRows}
             />
+            {threadId && (
+                <MemberDrawer
+                    open={memberDrawerOpen}
+                    onClose={handleCloseMemberDrawer}
+                    members={members}
+                    onInvite={inviteMember}
+                />
+            )}
         </Box>
     );
 }

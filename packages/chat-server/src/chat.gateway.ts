@@ -10,6 +10,8 @@ import type {
     AgentMessage,
     IAgentProvider,
     IPersistenceProvider,
+    InviteMemberEvent,
+    MemberJoinedEvent,
     MessageCompleteEvent,
     MessageDeltaEvent,
     SendMessageEvent,
@@ -20,7 +22,7 @@ import type {
     UserIdentity,
 } from "@datonfly-assistant/core";
 
-import { WS_PATH, chatRequestSchema } from "@datonfly-assistant/core";
+import { WS_PATH, chatRequestSchema, inviteMemberRequestSchema } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
@@ -121,6 +123,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         socket.on("send-message", (data: SendMessageEvent) => {
             void this.handleSendMessage(socket, data);
         });
+        socket.on("invite-member", (data: InviteMemberEvent) => {
+            void this.handleInviteMember(socket, data);
+        });
     }
 
     private async handleSendMessage(socket: Socket, data: SendMessageEvent): Promise<void> {
@@ -202,6 +207,60 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             socket.emit("error", { event: "error", message });
             this.auditLogger.audit("error", "agent.error", { userId, threadId, messageId, error: message });
         }
+    }
+
+    private async handleInviteMember(socket: Socket, data: InviteMemberEvent): Promise<void> {
+        const parsed = inviteMemberRequestSchema.safeParse({ email: data.email });
+        if (!parsed.success) {
+            const errorMessage = parsed.error.issues[0]?.message ?? "Invalid invite request";
+            socket.emit("error", { event: "error", message: errorMessage });
+            return;
+        }
+
+        const { email } = parsed.data;
+        const threadId = data.threadId;
+        const user = (socket.data as { user?: User | undefined }).user;
+
+        if (!threadId || !user) {
+            socket.emit("error", { event: "error", message: "Invalid invite request" });
+            return;
+        }
+
+        // Sender must be a member of the thread
+        const senderIsMember = await this.persistence.isMember(threadId, user.id);
+        if (!senderIsMember) {
+            socket.emit("error", { event: "error", message: "Not a member of this thread" });
+            return;
+        }
+
+        // Look up the invited user by email
+        const invitedUser = await this.persistence.findUserByEmail(email);
+        if (!invitedUser) {
+            socket.emit("error", { event: "error", message: "User not found" });
+            return;
+        }
+
+        // Check if already a member
+        const alreadyMember = await this.persistence.isMember(threadId, invitedUser.id);
+        if (alreadyMember) {
+            socket.emit("error", { event: "error", message: "User is already a member of this thread" });
+            return;
+        }
+
+        await this.persistence.addMember(threadId, invitedUser.id, "member");
+        this.auditLogger.audit("info", "member.invite", {
+            userId: user.id,
+            threadId,
+            invitedUserId: invitedUser.id,
+        });
+
+        const event: MemberJoinedEvent = {
+            event: "member-joined",
+            threadId,
+            userId: invitedUser.id,
+            role: "member",
+        };
+        void this.emitToThreadMembers(threadId, "member-joined", event);
     }
 
     /** Broadcast a thread-created event to connected clients that are members of the thread. */

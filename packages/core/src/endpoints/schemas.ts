@@ -48,3 +48,25 @@ export type ThreadMessageWire = z.infer<typeof threadMessageWireSchema>;
 
 /** Zod schema for an array of messages as returned by the messages endpoint. */
 export const threadMessageListWireSchema = z.array(threadMessageWireSchema);
+
+// ─── ThreadMemberInfo (wire format) ───
+
+/** Zod schema for a thread member with user info as serialized over JSON. */
+export const threadMemberInfoWireSchema = z.object({
+    userId: z.string(),
+    role: z.enum(["owner", "member"]),
+    joinedAt: z.string().transform((s) => new Date(s)),
+    name: z.string(),
+    email: z.string(),
+    avatarUrl: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((s) => s ?? undefined),
+});
+
+/** A thread member with user info parsed from its JSON wire representation. */
+export type ThreadMemberInfoWire = z.infer<typeof threadMemberInfoWireSchema>;
+
+/** Zod schema for an array of thread members with user info. */
+export const threadMemberInfoListWireSchema = z.array(threadMemberInfoWireSchema);

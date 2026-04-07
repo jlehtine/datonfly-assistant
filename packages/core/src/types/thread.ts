@@ -32,3 +32,19 @@ export interface ThreadMember {
     /** Timestamp when the user joined the thread. */
     joinedAt: Date;
 }
+
+/** Thread membership enriched with the user's display information. */
+export interface ThreadMemberInfo {
+    /** The member's user ID. */
+    userId: string;
+    /** The member's role within the thread. */
+    role: ThreadMemberRole;
+    /** Timestamp when the user joined the thread. */
+    joinedAt: Date;
+    /** Display name of the member. */
+    name: string;
+    /** Email address of the member. */
+    email: string;
+    /** URL to the member's avatar, if available. */
+    avatarUrl?: string | undefined;
+}

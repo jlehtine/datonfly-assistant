@@ -4,6 +4,7 @@ export type {
     User,
     Thread,
     ThreadMember,
+    ThreadMemberInfo,
     ThreadMemberRole,
     ThreadMessage,
     MessageRole,
@@ -74,6 +75,9 @@ export {
     searchRequestSchema,
     memorySearchRequestSchema,
     paginationQuerySchema,
+    userSearchQuerySchema,
+    userSearchResultWireSchema,
+    userSearchResultListWireSchema,
 } from "./dto/index.js";
 
 export type {
@@ -84,6 +88,8 @@ export type {
     SearchRequest,
     MemorySearchRequest,
     PaginationQuery,
+    UserSearchQuery,
+    UserSearchResultWire,
 } from "./dto/index.js";
 
 // Endpoints
@@ -91,12 +97,16 @@ export {
     API_PREFIX,
     WS_PATH,
     THREADS_PATH,
+    USERS_SEARCH_PATH,
     threadPath,
     threadMessagesPath,
+    threadMembersPath,
     threadWireSchema,
     threadListWireSchema,
     threadMessageWireSchema,
     threadMessageListWireSchema,
+    threadMemberInfoWireSchema,
+    threadMemberInfoListWireSchema,
 } from "./endpoints/index.js";
 
-export type { ThreadWire, ThreadMessageWire } from "./endpoints/index.js";
+export type { ThreadWire, ThreadMessageWire, ThreadMemberInfoWire } from "./endpoints/index.js";

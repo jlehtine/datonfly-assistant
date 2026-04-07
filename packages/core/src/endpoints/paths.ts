@@ -16,3 +16,11 @@ export function threadPath(threadId: string): string {
 export function threadMessagesPath(threadId: string): string {
     return `${THREADS_PATH}/${threadId}/messages`;
 }
+
+/** Path for members of a thread. */
+export function threadMembersPath(threadId: string): string {
+    return `${THREADS_PATH}/${threadId}/members`;
+}
+
+/** Path for the user search endpoint. */
+export const USERS_SEARCH_PATH = `${API_PREFIX}/users/search`;

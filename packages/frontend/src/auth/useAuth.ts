@@ -5,11 +5,13 @@ import type { UserIdentity } from "@datonfly-assistant/core";
 interface AuthState {
     user: UserIdentity | null;
     loading: boolean;
+    authMode?: "fake" | "oidc" | undefined;
 }
 
 export interface UseAuthResult {
     user: UserIdentity | null;
     loading: boolean;
+    authMode?: "fake" | "oidc" | undefined;
     login: () => void;
     logout: () => void;
 }
@@ -34,9 +36,9 @@ export function useAuth(): UseAuthResult {
                     return;
                 }
 
-                const data = (await res.json()) as { user: UserIdentity };
+                const data = (await res.json()) as { user: UserIdentity; authMode?: "fake" | "oidc" };
 
-                setState({ user: data.user, loading: false });
+                setState({ user: data.user, loading: false, authMode: data.authMode });
             } catch {
                 if (!abort.signal.aborted) {
                     setState({ user: null, loading: false });
@@ -67,6 +69,7 @@ export function useAuth(): UseAuthResult {
     return {
         user: state.user,
         loading: state.loading,
+        authMode: state.authMode,
         login,
         logout,
     };

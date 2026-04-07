@@ -1,8 +1,11 @@
 import AccountCircle from "@mui/icons-material/AccountCircle";
+import SwitchAccountIcon from "@mui/icons-material/SwitchAccount";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
+import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -21,17 +24,45 @@ import { LoginPage } from "./pages/LoginPage";
 
 const BACKEND_URL = window.location.origin;
 
+/** Fake user identities — must match FAKE_USERS in auth.service.ts. */
+const FAKE_USERS = [
+    { id: 1, name: "Fake Alice" },
+    { id: 2, name: "Fake Bob" },
+    { id: 3, name: "Fake Charlie" },
+    { id: 4, name: "Fake Diana" },
+    { id: 5, name: "Fake Eve" },
+];
+
 export function App(): ReactElement {
-    const { user, loading, login, logout } = useAuth();
+    const { user, loading, authMode, login, logout } = useAuth();
     const isDesktop = useMediaQuery("(min-height:768px)");
     const maxRows = isDesktop ? 10 : 4;
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const handleMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => { setAnchorEl(e.currentTarget); }, []);
-    const handleMenuClose = useCallback(() => { setAnchorEl(null); }, []);
+    const [switchAnchorEl, setSwitchAnchorEl] = useState<null | HTMLElement>(null);
+    const handleMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+        setAnchorEl(e.currentTarget);
+    }, []);
+    const handleMenuClose = useCallback(() => {
+        setAnchorEl(null);
+    }, []);
+    const handleSwitchOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
+        setSwitchAnchorEl(e.currentTarget);
+    }, []);
+    const handleSwitchClose = useCallback(() => {
+        setSwitchAnchorEl(null);
+    }, []);
     const handleLogout = useCallback(() => {
         handleMenuClose();
         logout();
     }, [handleMenuClose, logout]);
+    const handleSwitchUser = useCallback(
+        (fakeid: number) => {
+            handleSwitchClose();
+            handleMenuClose();
+            window.location.href = `${BACKEND_URL}/auth/login?fakeid=${String(fakeid)}`;
+        },
+        [handleSwitchClose, handleMenuClose],
+    );
 
     if (loading) {
         return (
@@ -63,10 +94,34 @@ export function App(): ReactElement {
                         <MenuItem disabled>
                             <ListItemText primary={user.name} />
                         </MenuItem>
+                        {authMode === "fake" && (
+                            <MenuItem onClick={handleSwitchOpen}>
+                                <ListItemIcon>
+                                    <SwitchAccountIcon fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText primary="Switch User" />
+                            </MenuItem>
+                        )}
+                        <Divider />
                         <MenuItem onClick={handleLogout}>
                             <ListItemText primary="Sign out" />
                         </MenuItem>
                     </Menu>
+                    {authMode === "fake" && (
+                        <Menu anchorEl={switchAnchorEl} open={Boolean(switchAnchorEl)} onClose={handleSwitchClose}>
+                            {FAKE_USERS.map((fu) => (
+                                <MenuItem
+                                    key={fu.id}
+                                    selected={fu.name === user.name}
+                                    onClick={() => {
+                                        handleSwitchUser(fu.id);
+                                    }}
+                                >
+                                    <ListItemText primary={fu.name} />
+                                </MenuItem>
+                            ))}
+                        </Menu>
+                    )}
                 </Toolbar>
             </AppBar>
             <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "center" }}>

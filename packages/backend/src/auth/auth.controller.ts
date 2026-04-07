@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Post, Redirect, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { Controller, Get, HttpCode, Post, Query, Req, Res, UnauthorizedException } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { PinoLogger } from "nestjs-pino";
 
@@ -17,10 +17,18 @@ export class AuthController {
 
     @Public()
     @Get("login")
-    @Redirect()
-    async login(): Promise<{ url: string }> {
+    async login(@Query("fakeid") fakeidRaw: string | undefined, @Res() res: Response): Promise<void> {
+        if (this.authService.authMode === "fake") {
+            const fakeid = fakeidRaw !== undefined ? parseInt(fakeidRaw, 10) : undefined;
+            const { redirectUrl, token } = this.authService.getLoginInfoForFakeUser(
+                fakeid !== undefined && !Number.isNaN(fakeid) ? fakeid : undefined,
+            );
+            res.cookie(SESSION_COOKIE_NAME, token, this.authService.getCookieOptions());
+            res.redirect(redirectUrl);
+            return;
+        }
         const url = await this.authService.getLoginUrl();
-        return { url };
+        res.redirect(url);
     }
 
     @Public()
@@ -51,7 +59,7 @@ export class AuthController {
         }
         // Ensure the cookie is always set (e.g. for fake mode on first visit)
         res.cookie(SESSION_COOKIE_NAME, info.token, this.authService.getCookieOptions());
-        return { user: info.user };
+        return { user: info.user, authMode: this.authService.authMode };
     }
 
     @Public()

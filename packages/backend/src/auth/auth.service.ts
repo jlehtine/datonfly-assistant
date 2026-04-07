@@ -46,6 +46,19 @@ interface PkceSession {
 /** Name of the HTTP-only session cookie. */
 export const SESSION_COOKIE_NAME = "dfa_token";
 
+/**
+ * Fixed set of fake user identities for local multi-user testing.
+ * Uses the `.invalid` TLD (RFC 2606) to guarantee these can never
+ * collide with real email addresses.
+ */
+export const FAKE_USERS: readonly { email: string; name: string }[] = [
+    { email: "fake.alice@dev.invalid", name: "Fake Alice" },
+    { email: "fake.bob@dev.invalid", name: "Fake Bob" },
+    { email: "fake.charlie@dev.invalid", name: "Fake Charlie" },
+    { email: "fake.diana@dev.invalid", name: "Fake Diana" },
+    { email: "fake.eve@dev.invalid", name: "Fake Eve" },
+];
+
 /** Maximum number of concurrent PKCE sessions to prevent memory exhaustion. */
 const MAX_PKCE_SESSIONS = 1000;
 /** PKCE session time-to-live in milliseconds (10 minutes). */
@@ -95,9 +108,24 @@ export class AuthService {
         return baseUrl;
     }
 
+    /** The authentication mode ("fake" or "oidc"). */
+    get authMode(): "fake" | "oidc" {
+        return this.config.mode;
+    }
+
     async getLoginUrl(): Promise<string> {
         if (this.config.mode === "fake") return "/";
         return this.buildOidcLoginUrl();
+    }
+
+    /**
+     * In fake mode, sign a JWT for the given fake user ID and return
+     * the token + redirect URL. Used by the login endpoint.
+     */
+    getLoginInfoForFakeUser(fakeid: number | undefined): { redirectUrl: string; token: string } {
+        const user = this.getFakeUser(fakeid);
+        const frontendUrl = this.config.frontendUrl ?? "http://localhost:5173";
+        return { redirectUrl: frontendUrl, token: this.signToken(user) };
     }
 
     async handleCallback(callbackUrl: URL): Promise<{ redirectUrl: string; token: string | null }> {
@@ -109,14 +137,29 @@ export class AuthService {
     }
 
     authenticateRequest(cookieToken: string | undefined): UserIdentity | null {
-        if (this.config.mode === "fake") return this.getFakeUser();
+        if (this.config.mode === "fake") {
+            // Decode the fake user identity from the cookie if present;
+            // fall back to default (Alice) on first visit or invalid token.
+            if (cookieToken) {
+                const user = this.verifyToken(cookieToken);
+                if (user) return user;
+            }
+            return this.getFakeUser();
+        }
         if (!cookieToken) return null;
         return this.verifyToken(cookieToken);
     }
 
     getAuthInfo(cookieToken: string | undefined): { user: UserIdentity; token: string } | null {
         if (this.config.mode === "fake") {
-            const user = this.getFakeUser();
+            // Preserve the identity stored in the cookie if valid;
+            // otherwise fall back to default (Alice).
+            let user: UserIdentity;
+            if (cookieToken) {
+                user = this.verifyToken(cookieToken) ?? this.getFakeUser();
+            } else {
+                user = this.getFakeUser();
+            }
             return { user, token: this.signToken(user) };
         }
         // Use cookie token
@@ -128,7 +171,11 @@ export class AuthService {
     }
 
     authenticateToken(token: string): UserIdentity | null {
-        if (this.config.mode === "fake") return this.getFakeUser();
+        if (this.config.mode === "fake") {
+            const user = this.verifyToken(token);
+            if (user) return user;
+            return this.getFakeUser();
+        }
         return this.verifyToken(token);
     }
 
@@ -155,12 +202,15 @@ export class AuthService {
 
     // ── Internal helpers ──
 
-    private getFakeUser(): UserIdentity {
-        const fakeUser = this.config.fakeUser ?? { email: "dev@localhost", name: "Dev User" };
-        return {
-            email: fakeUser.email,
-            name: fakeUser.name,
-        };
+    private getFakeUser(fakeid?: number): UserIdentity {
+        if (fakeid !== undefined && fakeid >= 1 && fakeid <= FAKE_USERS.length) {
+            const entry = FAKE_USERS[fakeid - 1];
+            if (entry) return { email: entry.email, name: entry.name };
+        }
+        // Default to first fake user (Alice)
+        const defaultUser = FAKE_USERS[0];
+        if (defaultUser) return { email: defaultUser.email, name: defaultUser.name };
+        return { email: "fake.alice@dev.invalid", name: "Fake Alice" };
     }
 
     private signToken(user: UserIdentity): string {

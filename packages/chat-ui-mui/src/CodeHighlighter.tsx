@@ -1,3 +1,4 @@
+import Typography from "@mui/material/Typography";
 import type { CSSProperties, ReactElement } from "react";
 import type { ExtraProps } from "react-markdown";
 import SyntaxHighlighter from "react-syntax-highlighter";
@@ -45,5 +46,9 @@ export function CodeHighlighter({ children, className, node: _node }: CodeProps)
     }
 
     // Inline code — no language class present
-    return <code className={className}>{children}</code>;
+    return (
+        <Typography component="code" className={className}>
+            {children}
+        </Typography>
+    );
 }

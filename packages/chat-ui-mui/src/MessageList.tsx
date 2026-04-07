@@ -162,7 +162,7 @@ export function MessageList({
                 return elements;
             })}
             {showThinking && <ThinkingBubble />}
-            <div ref={endRef} className="datonfly-message-list-end" />
+            <Box ref={endRef} className="datonfly-message-list-end" />
         </Box>
     );
 }

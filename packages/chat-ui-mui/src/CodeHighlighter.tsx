@@ -10,6 +10,10 @@ export type CodeProps = React.ClassAttributes<HTMLElement> & React.HTMLAttribute
 // but the @types package has a slight mismatch — cast once here.
 const highlightStyle = atomOneDark as Record<string, CSSProperties>;
 
+// Strip wrapper background/padding so the parent <pre> styled by MessageBubble
+// provides the only visible frame around code blocks.
+const wrapperStyle: CSSProperties = { background: "none", padding: 0, margin: 0 };
+
 /**
  * A custom `code` renderer for `react-markdown` that applies syntax
  * highlighting to fenced code blocks using `react-syntax-highlighter`.
@@ -30,7 +34,7 @@ export function CodeHighlighter({ children, className, node: _node }: CodeProps)
     if (language !== undefined) {
         // Fenced block with a language hint
         return (
-            <SyntaxHighlighter style={highlightStyle} language={language} PreTag="div">
+            <SyntaxHighlighter style={highlightStyle} language={language} PreTag="div" customStyle={wrapperStyle}>
                 {codeText}
             </SyntaxHighlighter>
         );
@@ -39,7 +43,7 @@ export function CodeHighlighter({ children, className, node: _node }: CodeProps)
     if (className !== undefined) {
         // Fenced block without a recognised language hint
         return (
-            <SyntaxHighlighter style={highlightStyle} PreTag="div">
+            <SyntaxHighlighter style={highlightStyle} PreTag="div" customStyle={wrapperStyle}>
                 {codeText}
             </SyntaxHighlighter>
         );

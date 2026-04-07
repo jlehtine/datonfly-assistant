@@ -47,12 +47,14 @@ export function MessageBubble({ message, components }: MessageBubbleProps): Reac
                     "& pre": {
                         bgcolor: isUser ? "rgba(0,0,0,0.2)" : "grey.900",
                         color: isUser ? "primary.contrastText" : "grey.100",
+                        fontFamily: "monospace",
                         p: 1.5,
                         borderRadius: 1,
                         overflow: "auto",
                     },
                     "& code": {
                         fontSize: "0.875em",
+                        fontFamily: "monospace",
                         bgcolor: isUser ? "rgba(0,0,0,0.15)" : undefined,
                         borderRadius: 0.5,
                         px: isUser ? 0.5 : undefined,

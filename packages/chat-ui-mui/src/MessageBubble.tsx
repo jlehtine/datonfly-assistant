@@ -63,9 +63,7 @@ export function MessageBubble({ message, components }: MessageBubbleProps): Reac
                     "& code": {
                         fontSize: "0.875em",
                         fontFamily: "monospace",
-                        bgcolor: isUser ? "rgba(0,0,0,0.08)" : undefined,
-                        borderRadius: 0.5,
-                        px: 0.5,
+                        px: "0.5em",
                     },
                     "& pre code": {
                         bgcolor: "transparent",

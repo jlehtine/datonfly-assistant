@@ -1,14 +1,16 @@
+import { useTheme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 import type { CSSProperties, ReactElement } from "react";
 import type { ExtraProps } from "react-markdown";
 import SyntaxHighlighter from "react-syntax-highlighter";
-import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
+import { atomOneDark, atomOneLight } from "react-syntax-highlighter/dist/esm/styles/hljs";
 
 export type CodeProps = React.ClassAttributes<HTMLElement> & React.HTMLAttributes<HTMLElement> & ExtraProps;
 
 // The hljs style objects are typed as Record<string, CSSProperties> at runtime
 // but the @types package has a slight mismatch — cast once here.
-const highlightStyle = atomOneDark as Record<string, CSSProperties>;
+const darkStyle = atomOneDark as Record<string, CSSProperties>;
+const lightStyle = atomOneLight as Record<string, CSSProperties>;
 
 // Strip wrapper background/padding so the parent <pre> styled by MessageBubble
 // provides the only visible frame around code blocks.
@@ -25,6 +27,8 @@ const wrapperStyle: CSSProperties = { background: "none", padding: 0, margin: 0 
  * partially-received code blocks are not highlighted prematurely.
  */
 export function CodeHighlighter({ children, className, node: _node }: CodeProps): ReactElement {
+    const theme = useTheme();
+    const highlightStyle = theme.palette.mode === "dark" ? darkStyle : lightStyle;
     // react-markdown sets className="language-<lang>" on fenced blocks
     const match = /language-(\w+)/.exec(className ?? "");
     const language = match?.[1];

@@ -40,13 +40,21 @@ export function MessageBubble({ message, components }: MessageBubbleProps): Reac
                     px: 2,
                     py: 1,
                     maxWidth: "75%",
-                    bgcolor: isUser ? "primary.main" : "action.hover",
-                    color: isUser ? "primary.contrastText" : "text.primary",
+                    bgcolor: isUser
+                        ? (t) => {
+                              const c = t.palette.primary.main;
+                              const bg = t.palette.background.paper;
+                              return t.palette.mode === "dark"
+                                  ? `color-mix(in oklch, ${c} 25%, ${bg})`
+                                  : `color-mix(in oklch, ${c} 20%, ${bg})`;
+                          }
+                        : "action.hover",
+                    color: "text.primary",
                     borderRadius: 2,
                     "& p": { m: 0 },
                     "& pre": {
-                        bgcolor: isUser ? "rgba(0,0,0,0.2)" : "grey.900",
-                        color: isUser ? "primary.contrastText" : "grey.100",
+                        bgcolor: (t) => (t.palette.mode === "dark" ? "grey.900" : "grey.100"),
+                        color: (t) => (t.palette.mode === "dark" ? "grey.100" : "grey.900"),
                         fontFamily: "monospace",
                         p: 1.5,
                         borderRadius: 1,
@@ -55,9 +63,9 @@ export function MessageBubble({ message, components }: MessageBubbleProps): Reac
                     "& code": {
                         fontSize: "0.875em",
                         fontFamily: "monospace",
-                        bgcolor: isUser ? "rgba(0,0,0,0.15)" : undefined,
+                        bgcolor: isUser ? "rgba(0,0,0,0.08)" : undefined,
                         borderRadius: 0.5,
-                        px: isUser ? 0.5 : undefined,
+                        px: 0.5,
                     },
                     "& pre code": {
                         bgcolor: "transparent",

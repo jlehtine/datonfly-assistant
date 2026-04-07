@@ -55,6 +55,11 @@ async function bootstrap(): Promise<void> {
     const destroyPersistence = pg.destroy;
 
     const allowedEmailDomain = process.env.OIDC_ALLOWED_EMAIL_DOMAIN;
+    const allowedEmails = process.env.OIDC_ALLOWED_EMAILS
+        ? process.env.OIDC_ALLOWED_EMAILS.split(",")
+              .map((e) => e.trim())
+              .filter(Boolean)
+        : undefined;
 
     if (authMode === "oidc") {
         if (!process.env.OIDC_CLIENT_ID) {
@@ -72,6 +77,7 @@ async function bootstrap(): Promise<void> {
         secureCookie,
         sessionTtlMs: sessionTtlSeconds * 1000,
         allowedEmailDomain,
+        allowedEmails,
         oidc:
             authMode === "oidc"
                 ? {

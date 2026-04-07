@@ -25,6 +25,8 @@ export interface AuthConfig {
         | undefined;
     /** If set, only emails ending with this domain are allowed (e.g. "example.com"). */
     allowedEmailDomain?: string | undefined;
+    /** If set, only these specific email addresses are allowed to authenticate. */
+    allowedEmails?: string[] | undefined;
     /** Only used when mode === "fake" */
     fakeUser?:
         | {
@@ -252,6 +254,12 @@ export class AuthService {
 
         if (!email) {
             throw new Error("No email address returned from OIDC provider");
+        }
+
+        if (this.config.allowedEmails && this.config.allowedEmails.length > 0) {
+            if (!this.config.allowedEmails.some((allowed) => allowed.toLowerCase() === email.toLowerCase())) {
+                throw new Error(`Email address not in the allowed list: ${email}`);
+            }
         }
 
         if (this.config.allowedEmailDomain) {

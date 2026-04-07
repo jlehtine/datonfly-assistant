@@ -1,0 +1,34 @@
+# Copilot Instructions
+
+Follow the architecture described in [README.md](../README.md) and the coding
+conventions in [CONVENTIONS.md](../CONVENTIONS.md).
+
+## Key Points
+
+- **Monorepo** managed with pnpm workspaces and Turborepo. All packages live
+  under `packages/`.
+- **`core`** declares shared types, interfaces, and the REST/WebSocket endpoint
+  contract (paths + Zod schemas). All other packages depend on `core` — never
+  duplicate its definitions.
+- **Pluggable providers** — the AI agent (`agent-langchain`) and persistence
+  layer (`persistence-pg`) implement generic interfaces from `core`. Keep
+  provider-specific details out of `chat-server` and `chat-client`.
+- **`chat-server`** is a NestJS module. Authentication is delegated to the host
+  app; chat-server only enforces authorization via `RequireUserGuard`.
+- **`chat-client`** provides framework-agnostic logic plus React hooks (subpath
+  `@datonfly-assistant/chat-client/react`). No concrete UI here.
+- **`chat-ui-mui`** provides the React/MUI components. Use MUI components and
+  Material Icons for all UI work.
+- **`backend`** and **`frontend`** are thin standalone shims — keep them
+  minimal.
+- Strict TypeScript everywhere. Public APIs documented with JSDoc.
+- Prettier for formatting (`printWidth: 120`, `tabWidth: 4`). ESLint with
+  `strictTypeChecked` + `stylisticTypeChecked`.
+- Database: PostgreSQL, `dfa` schema, singular table names, `snake_case`
+  columns, Kysely migrations with ISO 8601 timestamp prefixes.
+
+## Decision Making
+
+Stick to the agreed plan. If during implementation you encounter unforeseen
+complications, inconsistencies, or ambiguities — stop, describe the problem and
+the available options to the user, and ask how to proceed before continuing.

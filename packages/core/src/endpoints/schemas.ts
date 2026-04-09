@@ -39,6 +39,8 @@ export const threadMessageWireSchema = z.object({
     role: z.enum(["human", "ai"]),
     content: z.array(contentPartSchema),
     authorId: z.string().nullable(),
+    authorName: z.string().nullable(),
+    authorAvatarUrl: z.string().nullable(),
     createdAt: z.string().transform((s) => new Date(s)),
     metadata: z.record(z.string(), z.unknown()).optional(),
 });

@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import { useEffect, useRef, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
-import type { ChatMessage } from "@datonfly-assistant/chat-client/react";
+import { useCurrentUserId, type ChatMessage } from "@datonfly-assistant/chat-client/react";
 
 import { formatTimestamp, formatTimestampFull, shouldShowTimestamp } from "./formatTimestamp.js";
 import { MessageBubble } from "./MessageBubble.js";
@@ -105,6 +105,7 @@ export function MessageList({
 }: MessageListProps): ReactElement {
     const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const currentUserId = useCurrentUserId();
     const lastMsg = messages[messages.length - 1];
     const showThinking = isStreaming === true && !lastMsg?.streaming;
     const prevLengthRef = useRef(messages.length);
@@ -158,7 +159,14 @@ export function MessageList({
                 if (msg.createdAt && shouldShowTimestamp(prev?.createdAt, msg.createdAt)) {
                     elements.push(<TimestampDivider key={`ts-${msg.id}`} date={msg.createdAt} />);
                 }
-                elements.push(<MessageBubble key={msg.id} message={msg} components={components} />);
+                elements.push(
+                    <MessageBubble
+                        key={msg.id}
+                        message={msg}
+                        isOwnMessage={msg.authorId != null && msg.authorId === currentUserId}
+                        components={components}
+                    />,
+                );
                 return elements;
             })}
             {showThinking && <ThinkingBubble />}

@@ -273,20 +273,44 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     }
 
     async loadMessages(options: LoadMessagesOptions): Promise<ThreadMessage[]> {
-        let query = this.qb.selectFrom("message").selectAll().where("thread_id", "=", options.threadId);
+        let query = this.qb
+            .selectFrom("message")
+            .leftJoin("user", "user.id", "message.author_id")
+            .select([
+                "message.id",
+                "message.thread_id",
+                "message.role",
+                "message.content",
+                "message.author_id",
+                "message.created_at",
+                "message.metadata",
+                "user.name as author_name",
+                "user.avatar_url as author_avatar_url",
+            ])
+            .where("message.thread_id", "=", options.threadId);
 
         if (options.before) {
-            query = query.where("created_at", "<", options.before);
+            query = query.where("message.created_at", "<", options.before);
         }
 
-        query = query.orderBy("created_at", "asc");
+        query = query.orderBy("message.created_at", "asc");
 
         if (options.limit) {
             query = query.limit(options.limit);
         }
 
         const rows = await query.execute();
-        return rows.map(toMessage);
+        return rows.map((row) => ({
+            id: row.id,
+            threadId: row.thread_id,
+            role: row.role,
+            content: row.content as ContentPart[],
+            authorId: row.author_id,
+            authorName: row.author_name ?? null,
+            authorAvatarUrl: row.author_avatar_url ?? null,
+            createdAt: row.created_at,
+            metadata: row.metadata ?? undefined,
+        }));
     }
 
     // ─── Search ───
@@ -351,6 +375,8 @@ function toMessage(row: MessageRow): ThreadMessage {
         role: row.role,
         content: row.content as ContentPart[],
         authorId: row.author_id,
+        authorName: null,
+        authorAvatarUrl: null,
         createdAt: row.created_at,
         metadata: row.metadata ?? undefined,
     };

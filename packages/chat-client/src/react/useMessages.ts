@@ -80,6 +80,8 @@ function toChat(msg: ThreadMessage): ChatMessage | null {
         streaming: false,
         createdAt: msg.createdAt,
         authorId: msg.authorId,
+        authorName: msg.authorName,
+        authorAvatarUrl: msg.authorAvatarUrl,
         interrupted: interrupted || undefined,
     };
 }

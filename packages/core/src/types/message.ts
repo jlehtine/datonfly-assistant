@@ -50,6 +50,10 @@ export interface ThreadMessage {
     content: ContentPart[];
     /** User ID of the author, or `null` for system/agent messages. */
     authorId: string | null;
+    /** Display name of the author, resolved from the user record. `null` for AI messages. */
+    authorName: string | null;
+    /** Avatar URL of the author. `null` when unavailable or for AI messages. */
+    authorAvatarUrl: string | null;
     /** Timestamp when the message was created. */
     createdAt: Date;
     /** Arbitrary key-value metadata attached to the message. */

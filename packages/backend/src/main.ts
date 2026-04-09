@@ -160,6 +160,14 @@ async function bootstrap(): Promise<void> {
     const logger = app.get(Logger);
     logger.log(`Backend listening on port ${port}`);
 
+    // ─── Process-level safety nets ───
+    process.on("unhandledRejection", (reason: unknown) => {
+        logger.error(reason, "Unhandled promise rejection");
+    });
+    process.on("uncaughtException", (err: Error) => {
+        logger.error(err, "Uncaught exception");
+    });
+
     // Graceful shutdown
     const shutdown = async (): Promise<void> => {
         logger.log("Shutting down...");

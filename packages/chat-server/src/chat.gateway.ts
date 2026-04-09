@@ -141,10 +141,20 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
 
         socket.on("send-message", (data: SendMessageEvent) => {
-            void this.handleSendMessage(socket, data);
+            this.handleSendMessage(socket, data).catch((err: unknown) => {
+                this.auditLogger.audit("error", "ws.send-message.unhandled", {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+                socket.emit("error", { event: "error", message: "Internal server error" });
+            });
         });
         socket.on("invite-member", (data: InviteMemberEvent) => {
-            void this.handleInviteMember(socket, data);
+            this.handleInviteMember(socket, data).catch((err: unknown) => {
+                this.auditLogger.audit("error", "ws.invite-member.unhandled", {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+                socket.emit("error", { event: "error", message: "Internal server error" });
+            });
         });
     }
 
@@ -357,7 +367,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const active = this.activeStreams.get(threadId);
         if (!active) return;
 
-        active.controller.abort();
+        try {
+            active.controller.abort();
+        } catch {
+            // abort() may throw if a signal listener throws synchronously.
+            // The signal is still marked as aborted.
+        }
         this.activeStreams.delete(threadId);
 
         // Persist partial response with interruption marker (if any text was generated)

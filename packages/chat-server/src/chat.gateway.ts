@@ -466,7 +466,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
      */
     private signalAbort(threadId: string): void {
         const active = this.activeStreams.get(threadId);
-        if (active) active.controller.abort();
+        if (active) {
+            try {
+                active.controller.abort();
+            } catch {
+                // AbortController.abort() may throw if an abort event listener
+                // on the signal throws synchronously. The abort itself still
+                // succeeds — the signal is marked as aborted.
+            }
+        }
     }
 
     /** Acquire the per-thread mutex.  Resolves when the lock is held. */

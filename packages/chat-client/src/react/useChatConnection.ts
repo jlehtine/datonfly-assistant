@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import type { WelcomeEvent } from "@datonfly-assistant/core";
+
 import { ChatClient } from "../client.js";
 
 /** Configuration options for {@link useChatConnection}. */
@@ -18,11 +20,17 @@ export interface UseChatConnectionConfig {
  *
  * Creates the client on first render, connects immediately, and disconnects on unmount.
  *
- * @returns An object containing the stable `client` instance and a reactive `connected` flag.
+ * @returns An object containing the stable `client` instance, a reactive `connected` flag,
+ *   and the resolved `userId` (set after the server emits the `welcome` event).
  */
-export function useChatConnection(config: UseChatConnectionConfig): { client: ChatClient; connected: boolean } {
+export function useChatConnection(config: UseChatConnectionConfig): {
+    client: ChatClient;
+    connected: boolean;
+    userId: string | null;
+} {
     const clientRef = useRef<ChatClient | null>(null);
     const [connected, setConnected] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
 
     clientRef.current ??= new ChatClient({
         url: config.url,
@@ -36,18 +44,24 @@ export function useChatConnection(config: UseChatConnectionConfig): { client: Ch
         };
         const onDisconnect = (): void => {
             setConnected(false);
+            setUserId(null);
+        };
+        const onWelcome = (event: WelcomeEvent): void => {
+            setUserId(event.userId);
         };
 
         client.connect();
         client.on("connect", onConnect);
         client.on("disconnect", onDisconnect);
+        client.on("welcome", onWelcome);
 
         return () => {
             client.off("connect", onConnect);
             client.off("disconnect", onDisconnect);
+            client.off("welcome", onWelcome);
             client.disconnect();
         };
     }, [client]);
 
-    return { client, connected };
+    return { client, connected, userId };
 }

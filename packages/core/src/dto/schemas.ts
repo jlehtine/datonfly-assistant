@@ -59,6 +59,14 @@ export type UpdateThreadRequest = z.infer<typeof updateThreadRequestSchema>;
 /** Zod schema for a request to send a chat message. */
 export const chatRequestSchema = z.object({
     threadId: z.uuid(),
+    /**
+     * Client-generated UUID v4 for the message.
+     *
+     * Human messages are ID'd by the client so optimistic inserts use the
+     * real, permanent identifier. The server validates format and uniqueness.
+     * See CONVENTIONS.md § "Record ID Ownership".
+     */
+    messageId: z.uuid(),
     content: z.array(contentPartSchema).min(1).max(100),
 });
 

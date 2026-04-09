@@ -61,6 +61,7 @@ export type {
     ThreadUpdatedEvent,
     ThreadCreatedEvent,
     ErrorEvent,
+    WelcomeEvent,
     ServerToClientEvent,
 } from "./events/index.js";
 

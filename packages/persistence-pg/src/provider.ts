@@ -240,7 +240,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     // ─── Messages ───
 
     async appendMessage(options: AppendMessageOptions): Promise<ThreadMessage> {
-        const id = randomUUID();
+        const id = options.id ?? randomUUID();
         const now = new Date();
 
         const row = await this.qb

@@ -18,5 +18,6 @@ export type {
     ThreadUpdatedEvent,
     ThreadCreatedEvent,
     ErrorEvent,
+    WelcomeEvent,
     ServerToClientEvent,
 } from "./ws-events.js";

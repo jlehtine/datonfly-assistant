@@ -7,6 +7,7 @@ import type { Components } from "react-markdown";
 import { typedFetch } from "@datonfly-assistant/chat-client";
 import {
     ChatClientContext,
+    CurrentUserIdContext,
     useChatClient,
     useChatConnection,
     useThreadList,
@@ -62,11 +63,13 @@ export interface ChatHistoryEmbedProps {
  */
 export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElement {
     const { url, basePath } = config;
-    const { client } = useChatConnection({ url, basePath });
+    const { client, userId } = useChatConnection({ url, basePath });
 
     return (
         <ChatClientContext.Provider value={client}>
-            <ChatHistoryInner config={config} />
+            <CurrentUserIdContext.Provider value={userId}>
+                <ChatHistoryInner config={config} />
+            </CurrentUserIdContext.Provider>
         </ChatClientContext.Provider>
     );
 }

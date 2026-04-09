@@ -13,6 +13,7 @@ import type { Components } from "react-markdown";
 
 import {
     ChatClientContext,
+    CurrentUserIdContext,
     useChatClient,
     useChatConnection,
     useMembers,
@@ -83,7 +84,7 @@ export interface ChatEmbedProps {
  * parent's height. Wrap the parent in a fixed-height container.
  */
 export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
-    const { client, connected } = useChatConnection({
+    const { client, connected, userId } = useChatConnection({
         url: config.url,
         basePath: config.basePath,
     });
@@ -91,19 +92,21 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
 
     return (
         <ChatClientContext.Provider value={client}>
-            <ChatInner
-                threadId={threadId}
-                connected={connected}
-                onBeforeSend={config.onBeforeSend}
-                inputComponent={config.inputComponent}
-                inputTools={config.inputTools}
-                maxRows={config.maxRows}
-                messageComponents={config.messageComponents}
-                thread={config.thread}
-                onOpenThreadList={config.onOpenThreadList}
-                onRenameThread={config.onRenameThread}
-                onThreadUpdated={config.onThreadUpdated}
-            />
+            <CurrentUserIdContext.Provider value={userId}>
+                <ChatInner
+                    threadId={threadId}
+                    connected={connected}
+                    onBeforeSend={config.onBeforeSend}
+                    inputComponent={config.inputComponent}
+                    inputTools={config.inputTools}
+                    maxRows={config.maxRows}
+                    messageComponents={config.messageComponents}
+                    thread={config.thread}
+                    onOpenThreadList={config.onOpenThreadList}
+                    onRenameThread={config.onRenameThread}
+                    onThreadUpdated={config.onThreadUpdated}
+                />
+            </CurrentUserIdContext.Provider>
         </ChatClientContext.Provider>
     );
 }
@@ -245,7 +248,7 @@ function ChatInner({
             <Composer
                 key={threadId ?? "new"}
                 onSend={sendMessage}
-                disabled={!connected || isStreaming}
+                disabled={!connected}
                 inputComponent={inputComponent}
                 inputTools={inputTools}
                 maxRows={maxRows}

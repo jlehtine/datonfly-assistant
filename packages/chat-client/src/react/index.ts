@@ -1,4 +1,4 @@
-export { ChatClientContext, useChatClient } from "./context.js";
+export { ChatClientContext, CurrentUserIdContext, useChatClient, useCurrentUserId } from "./context.js";
 export { useChatConnection } from "./useChatConnection.js";
 export type { UseChatConnectionConfig } from "./useChatConnection.js";
 export { useMessages } from "./useMessages.js";

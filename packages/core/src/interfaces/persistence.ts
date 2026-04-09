@@ -24,6 +24,15 @@ export interface ListThreadsOptions {
 
 /** Options for appending a message to a thread. */
 export interface AppendMessageOptions {
+    /**
+     * Optional pre-assigned message ID.
+     *
+     * When provided the persistence layer uses this ID instead of generating
+     * one.  Human messages supply a client-generated UUID v4; AI/agent
+     * messages omit this and let the server generate the ID.
+     * See CONVENTIONS.md § "Record ID Ownership".
+     */
+    id?: string | undefined;
     /** Target thread ID. */
     threadId: string;
     /** Role of the message author. */

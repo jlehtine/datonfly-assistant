@@ -7,6 +7,14 @@ export interface SendMessageEvent {
     event: "send-message";
     /** Target thread. */
     threadId: string;
+    /**
+     * Client-generated UUID v4 for the message.
+     *
+     * Human messages are ID'd by the client so optimistic inserts use the
+     * real, permanent identifier. The server validates format and uniqueness.
+     * See CONVENTIONS.md § "Record ID Ownership".
+     */
+    messageId: string;
     /** Message content parts. */
     content: ContentPart[];
 }
@@ -157,6 +165,13 @@ export interface ErrorEvent {
     code?: string | undefined;
 }
 
+/** Emitted to a client immediately after successful WebSocket authentication. */
+export interface WelcomeEvent {
+    event: "welcome";
+    /** The resolved database user ID for the authenticated connection. */
+    userId: string;
+}
+
 /** Discriminated union of all events the server can send to the client. */
 export type ServerToClientEvent =
     | MessageDeltaEvent
@@ -168,4 +183,5 @@ export type ServerToClientEvent =
     | MemberLeftEvent
     | ThreadUpdatedEvent
     | ThreadCreatedEvent
-    | ErrorEvent;
+    | ErrorEvent
+    | WelcomeEvent;

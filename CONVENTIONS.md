@@ -45,3 +45,17 @@ components for all user-facing elements. For icons, use **Material Icons**
 - **Schema changes** are managed via Kysely migrations in
   `packages/persistence-pg/src/migrations/`. Each migration file is prefixed
   with an ISO 8601 timestamp.
+
+## Record ID Ownership
+
+Each record type has a single party responsible for generating its primary key:
+
+- **Client-generated**: `message` (human / user-submitted messages). The client
+  creates a UUID v4 before sending the `send-message` event. The server
+  validates the format and rejects duplicate IDs.
+- **Server-generated**: everything else — `thread`, `user`, `thread_member`, and
+  AI/agent messages.
+
+This split allows the originating client to use the real, permanent ID for
+optimistic inserts without needing a server round-trip or reconciliation step,
+while keeping ID authority on the server for all records it creates.

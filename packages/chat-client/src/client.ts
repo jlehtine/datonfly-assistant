@@ -8,9 +8,11 @@ import {
     type MemberLeftEvent,
     type MessageCompleteEvent,
     type MessageDeltaEvent,
+    type NewMessageEvent,
     type SendMessageEvent,
     type ThreadCreatedEvent,
     type ThreadUpdatedEvent,
+    type WelcomeEvent,
 } from "@datonfly-assistant/core";
 
 /** Map of event names to their handler signatures for {@link ChatClient}. */
@@ -19,6 +21,8 @@ export interface ChatClientEventMap {
     "message-delta": (event: MessageDeltaEvent) => void;
     /** Fired when the server finishes streaming an assistant response. */
     "message-complete": (event: MessageCompleteEvent) => void;
+    /** Fired when a new message is broadcast from another member (or another tab). */
+    "new-message": (event: NewMessageEvent) => void;
     /** Fired when one or more mutable thread properties have been updated. */
     "thread-updated": (event: ThreadUpdatedEvent) => void;
     /** Fired when a new thread has been created. */
@@ -33,6 +37,8 @@ export interface ChatClientEventMap {
     connect: () => void;
     /** Fired when the WebSocket connection is closed. */
     disconnect: () => void;
+    /** Fired after WebSocket auth, provides the resolved user ID. */
+    welcome: (event: WelcomeEvent) => void;
 }
 
 /** Configuration options for {@link ChatClient}. */
@@ -96,10 +102,11 @@ export class ChatClient {
     }
 
     /** Emit a `send-message` event to the server for the given thread. */
-    sendMessage(threadId: string, text: string): void {
+    sendMessage(threadId: string, messageId: string, text: string): void {
         const event: SendMessageEvent = {
             event: "send-message",
             threadId,
+            messageId,
             content: [{ type: "text", text }],
         };
         this.socket.emit("send-message", event);

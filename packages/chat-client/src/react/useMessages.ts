@@ -6,15 +6,16 @@ import {
     type ErrorEvent,
     type MessageCompleteEvent,
     type MessageDeltaEvent,
+    type NewMessageEvent,
     type ThreadMessage,
 } from "@datonfly-assistant/core";
 
 import { typedFetch } from "../fetch.js";
-import { useChatClient } from "./context.js";
+import { useChatClient, useCurrentUserId } from "./context.js";
 
 /** A single chat message held in local React state. */
 export interface ChatMessage {
-    /** Unique client-side message identifier. */
+    /** Unique message identifier (client-generated for human messages, server-generated for AI). */
     id: string;
     /** Whether the message was sent by the user or the assistant. */
     role: "human" | "ai";
@@ -24,6 +25,14 @@ export interface ChatMessage {
     streaming: boolean;
     /** Timestamp when the message was created (only set for history-loaded messages). */
     createdAt?: Date | undefined;
+    /** User ID of the message author, or `null` for AI messages. */
+    authorId?: string | null | undefined;
+    /** Display name of the message author. */
+    authorName?: string | null | undefined;
+    /** Avatar URL of the message author. */
+    authorAvatarUrl?: string | null | undefined;
+    /** `true` when the AI response was interrupted before completion. */
+    interrupted?: boolean | undefined;
 }
 
 /** Options for {@link useMessages}. */
@@ -63,7 +72,16 @@ function extractText(msg: ThreadMessage): string {
 /** Convert a {@link ThreadMessage} from the REST API to a {@link ChatMessage}. */
 function toChat(msg: ThreadMessage): ChatMessage | null {
     const text = extractText(msg);
-    return { id: msg.id, role: msg.role, text, streaming: false, createdAt: msg.createdAt };
+    const interrupted = msg.metadata ? msg.metadata.interrupted === true : false;
+    return {
+        id: msg.id,
+        role: msg.role,
+        text,
+        streaming: false,
+        createdAt: msg.createdAt,
+        authorId: msg.authorId,
+        interrupted: interrupted || undefined,
+    };
 }
 
 /**
@@ -84,6 +102,7 @@ export function useMessages(
 ): UseMessagesResult {
     const { historyPageSize = 50 } = options;
     const client = useChatClient();
+    const currentUserId = useCurrentUserId();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -215,10 +234,41 @@ export function useMessages(
                 .join("\n");
 
             setMessages((prev) =>
-                prev.map((m) => (m.id === event.messageId ? { ...m, text: fullText, streaming: false } : m)),
+                prev.map((m) =>
+                    m.id === event.messageId
+                        ? { ...m, text: fullText, streaming: false, interrupted: event.interrupted ?? undefined }
+                        : m,
+                ),
             );
             streamingIdRef.current = null;
             setIsStreaming(false);
+        };
+
+        const handleNewMessage = (event: NewMessageEvent): void => {
+            if (event.threadId !== resolvedThreadIdRef.current) return;
+
+            const text = event.content
+                .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+                .map((p) => p.text)
+                .join("\n");
+
+            setMessages((prev) => {
+                // Deduplicate: the sender's tab already has this message via optimistic insert.
+                if (prev.some((m) => m.id === event.messageId)) return prev;
+                return [
+                    ...prev,
+                    {
+                        id: event.messageId,
+                        role: event.role,
+                        text,
+                        streaming: false,
+                        createdAt: new Date(event.createdAt),
+                        authorId: event.authorId,
+                        authorName: event.authorName,
+                        authorAvatarUrl: event.authorAvatarUrl,
+                    },
+                ];
+            });
         };
 
         const handleError = (event: ErrorEvent): void => {
@@ -229,23 +279,27 @@ export function useMessages(
 
         client.on("message-delta", handleDelta);
         client.on("message-complete", handleComplete);
+        client.on("new-message", handleNewMessage);
         client.on("error", handleError);
 
         return () => {
             client.off("message-delta", handleDelta);
             client.off("message-complete", handleComplete);
+            client.off("new-message", handleNewMessage);
             client.off("error", handleError);
         };
     }, [client]);
 
     const sendMessage = useCallback(
         (text: string) => {
+            const messageId = crypto.randomUUID();
             const userMsg: ChatMessage = {
-                id: crypto.randomUUID(),
+                id: messageId,
                 role: "human",
                 text,
                 streaming: false,
                 createdAt: new Date(),
+                authorId: currentUserId,
             };
             setMessages((prev) => [...prev, userMsg]);
             setIsStreaming(true);
@@ -256,14 +310,14 @@ export function useMessages(
                     const tid = onBeforeSend ? await onBeforeSend() : resolvedThreadIdRef.current;
                     if (!tid) return;
                     resolvedThreadIdRef.current = tid;
-                    client.sendMessage(tid, text);
+                    client.sendMessage(tid, messageId, text);
                 } catch (e: unknown) {
                     setError(e instanceof Error ? e.message : "Failed to send message");
                     setIsStreaming(false);
                 }
             })();
         },
-        [client, onBeforeSend],
+        [client, currentUserId, onBeforeSend],
     );
 
     const clearError = useCallback(() => {

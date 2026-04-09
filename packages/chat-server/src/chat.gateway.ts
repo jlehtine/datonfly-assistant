@@ -133,6 +133,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     }
 
     handleConnection(socket: Socket): void {
+        // Emit a welcome event with the resolved user ID so the client can
+        // tag optimistic inserts and distinguish own messages.
+        const user = (socket.data as { user?: User | undefined }).user;
+        if (user) {
+            socket.emit("welcome", { event: "welcome", userId: user.id });
+        }
+
         socket.on("send-message", (data: SendMessageEvent) => {
             void this.handleSendMessage(socket, data);
         });
@@ -192,8 +199,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const parsed = chatRequestSchema.safeParse(data);
         if (!parsed.success) return null;
 
-        const { threadId, content } = parsed.data;
-        const messageId = randomUUID();
+        const { threadId, messageId, content } = parsed.data;
+        const aiMessageId = randomUUID();
         const user = (socket.data as { user?: User | undefined }).user;
         const userId = user?.id ?? "anonymous";
 
@@ -209,13 +216,20 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         // Finalize any interrupted stream (abort was already signalled by handleSendMessage).
         await this.interruptActiveStream(threadId);
 
-        // Persist the user message
-        const persistedMsg = await this.persistence.appendMessage({
-            threadId,
-            role: "human",
-            content,
-            authorId: user?.id ?? null,
-        });
+        // Persist the user message (client-generated ID — DB PK rejects dupes)
+        let persistedMsg;
+        try {
+            persistedMsg = await this.persistence.appendMessage({
+                id: messageId,
+                threadId,
+                role: "human",
+                content,
+                authorId: user?.id ?? null,
+            });
+        } catch {
+            socket.emit("error", { event: "error", message: "Duplicate message ID" });
+            return null;
+        }
         this.auditLogger.audit("info", "message.send", { userId, threadId, messageId });
 
         // Broadcast new-message to all members except the sender
@@ -238,7 +252,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
         // Set up abort controller for this stream
         const controller = new AbortController();
-        const streamState = { controller, fullText: "", messageId };
+        const streamState = { controller, fullText: "", messageId: aiMessageId };
         this.activeStreams.set(threadId, streamState);
 
         const stream = await this.agent.stream(messages, threadId, userId, controller.signal);

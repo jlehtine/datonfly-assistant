@@ -29,6 +29,7 @@ import { INTERRUPTION_MARKER, WS_PATH, chatRequestSchema, inviteMemberRequestSch
 import { AuditLogger } from "./audit-logger.js";
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
 import { threadMessagesToAgentMessages } from "./messages.js";
+import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
 
 /** Callback that validates a raw token string and returns the user identity, or `null` on failure. */
@@ -49,6 +50,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly server!: Server;
 
     private titleGenerator: ThreadTitleGenerator | null = null;
+    private roomManager!: ThreadRoomManager;
 
     /** Per-thread mutex: thread IDs for which the lock is currently held. */
     private readonly threadLockHeld = new Set<string>();
@@ -71,6 +73,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
     afterInit(_server: Server): void {
         const server = this.server;
+        this.roomManager = new ThreadRoomManager(server, this.persistence);
         // Socket.io authentication middleware
         if (this.validateToken) {
             const validate = this.validateToken;
@@ -138,6 +141,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const user = (socket.data as { user?: User | undefined }).user;
         if (user) {
             socket.emit("welcome", { event: "welcome", userId: user.id });
+            this.roomManager.joinActiveRooms(socket);
         }
 
         socket.on("send-message", (data: SendMessageEvent) => {
@@ -436,6 +440,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
 
         await this.persistence.addMember(threadId, invitedUser.id, "member");
+        await this.roomManager.addMember(threadId, invitedUser.id);
         this.auditLogger.audit("info", "member.invite", {
             userId: user.id,
             threadId,
@@ -521,8 +526,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     }
 
     /**
-     * Emit an event only to connected sockets whose authenticated user is a
-     * member of the given thread.
+     * Emit an event to all connected sockets in the thread room.
+     *
+     * The room is initialized on-demand if it does not already exist (one
+     * `listMembers` DB query).  Subsequent emits for the same thread use the
+     * Socket.io room directly with no DB queries.
      *
      * @param excludeSocketId - Optional socket ID to exclude (e.g. the sender).
      */
@@ -532,16 +540,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         payload: unknown,
         excludeSocketId?: string,
     ): Promise<void> {
-        const members = await this.persistence.listMembers(threadId);
-        const memberUserIds = new Set(members.map((m) => m.userId));
-
-        const sockets = await this.server.fetchSockets();
-        for (const socket of sockets) {
-            if (excludeSocketId && socket.id === excludeSocketId) continue;
-            const user = (socket.data as { user?: User | undefined }).user;
-            if (user && memberUserIds.has(user.id)) {
-                socket.emit(eventName, payload);
-            }
+        await this.roomManager.ensureRoom(threadId);
+        const room = `thread:${threadId}`;
+        if (excludeSocketId) {
+            this.server.to(room).except(excludeSocketId).emit(eventName, payload);
+        } else {
+            this.server.to(room).emit(eventName, payload);
         }
     }
 }

@@ -5,8 +5,8 @@
     "scripts": {
         "clean": "turbo run clean",
         "build": "turbo run build",
-        "lint": "turbo run lint",
-        "lint:fix": "turbo run lint:fix",
+        "lint": "turbo run lint && eslint tests/ playwright.config.ts",
+        "lint:fix": "turbo run lint:fix && eslint --fix tests/ playwright.config.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "lint-staged": "lint-staged",

@@ -83,6 +83,23 @@ export const inviteMemberRequestSchema = z.object({
 /** Validated request body for inviting a member. */
 export type InviteMemberRequest = z.infer<typeof inviteMemberRequestSchema>;
 
+/** Zod schema for a request to remove a member from a thread. */
+export const removeMemberRequestSchema = z.object({
+    userId: z.uuid(),
+});
+
+/** Validated request body for removing a member. */
+export type RemoveMemberRequest = z.infer<typeof removeMemberRequestSchema>;
+
+/** Zod schema for a request to update a member's role. */
+export const updateMemberRoleRequestSchema = z.object({
+    userId: z.uuid(),
+    role: z.enum(["owner", "member"]),
+});
+
+/** Validated request body for updating a member's role. */
+export type UpdateMemberRoleRequest = z.infer<typeof updateMemberRoleRequestSchema>;
+
 // ─── Search ───
 
 /** Zod schema for a semantic search request. */

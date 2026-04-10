@@ -6,6 +6,8 @@ export type {
     TypingStartEvent,
     TypingStopEvent,
     InviteMemberEvent,
+    RemoveMemberEvent,
+    UpdateMemberRoleEvent,
     ClientToServerEvent,
     // Server → Client
     MessageDeltaEvent,
@@ -15,6 +17,7 @@ export type {
     PresenceUpdateEvent,
     MemberJoinedEvent,
     MemberLeftEvent,
+    MemberRoleChangedEvent,
     ThreadUpdatedEvent,
     ThreadCreatedEvent,
     ErrorEvent,

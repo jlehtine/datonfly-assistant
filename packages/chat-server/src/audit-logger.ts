@@ -6,6 +6,8 @@ export interface AuditData {
     threadId?: string;
     messageId?: string;
     invitedUserId?: string;
+    targetUserId?: string;
+    newRole?: string;
     error?: string;
 }
 

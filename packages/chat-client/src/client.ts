@@ -6,12 +6,15 @@ import {
     type InviteMemberEvent,
     type MemberJoinedEvent,
     type MemberLeftEvent,
+    type MemberRoleChangedEvent,
     type MessageCompleteEvent,
     type MessageDeltaEvent,
     type NewMessageEvent,
+    type RemoveMemberEvent,
     type SendMessageEvent,
     type ThreadCreatedEvent,
     type ThreadUpdatedEvent,
+    type UpdateMemberRoleEvent,
     type WelcomeEvent,
 } from "@datonfly-assistant/core";
 
@@ -31,6 +34,8 @@ export interface ChatClientEventMap {
     "member-joined": (event: MemberJoinedEvent) => void;
     /** Fired when a member has left a thread. */
     "member-left": (event: MemberLeftEvent) => void;
+    /** Fired when a member's role has changed. */
+    "member-role-changed": (event: MemberRoleChangedEvent) => void;
     /** Fired when the server reports an error. */
     error: (event: ErrorEvent) => void;
     /** Fired when the WebSocket connection is established. */
@@ -120,6 +125,27 @@ export class ChatClient {
             email,
         };
         this.socket.emit("invite-member", event);
+    }
+
+    /** Emit a `remove-member` event to remove a user from a thread. */
+    removeMember(threadId: string, userId: string): void {
+        const event: RemoveMemberEvent = {
+            event: "remove-member",
+            threadId,
+            userId,
+        };
+        this.socket.emit("remove-member", event);
+    }
+
+    /** Emit an `update-member-role` event to change a member's role. */
+    updateMemberRole(threadId: string, userId: string, role: "owner" | "member"): void {
+        const event: UpdateMemberRoleEvent = {
+            event: "update-member-role",
+            threadId,
+            userId,
+            role,
+        };
+        this.socket.emit("update-member-role", event);
     }
 
     /** Subscribe to a typed client event. */

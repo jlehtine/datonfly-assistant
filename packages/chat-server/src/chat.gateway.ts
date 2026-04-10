@@ -13,18 +13,29 @@ import type {
     IPersistenceProvider,
     InviteMemberEvent,
     MemberJoinedEvent,
+    MemberLeftEvent,
+    MemberRoleChangedEvent,
     MessageCompleteEvent,
     MessageDeltaEvent,
     NewMessageEvent,
+    RemoveMemberEvent,
     SendMessageEvent,
     Thread,
     ThreadCreatedEvent,
     ThreadUpdatedEvent,
+    UpdateMemberRoleEvent,
     User,
     UserIdentity,
 } from "@datonfly-assistant/core";
 
-import { INTERRUPTION_MARKER, WS_PATH, chatRequestSchema, inviteMemberRequestSchema } from "@datonfly-assistant/core";
+import {
+    INTERRUPTION_MARKER,
+    WS_PATH,
+    chatRequestSchema,
+    inviteMemberRequestSchema,
+    removeMemberRequestSchema,
+    updateMemberRoleRequestSchema,
+} from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
@@ -155,6 +166,22 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         socket.on("invite-member", (data: InviteMemberEvent) => {
             this.handleInviteMember(socket, data).catch((err: unknown) => {
                 this.auditLogger.audit("error", "ws.invite-member.unhandled", {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+                socket.emit("error", { event: "error", message: "Internal server error" });
+            });
+        });
+        socket.on("remove-member", (data: RemoveMemberEvent) => {
+            this.handleRemoveMember(socket, data).catch((err: unknown) => {
+                this.auditLogger.audit("error", "ws.remove-member.unhandled", {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+                socket.emit("error", { event: "error", message: "Internal server error" });
+            });
+        });
+        socket.on("update-member-role", (data: UpdateMemberRoleEvent) => {
+            this.handleUpdateMemberRole(socket, data).catch((err: unknown) => {
+                this.auditLogger.audit("error", "ws.update-member-role.unhandled", {
                     error: err instanceof Error ? err.message : String(err),
                 });
                 socket.emit("error", { event: "error", message: "Internal server error" });
@@ -459,6 +486,132 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         // emitToThreadMembers sends to all members; useThreadList deduplicates.
         const thread = await this.persistence.getThread(threadId);
         if (thread) this.notifyThreadCreated(thread);
+    }
+
+    private async handleRemoveMember(socket: Socket, data: RemoveMemberEvent): Promise<void> {
+        const parsed = removeMemberRequestSchema.safeParse({ userId: data.userId });
+        if (!parsed.success) {
+            socket.emit("error", { event: "error", message: parsed.error.issues[0]?.message ?? "Invalid request" });
+            return;
+        }
+
+        const threadId = data.threadId;
+        const targetUserId = parsed.data.userId;
+        const user = (socket.data as { user?: User | undefined }).user;
+
+        if (!threadId || !user) {
+            socket.emit("error", { event: "error", message: "Invalid request" });
+            return;
+        }
+
+        const senderRole = await this.persistence.getMemberRole(threadId, user.id);
+        if (!senderRole) {
+            socket.emit("error", { event: "error", message: "Not a member of this thread" });
+            return;
+        }
+
+        const isSelf = targetUserId === user.id;
+
+        if (isSelf) {
+            // Self-removal: only non-owners can leave
+            if (senderRole === "owner") {
+                socket.emit("error", { event: "error", message: "Owners cannot remove themselves" });
+                return;
+            }
+        } else {
+            // Removing another user: only owners can do this
+            if (senderRole !== "owner") {
+                socket.emit("error", { event: "error", message: "Only owners can remove other members" });
+                return;
+            }
+        }
+
+        // Verify target is actually a member
+        const targetIsMember = await this.persistence.isMember(threadId, targetUserId);
+        if (!targetIsMember) {
+            socket.emit("error", { event: "error", message: "User is not a member of this thread" });
+            return;
+        }
+
+        await this.persistence.removeMember(threadId, targetUserId);
+        this.auditLogger.audit("info", isSelf ? "member.leave" : "member.remove", {
+            userId: user.id,
+            threadId,
+            targetUserId,
+        });
+
+        const event: MemberLeftEvent = {
+            event: "member-left",
+            threadId,
+            userId: targetUserId,
+        };
+        void this.emitToThreadMembers(threadId, "member-left", event);
+        // Also emit to the removed user directly so their client can react
+        const targetSockets = await this.server.fetchSockets();
+        for (const s of targetSockets) {
+            if ((s.data as { user?: User | undefined }).user?.id === targetUserId) {
+                s.emit("member-left", event);
+                s.leave(`thread:${threadId}`);
+            }
+        }
+    }
+
+    private async handleUpdateMemberRole(socket: Socket, data: UpdateMemberRoleEvent): Promise<void> {
+        const parsed = updateMemberRoleRequestSchema.safeParse({ userId: data.userId, role: data.role });
+        if (!parsed.success) {
+            socket.emit("error", { event: "error", message: parsed.error.issues[0]?.message ?? "Invalid request" });
+            return;
+        }
+
+        const threadId = data.threadId;
+        const targetUserId = parsed.data.userId;
+        const newRole = parsed.data.role;
+        const user = (socket.data as { user?: User | undefined }).user;
+
+        if (!threadId || !user) {
+            socket.emit("error", { event: "error", message: "Invalid request" });
+            return;
+        }
+
+        // Only owners can change roles
+        const senderRole = await this.persistence.getMemberRole(threadId, user.id);
+        if (senderRole !== "owner") {
+            socket.emit("error", { event: "error", message: "Only owners can change member roles" });
+            return;
+        }
+
+        // Cannot change own role
+        if (targetUserId === user.id) {
+            socket.emit("error", { event: "error", message: "Cannot change your own role" });
+            return;
+        }
+
+        // Verify target is a member
+        const targetRole = await this.persistence.getMemberRole(threadId, targetUserId);
+        if (!targetRole) {
+            socket.emit("error", { event: "error", message: "User is not a member of this thread" });
+            return;
+        }
+
+        if (targetRole === newRole) {
+            return; // Already the requested role, no-op
+        }
+
+        await this.persistence.updateMemberRole(threadId, targetUserId, newRole);
+        this.auditLogger.audit("info", "member.role-change", {
+            userId: user.id,
+            threadId,
+            targetUserId,
+            newRole,
+        });
+
+        const event: MemberRoleChangedEvent = {
+            event: "member-role-changed",
+            threadId,
+            userId: targetUserId,
+            role: newRole,
+        };
+        void this.emitToThreadMembers(threadId, "member-role-changed", event);
     }
 
     /** Broadcast a thread-created event to connected clients that are members of the thread. */

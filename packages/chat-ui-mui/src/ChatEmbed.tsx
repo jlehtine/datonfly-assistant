@@ -16,10 +16,11 @@ import {
     CurrentUserIdContext,
     useChatClient,
     useChatConnection,
+    useCurrentUserId,
     useMembers,
     useMessages,
 } from "@datonfly-assistant/chat-client/react";
-import type { Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
+import type { MemberLeftEvent, Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
 import { Composer, type ComposerInputProps } from "./Composer.js";
 import { EditableTitle } from "./EditableTitle.js";
@@ -69,6 +70,11 @@ export interface ChatEmbedConfig {
      * (e.g. after auto-generating a title).
      */
     onThreadUpdated?: ((event: ThreadUpdatedEvent) => void) | undefined;
+    /**
+     * Optional callback invoked when the current user leaves or is removed from
+     * the thread. The parent should deselect the thread.
+     */
+    onLeftThread?: (() => void) | undefined;
 }
 
 /** Props for the {@link ChatEmbed} component. */
@@ -105,6 +111,7 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                     onOpenThreadList={config.onOpenThreadList}
                     onRenameThread={config.onRenameThread}
                     onThreadUpdated={config.onThreadUpdated}
+                    onLeftThread={config.onLeftThread}
                 />
             </CurrentUserIdContext.Provider>
         </ChatClientContext.Provider>
@@ -123,6 +130,7 @@ interface ChatInnerProps {
     onOpenThreadList?: (() => void) | undefined;
     onRenameThread?: ((title: string) => void) | undefined;
     onThreadUpdated?: ((event: ThreadUpdatedEvent) => void) | undefined;
+    onLeftThread?: (() => void) | undefined;
 }
 
 function ChatInner({
@@ -137,9 +145,11 @@ function ChatInner({
     onOpenThreadList,
     onRenameThread,
     onThreadUpdated,
+    onLeftThread,
 }: ChatInnerProps): ReactElement {
     const client = useChatClient();
-    const { members, inviteMember } = useMembers(threadId);
+    const currentUserId = useCurrentUserId();
+    const { members, inviteMember, removeMember, updateMemberRole } = useMembers(threadId);
     const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
 
     const handleOpenMemberDrawer = useCallback(() => {
@@ -148,6 +158,21 @@ function ChatInner({
     const handleCloseMemberDrawer = useCallback(() => {
         setMemberDrawerOpen(false);
     }, []);
+
+    // When the current user is removed from (or leaves) the thread, close the drawer and notify parent.
+    useEffect(() => {
+        if (!threadId || !currentUserId || !onLeftThread) return;
+        const handler = (event: MemberLeftEvent): void => {
+            if (event.threadId === threadId && event.userId === currentUserId) {
+                setMemberDrawerOpen(false);
+                onLeftThread();
+            }
+        };
+        client.on("member-left", handler);
+        return () => {
+            client.off("member-left", handler);
+        };
+    }, [client, threadId, currentUserId, onLeftThread]);
 
     useEffect(() => {
         if (!onThreadUpdated) return;
@@ -258,7 +283,10 @@ function ChatInner({
                     open={memberDrawerOpen}
                     onClose={handleCloseMemberDrawer}
                     members={members}
+                    currentUserId={currentUserId}
                     onInvite={inviteMember}
+                    onRemoveMember={removeMember}
+                    onUpdateMemberRole={updateMemberRole}
                 />
             )}
         </Box>

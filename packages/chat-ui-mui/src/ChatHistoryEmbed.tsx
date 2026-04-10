@@ -147,6 +147,11 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
         [updateThreadTitle],
     );
 
+    const handleLeftThread = useCallback(() => {
+        setSelectedThreadId(null);
+        refresh();
+    }, [refresh]);
+
     const isNarrow = useMediaQuery("(max-width:640px)");
     const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -208,6 +213,7 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
                         thread: selectedThread,
                         onRenameThread: selectedThread ? handleRenameThread : undefined,
                         onThreadUpdated: handleThreadUpdated,
+                        onLeftThread: handleLeftThread,
                         onOpenThreadList: isNarrow
                             ? () => {
                                   setDrawerOpen(true);

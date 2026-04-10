@@ -5,7 +5,9 @@ import {
     threadMembersPath,
     type MemberJoinedEvent,
     type MemberLeftEvent,
+    type MemberRoleChangedEvent,
     type ThreadMemberInfo,
+    type ThreadMemberRole,
 } from "@datonfly-assistant/core";
 
 import { typedFetch } from "../fetch.js";
@@ -19,6 +21,10 @@ export interface UseMembersResult {
     isLoading: boolean;
     /** Invite a user to the current thread by email. */
     inviteMember: (email: string) => void;
+    /** Remove a member from the current thread (or self-remove). */
+    removeMember: (userId: string) => void;
+    /** Change a member's role in the current thread. */
+    updateMemberRole: (userId: string, role: ThreadMemberRole) => void;
 }
 
 /**
@@ -66,11 +72,18 @@ export function useMembers(threadId: string | null): UseMembersResult {
             setMembers((prev) => prev.filter((m) => m.userId !== event.userId));
         };
 
+        const handleRoleChanged = (event: MemberRoleChangedEvent): void => {
+            if (event.threadId !== threadId) return;
+            setMembers((prev) => prev.map((m) => (m.userId === event.userId ? { ...m, role: event.role } : m)));
+        };
+
         client.on("member-joined", handleJoined);
         client.on("member-left", handleLeft);
+        client.on("member-role-changed", handleRoleChanged);
         return () => {
             client.off("member-joined", handleJoined);
             client.off("member-left", handleLeft);
+            client.off("member-role-changed", handleRoleChanged);
         };
     }, [client, threadId]);
 
@@ -82,5 +95,21 @@ export function useMembers(threadId: string | null): UseMembersResult {
         [client, threadId],
     );
 
-    return { members, isLoading, inviteMember };
+    const removeMember = useCallback(
+        (userId: string): void => {
+            if (!threadId) return;
+            client.removeMember(threadId, userId);
+        },
+        [client, threadId],
+    );
+
+    const updateMemberRole = useCallback(
+        (userId: string, role: ThreadMemberRole): void => {
+            if (!threadId) return;
+            client.updateMemberRole(threadId, userId, role);
+        },
+        [client, threadId],
+    );
+
+    return { members, isLoading, inviteMember, removeMember, updateMemberRole };
 }

@@ -11,6 +11,8 @@ export {
     chatRequestSchema,
     // Members
     inviteMemberRequestSchema,
+    removeMemberRequestSchema,
+    updateMemberRoleRequestSchema,
     // Search
     searchRequestSchema,
     memorySearchRequestSchema,
@@ -27,6 +29,8 @@ export type {
     UpdateThreadRequest,
     ChatRequest,
     InviteMemberRequest,
+    RemoveMemberRequest,
+    UpdateMemberRoleRequest,
     SearchRequest,
     MemorySearchRequest,
     PaginationQuery,

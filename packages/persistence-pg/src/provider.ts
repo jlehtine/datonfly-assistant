@@ -237,6 +237,15 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         return row?.role ?? null;
     }
 
+    async updateMemberRole(threadId: string, userId: string, role: ThreadMemberRole): Promise<void> {
+        await this.qb
+            .updateTable("thread_member")
+            .set({ role })
+            .where("thread_id", "=", threadId)
+            .where("user_id", "=", userId)
+            .execute();
+    }
+
     // ─── Messages ───
 
     async appendMessage(options: AppendMessageOptions): Promise<ThreadMessage> {

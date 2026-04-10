@@ -51,6 +51,24 @@ export interface InviteMemberEvent {
     email: string;
 }
 
+/** Client requests removal of a member from a thread (including self-removal). */
+export interface RemoveMemberEvent {
+    event: "remove-member";
+    threadId: string;
+    /** User ID of the member to remove. */
+    userId: string;
+}
+
+/** Client requests a role change for a thread member. */
+export interface UpdateMemberRoleEvent {
+    event: "update-member-role";
+    threadId: string;
+    /** User ID of the member whose role should change. */
+    userId: string;
+    /** The new role to assign. */
+    role: "owner" | "member";
+}
+
 /** Discriminated union of all events the client can send to the server. */
 export type ClientToServerEvent =
     | SendMessageEvent
@@ -58,7 +76,9 @@ export type ClientToServerEvent =
     | LeaveThreadEvent
     | TypingStartEvent
     | TypingStopEvent
-    | InviteMemberEvent;
+    | InviteMemberEvent
+    | RemoveMemberEvent
+    | UpdateMemberRoleEvent;
 
 // ─── Server → Client Events ───
 
@@ -130,6 +150,14 @@ export interface MemberLeftEvent {
     userId: string;
 }
 
+/** A member's role has been changed. */
+export interface MemberRoleChangedEvent {
+    event: "member-role-changed";
+    threadId: string;
+    userId: string;
+    role: "owner" | "member";
+}
+
 /** One or more mutable thread properties have been updated. */
 export interface ThreadUpdatedEvent {
     event: "thread-updated";
@@ -181,6 +209,7 @@ export type ServerToClientEvent =
     | PresenceUpdateEvent
     | MemberJoinedEvent
     | MemberLeftEvent
+    | MemberRoleChangedEvent
     | ThreadUpdatedEvent
     | ThreadCreatedEvent
     | ErrorEvent

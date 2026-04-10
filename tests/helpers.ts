@@ -112,6 +112,12 @@ export async function inviteMember(page: Page, name: string): Promise<void> {
     await expect(memberCountText).toHaveText(`Members (${String(countBefore + 1)})`, { timeout: 10_000 });
 }
 
+/** Open the member drawer. If it's already open, this is a no-op. */
+export async function openMemberDrawer(page: Page): Promise<void> {
+    await page.getByRole("button", { name: "Invite member" }).click();
+    await expect(page.getByText("Members (")).toBeVisible({ timeout: 5_000 });
+}
+
 /** Open a thread from the sidebar by matching its title text. */
 export async function openThread(page: Page, title: string): Promise<void> {
     const threadItem = page.locator(".datonfly-thread-item").filter({ hasText: title });

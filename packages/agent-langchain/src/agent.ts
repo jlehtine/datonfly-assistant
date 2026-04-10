@@ -37,16 +37,89 @@ function extractTextFromContent(content: string | Record<string, unknown>[]): st
         .join("");
 }
 
+/** Map a tool name to a user-visible status string, or `undefined`. */
+function toolNameToStatus(name: unknown): string | undefined {
+    if (typeof name !== "string") return undefined;
+    if (CODE_EXECUTION_TOOL_NAMES.has(name)) return "Running code\u2026";
+    if (name === "web_search") return "Searching the web\u2026";
+    return undefined;
+}
+
 /**
- * Detect whether any content block is a `server_tool_use` for code execution
- * and return an appropriate status string, or `undefined`.
+ * Detect whether any part of a streaming chunk indicates a server tool
+ * invocation and return an appropriate status string, or `undefined`.
+ *
+ * LangChain may place `server_tool_use` blocks in `content`, but during
+ * streaming it often routes them into `tool_call_chunks` or even
+ * `invalid_tool_calls` (see LangChain #9911).  We check all three.
  */
-function detectCodeExecutionStatus(content: string | Record<string, unknown>[]): string | undefined {
-    if (typeof content === "string") return undefined;
-    const hasCodeExec = content.some(
-        (block) => block.type === "server_tool_use" && CODE_EXECUTION_TOOL_NAMES.has(block.name as string),
-    );
-    return hasCodeExec ? "Running code\u2026" : undefined;
+function detectToolStatus(chunk: Record<string, unknown>): string | undefined {
+    // 1. Check content blocks (works for non-streaming / invoke)
+    const content = chunk.content;
+    if (Array.isArray(content)) {
+        for (const block of content as Record<string, unknown>[]) {
+            if (block.type === "server_tool_use") {
+                const s = toolNameToStatus(block.name);
+                if (s) return s;
+            }
+        }
+    }
+
+    // 2. Check tool_call_chunks (streaming path)
+    const toolCallChunks = chunk.tool_call_chunks;
+    if (Array.isArray(toolCallChunks)) {
+        for (const tc of toolCallChunks as Record<string, unknown>[]) {
+            const s = toolNameToStatus(tc.name);
+            if (s) return s;
+        }
+    }
+
+    // 3. Check invalid_tool_calls (LangChain bug workaround)
+    const invalidToolCalls = chunk.invalid_tool_calls;
+    if (Array.isArray(invalidToolCalls)) {
+        for (const tc of invalidToolCalls as Record<string, unknown>[]) {
+            const s = toolNameToStatus(tc.name);
+            if (s) return s;
+        }
+    }
+
+    return undefined;
+}
+
+/** A URL + title pair extracted from a web search citation. */
+interface Citation {
+    url: string;
+    title: string;
+}
+
+/** Extract web-search citations from content blocks. */
+function extractCitations(content: string | Record<string, unknown>[]): Citation[] {
+    if (typeof content === "string") return [];
+    const citations: Citation[] = [];
+    for (const block of content) {
+        if (block.type !== "text" || !Array.isArray(block.citations)) continue;
+        for (const cite of block.citations as Record<string, unknown>[]) {
+            if (typeof cite.url === "string" && typeof cite.title === "string") {
+                citations.push({ url: cite.url, title: cite.title });
+            }
+        }
+    }
+    return citations;
+}
+
+/** Build a deduplicated markdown "Sources" section from collected citations. */
+function buildSourcesSection(citations: Citation[]): string {
+    const seen = new Set<string>();
+    const unique: Citation[] = [];
+    for (const c of citations) {
+        if (!seen.has(c.url)) {
+            seen.add(c.url);
+            unique.push(c);
+        }
+    }
+    if (unique.length === 0) return "";
+    const lines = unique.map((c) => `- [${c.title}](${c.url})`);
+    return `\n\n---\n**Sources**\n${lines.join("\n")}\n`;
 }
 
 /** Configuration options for {@link LangGraphAgent}. */
@@ -61,6 +134,15 @@ export interface LangGraphAgentConfig {
     maxTokens?: number | undefined;
     /** Enable the Anthropic server-side code execution tool (`code_execution_20260120`). */
     enableCodeExecution?: boolean | undefined;
+    /**
+     * Enable the Anthropic server-side web search tool (`web_search_20260209`).
+     *
+     * Requires {@link enableCodeExecution} to also be `true` (the 2026 version
+     * uses code execution for dynamic result filtering).
+     */
+    enableWebSearch?: boolean | undefined;
+    /** Maximum number of web searches per request. Defaults to unlimited when omitted. */
+    webSearchMaxUses?: number | undefined;
 }
 
 /**
@@ -89,6 +171,16 @@ export class LangGraphAgent implements IAgentProvider {
         if (config.enableCodeExecution) {
             serverTools.push({ type: "code_execution_20260120", name: "code_execution" } as ServerTool);
         }
+        if (config.enableWebSearch) {
+            const webSearchTool: Record<string, unknown> = {
+                type: "web_search_20260209",
+                name: "web_search",
+            };
+            if (config.webSearchMaxUses != null) {
+                webSearchTool.max_uses = config.webSearchMaxUses;
+            }
+            serverTools.push(webSearchTool as ServerTool);
+        }
         this.runnableModel = serverTools.length > 0 ? this.model.bindTools(serverTools) : this.model;
     }
 
@@ -104,7 +196,9 @@ export class LangGraphAgent implements IAgentProvider {
             content: string | Record<string, unknown>[];
         };
         const text = extractTextFromContent(response.content);
-        return { role: "ai", content: text };
+        const citations = extractCitations(response.content);
+        const sources = buildSourcesSection(citations);
+        return { role: "ai", content: text + sources };
     }
 
     /** Run the agent and return a stream of incremental response chunks. */
@@ -118,14 +212,21 @@ export class LangGraphAgent implements IAgentProvider {
         const langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(messages), opts);
         return {
             async *[Symbol.asyncIterator]() {
+                const allCitations: Citation[] = [];
                 for await (const chunk of langchainStream) {
-                    const rawContent = (chunk as { content: string | Record<string, unknown>[] }).content;
+                    const rawChunk = chunk as Record<string, unknown>;
+                    const rawContent = rawChunk.content as string | Record<string, unknown>[];
                     const text = extractTextFromContent(rawContent);
-                    const status = detectCodeExecutionStatus(rawContent);
+                    const status = detectToolStatus(rawChunk);
+                    allCitations.push(...extractCitations(rawContent));
 
                     if (text || status) {
                         yield { content: text, ...(status ? { status } : {}) };
                     }
+                }
+                const sources = buildSourcesSection(allCitations);
+                if (sources) {
+                    yield { content: sources };
                 }
             },
         };

@@ -196,7 +196,7 @@ export function MessageList({
                 return elements;
             })}
             {showThinking && !streamingStatus && <ThinkingBubble />}
-            {showThinking && streamingStatus && <StatusBubble status={streamingStatus} />}
+            {isStreaming && streamingStatus && <StatusBubble status={streamingStatus} />}
             <Box ref={endRef} className="datonfly-message-list-end" />
         </Box>
     );

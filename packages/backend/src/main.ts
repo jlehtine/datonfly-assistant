@@ -110,6 +110,7 @@ async function bootstrap(): Promise<void> {
         modelName: model,
         apiKey: process.env.ANTHROPIC_API_KEY,
         enableCodeExecution: process.env.ENABLE_CODE_EXECUTION !== "false",
+        enableWebSearch: process.env.ENABLE_WEB_SEARCH !== "false",
     });
 
     // Optional: separate (cheaper) model for automatic thread title generation.

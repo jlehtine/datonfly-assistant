@@ -120,11 +120,10 @@ export function useMessages(
     const oldestCreatedAtRef = useRef<Date | null>(null);
     // Synchronous loading guard to prevent concurrent history fetches (state updates are async)
     const isLoadingHistoryRef = useRef(false);
-
-    // Keep ref in sync when parent passes a new threadId
-    useEffect(() => {
-        resolvedThreadIdRef.current = threadId;
-    }, [threadId]);
+    // Flag set synchronously in sendMessage to signal that the upcoming
+    // threadId null→value transition should NOT reset isStreaming.
+    // Safe with React StrictMode because it is never mutated inside effects.
+    const pendingSendRef = useRef(false);
 
     /**
      * Fetch a page of history messages from the REST API.
@@ -145,6 +144,11 @@ export function useMessages(
         [client, historyPageSize],
     );
 
+    // Keep ref in sync so event handlers always filter by the latest threadId.
+    useEffect(() => {
+        resolvedThreadIdRef.current = threadId;
+    }, [threadId]);
+
     // Reset and load history when threadId changes
     useEffect(() => {
         setMessages([]);
@@ -152,8 +156,15 @@ export function useMessages(
         oldestCreatedAtRef.current = null;
         isLoadingHistoryRef.current = false;
         streamingIdRef.current = null;
-        setIsStreaming(false);
-        setStreamingStatus(null);
+        // When a send is pending and we're transitioning to a thread
+        // (null → value, lazy-created thread), preserve isStreaming so the
+        // thinking indicator stays visible.  pendingSendRef is set
+        // synchronously in sendMessage and is never mutated inside effects,
+        // so it works correctly with React StrictMode double-invocation.
+        if (!pendingSendRef.current || threadId == null) {
+            setIsStreaming(false);
+            setStreamingStatus(null);
+        }
 
         if (!threadId) return;
 
@@ -212,10 +223,12 @@ export function useMessages(
     useEffect(() => {
         const handleDelta = (event: MessageDeltaEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
+            pendingSendRef.current = false;
+            // Clear tool-status indicator as soon as actual text arrives
+            setStreamingStatus(null);
 
             if (streamingIdRef.current !== event.messageId) {
                 streamingIdRef.current = event.messageId;
-                setStreamingStatus(null);
                 setMessages((prev) => [
                     ...prev,
                     {
@@ -249,6 +262,7 @@ export function useMessages(
                 ),
             );
             streamingIdRef.current = null;
+            pendingSendRef.current = false;
             setIsStreaming(false);
             setStreamingStatus(null);
         };
@@ -290,6 +304,7 @@ export function useMessages(
             setIsStreaming(false);
             setStreamingStatus(null);
             streamingIdRef.current = null;
+            pendingSendRef.current = false;
         };
 
         client.on("message-delta", handleDelta);
@@ -319,6 +334,7 @@ export function useMessages(
                 authorId: currentUserId,
             };
             setMessages((prev) => [...prev, userMsg]);
+            pendingSendRef.current = true;
             setIsStreaming(true);
             setError(null);
 

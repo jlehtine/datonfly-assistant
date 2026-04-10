@@ -87,6 +87,11 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                             bgcolor: "transparent",
                             p: 0,
                         },
+                        "& a": {
+                            color: (t) =>
+                                t.palette.mode === "dark" ? t.palette.primary.light : t.palette.primary.dark,
+                            textDecorationColor: "inherit",
+                        },
                     }}
                 >
                     <Markdown remarkPlugins={[remarkGfm]} components={message.streaming ? undefined : components}>

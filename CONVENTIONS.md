@@ -59,3 +59,16 @@ Each record type has a single party responsible for generating its primary key:
 This split allows the originating client to use the real, permanent ID for
 optimistic inserts without needing a server round-trip or reconciliation step,
 while keeping ID authority on the server for all records it creates.
+
+## End-to-End Tests
+
+All major features must have **Playwright E2E tests** in the `tests/` directory.
+Reusable helpers live in `tests/helpers.ts`.
+
+When a new test requires significant pre-condition state (e.g. creating a
+thread, sending messages, inviting members), prefer **extending an existing test
+case** that already reaches the required state over creating a new standalone
+test. This avoids redundant setup time and keeps the suite fast.
+
+Extract any generic reusable steps (e.g. logging in, sending a message, inviting
+a member) into helper functions in `tests/helpers.ts`.

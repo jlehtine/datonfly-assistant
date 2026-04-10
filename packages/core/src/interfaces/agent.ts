@@ -15,6 +15,8 @@ export interface AgentMessage {
 export interface AgentStreamChunk {
     /** The text content of this chunk. */
     content: string;
+    /** Transient status label shown during streaming (e.g. "Running code…"). Not persisted. */
+    status?: string | undefined;
 }
 
 /** Result of an agent's decision on whether to respond in a room thread. */

@@ -54,6 +54,7 @@ export type {
     UpdateMemberRoleEvent,
     ClientToServerEvent,
     MessageDeltaEvent,
+    MessageStatusEvent,
     MessageCompleteEvent,
     NewMessageEvent,
     TypingEvent,

@@ -92,6 +92,16 @@ export interface MessageDeltaEvent {
     delta: string;
 }
 
+/** Transient status update during assistant streaming (e.g. "Running code…"). Not persisted. */
+export interface MessageStatusEvent {
+    event: "message-status";
+    threadId: string;
+    /** Stable ID for the message being streamed. */
+    messageId: string;
+    /** Human-readable status label. */
+    status: string;
+}
+
 /** Signals that assistant streaming is finished and provides the final content. */
 export interface MessageCompleteEvent {
     event: "message-complete";
@@ -203,6 +213,7 @@ export interface WelcomeEvent {
 /** Discriminated union of all events the server can send to the client. */
 export type ServerToClientEvent =
     | MessageDeltaEvent
+    | MessageStatusEvent
     | MessageCompleteEvent
     | NewMessageEvent
     | TypingEvent

@@ -109,6 +109,7 @@ async function bootstrap(): Promise<void> {
     const agent = new LangGraphAgent({
         modelName: model,
         apiKey: process.env.ANTHROPIC_API_KEY,
+        enableCodeExecution: process.env.ENABLE_CODE_EXECUTION !== "false",
     });
 
     // Optional: separate (cheaper) model for automatic thread title generation.

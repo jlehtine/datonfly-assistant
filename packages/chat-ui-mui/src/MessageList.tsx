@@ -47,6 +47,29 @@ function ThinkingBubble(): ReactElement {
     );
 }
 
+function StatusBubble({ status }: { status: string }): ReactElement {
+    return (
+        <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }} aria-label={status}>
+            <Box
+                sx={{
+                    display: "flex",
+                    gap: 1,
+                    alignItems: "center",
+                    px: 2,
+                    py: 1,
+                    bgcolor: "action.hover",
+                    borderRadius: 2,
+                }}
+            >
+                <CircularProgress size={14} thickness={5} />
+                <Typography variant="body2" color="text.secondary">
+                    {status}
+                </Typography>
+            </Box>
+        </Box>
+    );
+}
+
 function TimestampDivider({ date }: { date: Date }): ReactElement {
     const label = formatTimestamp(date);
     const fullLabel = formatTimestampFull(date);
@@ -72,6 +95,8 @@ export interface MessageListProps {
     messages: ChatMessage[];
     /** When `true`, a typing indicator is shown after the last message. */
     isStreaming?: boolean | undefined;
+    /** Transient status label during streaming (e.g. "Running code…"). */
+    streamingStatus?: string | null | undefined;
     /**
      * Optional custom element renderers forwarded to each {@link MessageBubble}.
      * Use this to enable syntax highlighting by passing `highlightComponents`
@@ -98,6 +123,7 @@ export interface MessageListProps {
 export function MessageList({
     messages,
     isStreaming,
+    streamingStatus,
     components,
     isLoadingHistory,
     hasMore,
@@ -169,7 +195,8 @@ export function MessageList({
                 );
                 return elements;
             })}
-            {showThinking && <ThinkingBubble />}
+            {showThinking && !streamingStatus && <ThinkingBubble />}
+            {showThinking && streamingStatus && <StatusBubble status={streamingStatus} />}
             <Box ref={endRef} className="datonfly-message-list-end" />
         </Box>
     );

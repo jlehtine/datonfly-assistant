@@ -185,10 +185,17 @@ function ChatInner({
         };
     }, [client, onThreadUpdated]);
 
-    const { messages, sendMessage, isStreaming, error, clearError, isLoadingHistory, hasMore, loadMore } = useMessages(
-        threadId,
-        onBeforeSend,
-    );
+    const {
+        messages,
+        sendMessage,
+        isStreaming,
+        streamingStatus,
+        error,
+        clearError,
+        isLoadingHistory,
+        hasMore,
+        loadMore,
+    } = useMessages(threadId, onBeforeSend);
 
     const isNarrow = useMediaQuery("(max-width:640px)");
 
@@ -265,6 +272,7 @@ function ChatInner({
             <MessageList
                 messages={messages}
                 isStreaming={isStreaming}
+                streamingStatus={streamingStatus}
                 components={messageComponents}
                 isLoadingHistory={isLoadingHistory}
                 hasMore={hasMore}

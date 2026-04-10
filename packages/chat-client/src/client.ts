@@ -9,6 +9,7 @@ import {
     type MemberRoleChangedEvent,
     type MessageCompleteEvent,
     type MessageDeltaEvent,
+    type MessageStatusEvent,
     type NewMessageEvent,
     type RemoveMemberEvent,
     type SendMessageEvent,
@@ -24,6 +25,8 @@ export interface ChatClientEventMap {
     "message-delta": (event: MessageDeltaEvent) => void;
     /** Fired when the server finishes streaming an assistant response. */
     "message-complete": (event: MessageCompleteEvent) => void;
+    /** Fired when the server sends a transient status update during streaming (e.g. "Running code…"). */
+    "message-status": (event: MessageStatusEvent) => void;
     /** Fired when a new message is broadcast from another member (or another tab). */
     "new-message": (event: NewMessageEvent) => void;
     /** Fired when one or more mutable thread properties have been updated. */

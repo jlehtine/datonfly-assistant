@@ -6,6 +6,7 @@ import {
     type ErrorEvent,
     type MessageCompleteEvent,
     type MessageDeltaEvent,
+    type MessageStatusEvent,
     type NewMessageEvent,
     type ThreadMessage,
 } from "@datonfly-assistant/core";
@@ -49,6 +50,8 @@ export interface UseMessagesResult {
     sendMessage: (text: string) => void;
     /** `true` while the assistant is generating a response. */
     isStreaming: boolean;
+    /** Transient status label during streaming (e.g. "Running code…"), or `null`. */
+    streamingStatus: string | null;
     /** The most recent error message, or `null` if there is none. */
     error: string | null;
     /** Dismiss the current error. */
@@ -107,6 +110,7 @@ export function useMessages(
     const currentUserId = useCurrentUserId();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [hasMore, setHasMore] = useState(false);
@@ -149,6 +153,7 @@ export function useMessages(
         isLoadingHistoryRef.current = false;
         streamingIdRef.current = null;
         setIsStreaming(false);
+        setStreamingStatus(null);
 
         if (!threadId) return;
 
@@ -210,6 +215,7 @@ export function useMessages(
 
             if (streamingIdRef.current !== event.messageId) {
                 streamingIdRef.current = event.messageId;
+                setStreamingStatus(null);
                 setMessages((prev) => [
                     ...prev,
                     {
@@ -244,6 +250,12 @@ export function useMessages(
             );
             streamingIdRef.current = null;
             setIsStreaming(false);
+            setStreamingStatus(null);
+        };
+
+        const handleStatus = (event: MessageStatusEvent): void => {
+            if (event.threadId !== resolvedThreadIdRef.current) return;
+            setStreamingStatus(event.status);
         };
 
         const handleNewMessage = (event: NewMessageEvent): void => {
@@ -276,17 +288,20 @@ export function useMessages(
         const handleError = (event: ErrorEvent): void => {
             setError(event.message);
             setIsStreaming(false);
+            setStreamingStatus(null);
             streamingIdRef.current = null;
         };
 
         client.on("message-delta", handleDelta);
         client.on("message-complete", handleComplete);
+        client.on("message-status", handleStatus);
         client.on("new-message", handleNewMessage);
         client.on("error", handleError);
 
         return () => {
             client.off("message-delta", handleDelta);
             client.off("message-complete", handleComplete);
+            client.off("message-status", handleStatus);
             client.off("new-message", handleNewMessage);
             client.off("error", handleError);
         };
@@ -326,5 +341,15 @@ export function useMessages(
         setError(null);
     }, []);
 
-    return { messages, sendMessage, isStreaming, error, clearError, isLoadingHistory, hasMore, loadMore };
+    return {
+        messages,
+        sendMessage,
+        isStreaming,
+        streamingStatus,
+        error,
+        clearError,
+        isLoadingHistory,
+        hasMore,
+        loadMore,
+    };
 }

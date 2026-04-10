@@ -17,6 +17,7 @@ import type {
     MemberRoleChangedEvent,
     MessageCompleteEvent,
     MessageDeltaEvent,
+    MessageStatusEvent,
     NewMessageEvent,
     RemoveMemberEvent,
     SendMessageEvent,
@@ -334,6 +335,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             delta,
                         };
                         void this.emitToThreadMembers(threadId, "message-delta", deltaEvent);
+                    }
+
+                    // Emit transient status indicator (e.g. "Running code…") if present.
+                    if (chunk.status) {
+                        const statusEvent: MessageStatusEvent = {
+                            event: "message-status",
+                            threadId,
+                            messageId,
+                            status: chunk.status,
+                        };
+                        void this.emitToThreadMembers(threadId, "message-status", statusEvent);
                     }
                 } finally {
                     this.releaseThreadLock(threadId);

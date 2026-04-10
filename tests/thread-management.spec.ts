@@ -1,23 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-import { composerInput, sendAndWaitForReply } from "./helpers";
-
-/** Generate a unique title string that won't collide with existing threads. */
-function uniqueTitle(label: string): string {
-    return `${label}-${String(Date.now())}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-/** Rename the currently selected thread via the inline editable title in the chat header. */
-async function renameCurrentThread(page: Page, newTitle: string): Promise<void> {
-    // Click the "Edit title" pencil icon in the header
-    await page.getByRole("button", { name: "Edit title" }).click();
-
-    // The InputBase should now be focused — clear and type the new title
-    const titleInput = page.locator("input[maxlength]");
-    await expect(titleInput).toBeFocused({ timeout: 3_000 });
-    await titleInput.fill(newTitle);
-    await titleInput.press("Enter");
-}
+import { composerInput, renameCurrentThread, sendAndWaitForReply, uniqueTitle } from "./helpers";
 
 test.describe("thread list management", () => {
     test("create chats, switch, archive, unarchive, and verify content", async ({ page }) => {

@@ -34,18 +34,26 @@ Configure required details in `.env` (see `.env.example` for a starting point).
 # Install dependencies
 pnpm install
 
-# Build all packages
-pnpm build
-
-# Start the backend
-pnpm start
-
-# In another terminal, start the frontend dev server
+# Start all packages in dev/watch mode
 pnpm dev
 ```
 
+This runs all library packages with `tsc --watch`, the backend with `tsx watch`
+(auto-restart on changes), and the frontend with Vite HMR — so any code change
+across the repo is reflected on the fly.
+
 Open http://localhost:5173 — the frontend proxies WebSocket connections to the
 backend on port 3000.
+
+Alternatively, to build and run without watch mode:
+
+```bash
+pnpm build
+pnpm start
+```
+
+This starts the backend, which also serves the pre-built frontend to the
+browser.
 
 ## End-to-End Tests
 

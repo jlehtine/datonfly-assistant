@@ -11,7 +11,7 @@
         "format:check": "prettier --check .",
         "lint-staged": "lint-staged",
         "start": "pnpm --filter @datonfly-assistant/backend start",
-        "dev": "pnpm --filter @datonfly-assistant/frontend dev",
+        "dev": "turbo run dev",
         "test:e2e": "playwright test",
         "test:e2e:headed": "playwright test --headed",
         "psql": "docker compose exec postgres psql -U datonfly -d datonfly",

@@ -26,6 +26,7 @@
     "scripts": {
         "clean": "rm -rf dist",
         "build": "tsc --project tsconfig.json",
+        "dev": "tsc --watch --project tsconfig.json",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },

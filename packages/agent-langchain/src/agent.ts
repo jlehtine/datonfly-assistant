@@ -143,6 +143,12 @@ export interface LangGraphAgentConfig {
     enableWebSearch?: boolean | undefined;
     /** Maximum number of web searches per request. Defaults to unlimited when omitted. */
     webSearchMaxUses?: number | undefined;
+    /**
+     * Anthropic model used to decide whether the agent should respond in
+     * multi-user threads (e.g. `"claude-haiku-4-5"`).  When omitted the
+     * agent always responds.
+     */
+    triageModelName?: string | undefined;
 }
 
 /**
@@ -154,6 +160,10 @@ export class LangGraphAgent implements IAgentProvider {
     private readonly model: ChatAnthropic;
     /** Model with server tools bound (if any are enabled), or the base model. */
     private readonly runnableModel: Runnable;
+    /** Lazy-initialized cheap model for triage classification. */
+    private triageModel: ChatAnthropic | null = null;
+    private readonly triageModelName: string | undefined;
+    private readonly triageApiKey: string | undefined;
 
     /** Create the agent with the given model configuration. */
     constructor(config: LangGraphAgentConfig) {
@@ -166,6 +176,8 @@ export class LangGraphAgent implements IAgentProvider {
             options.anthropicApiKey = config.apiKey;
         }
         this.model = new ChatAnthropic(options);
+        this.triageModelName = config.triageModelName;
+        this.triageApiKey = config.apiKey;
 
         const serverTools: ServerTool[] = [];
         if (config.enableCodeExecution) {
@@ -232,8 +244,61 @@ export class LangGraphAgent implements IAgentProvider {
         };
     }
 
-    /** Always resolves to `{ shouldRespond: true }` for this implementation. */
-    shouldRespond(_messages: AgentMessage[], _threadId: string): Promise<ShouldRespondResult> {
-        return Promise.resolve({ shouldRespond: true });
+    /**
+     * Determine whether the agent should respond in a multi-user thread.
+     *
+     * When no {@link LangGraphAgentConfig.triageModelName | triageModelName}
+     * is configured the agent always responds.  Otherwise a lightweight
+     * classifier model decides based on the recent conversation context.
+     */
+    async shouldRespond(
+        messages: AgentMessage[],
+        _threadId: string,
+        _memberCount: number,
+    ): Promise<ShouldRespondResult> {
+        if (!this.triageModelName) {
+            return { shouldRespond: true };
+        }
+
+        if (!this.triageModel) {
+            const opts: ConstructorParameters<typeof ChatAnthropic>[0] = {
+                model: this.triageModelName,
+                temperature: 0,
+                maxTokens: 50,
+            };
+            if (this.triageApiKey) {
+                opts.anthropicApiKey = this.triageApiKey;
+            }
+            this.triageModel = new ChatAnthropic(opts);
+        }
+
+        const triageSystemPrompt =
+            "You are a classifier deciding whether an AI assistant should respond to the latest message " +
+            "in a group conversation. Each human message includes a header line with the sender's name " +
+            "and timestamp, for example:\n\n" +
+            "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
+            "Can you explain how this works?\n\n" +
+            'Respond with exactly "YES" or "NO".\n\n' +
+            "YES if:\n" +
+            "- The message is addressed to the AI/assistant\n" +
+            "- The message asks a question not directed at a specific person\n" +
+            "- The AI can add meaningful factual or technical value\n" +
+            "- No specific human seems to be the intended recipient\n\n" +
+            "NO if:\n" +
+            "- The message is clearly directed at another human participant\n" +
+            "- The message is social/casual chat between humans\n" +
+            "- The AI has nothing useful to add";
+
+        const prompt: BaseMessage[] = [new SystemMessage(triageSystemPrompt), ...agentMessagesToBaseMessages(messages)];
+
+        try {
+            const response = await this.triageModel.invoke(prompt);
+            const text = typeof response.content === "string" ? response.content.trim().toUpperCase() : "";
+            const shouldRespond = !text.startsWith("NO");
+            return { shouldRespond, reason: text };
+        } catch {
+            // If triage fails, default to responding.
+            return { shouldRespond: true, reason: "triage error — defaulting to respond" };
+        }
     }
 }

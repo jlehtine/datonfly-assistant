@@ -158,3 +158,13 @@ export type UserSearchResultWire = z.infer<typeof userSearchResultWireSchema>;
 
 /** Zod schema for the user search result list. */
 export const userSearchResultListWireSchema = z.array(userSearchResultWireSchema);
+
+// ─── User Profile ───
+
+/** Zod schema for a request to update the authenticated user's profile. */
+export const updateUserRequestSchema = z.object({
+    agentAlias: z.string().max(50).nullable().optional(),
+});
+
+/** Validated request body for updating user profile. */
+export type UpdateUserRequest = z.infer<typeof updateUserRequestSchema>;

@@ -52,6 +52,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                 email: user.email,
                 name: user.name,
                 avatar_url: user.avatarUrl ?? null,
+                agent_alias: user.agentAlias ?? null,
                 last_login_at: user.lastLoginAt ?? null,
                 deleted_at: user.deletedAt ?? null,
             })
@@ -62,6 +63,19 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                     last_login_at: user.lastLoginAt ?? null,
                 }),
             )
+            .returningAll()
+            .executeTakeFirstOrThrow();
+        return toUser(row);
+    }
+
+    async updateUser(userId: string, updates: Partial<Pick<User, "agentAlias">>): Promise<User> {
+        const values: Record<string, unknown> = {};
+        if ("agentAlias" in updates) values.agent_alias = updates.agentAlias ?? null;
+
+        const row = await this.qb
+            .updateTable("user")
+            .set(values)
+            .where("id", "=", userId)
             .returningAll()
             .executeTakeFirstOrThrow();
         return toUser(row);
@@ -203,6 +217,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                 "user.name",
                 "user.email",
                 "user.avatar_url",
+                "user.agent_alias",
             ])
             .where("thread_member.thread_id", "=", threadId)
             .orderBy("thread_member.joined_at", "asc")
@@ -214,6 +229,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             name: row.name,
             email: row.email,
             avatarUrl: row.avatar_url ?? undefined,
+            agentAlias: row.agent_alias ?? undefined,
         }));
     }
 
@@ -349,6 +365,7 @@ function toUser(row: UserRow): User {
         email: row.email,
         name: row.name,
         avatarUrl: row.avatar_url ?? undefined,
+        agentAlias: row.agent_alias ?? undefined,
         createdAt: row.created_at,
         lastLoginAt: row.last_login_at ?? undefined,
         deletedAt: row.deleted_at ?? undefined,

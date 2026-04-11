@@ -47,4 +47,6 @@ export interface ThreadMemberInfo {
     email: string;
     /** URL to the member's avatar, if available. */
     avatarUrl?: string | undefined;
+    /** Name shown to the AI agent in place of the member's real name. */
+    agentAlias?: string | undefined;
 }

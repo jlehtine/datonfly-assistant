@@ -109,6 +109,7 @@ async function bootstrap(): Promise<void> {
     const agent = new LangGraphAgent({
         modelName: model,
         apiKey: process.env.ANTHROPIC_API_KEY,
+        triageModelName: process.env.ANTHROPIC_TRIAGE_MODEL,
         enableCodeExecution: process.env.ENABLE_CODE_EXECUTION !== "false",
         enableWebSearch: process.env.ENABLE_WEB_SEARCH !== "false",
     });

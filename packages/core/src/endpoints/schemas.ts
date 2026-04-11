@@ -72,3 +72,17 @@ export type ThreadMemberInfoWire = z.infer<typeof threadMemberInfoWireSchema>;
 
 /** Zod schema for an array of thread members with user info. */
 export const threadMemberInfoListWireSchema = z.array(threadMemberInfoWireSchema);
+
+// ─── User Profile (wire format) ───
+
+/** Zod schema for the authenticated user's profile as serialized over JSON. */
+export const userProfileWireSchema = z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string(),
+    avatarUrl: z.string().nullable().optional(),
+    agentAlias: z.string().nullable().optional(),
+});
+
+/** An authenticated user's profile parsed from its JSON wire representation. */
+export type UserProfileWire = z.infer<typeof userProfileWireSchema>;

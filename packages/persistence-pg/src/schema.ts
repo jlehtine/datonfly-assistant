@@ -8,6 +8,7 @@ export interface UsersTable {
     email: string;
     name: string;
     avatar_url: string | null;
+    agent_alias: string | null;
     created_at: ColumnType<Date, Date | undefined, never>;
     last_login_at: Date | null;
     deleted_at: Date | null;

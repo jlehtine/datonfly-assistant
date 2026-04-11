@@ -1,8 +1,10 @@
 import AccountCircle from "@mui/icons-material/AccountCircle";
+import SettingsIcon from "@mui/icons-material/Settings";
 import SwitchAccountIcon from "@mui/icons-material/SwitchAccount";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
@@ -12,9 +14,11 @@ import MenuItem from "@mui/material/MenuItem";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useCallback, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 
-import { ChatHistoryEmbed } from "@datonfly-assistant/chat-ui-mui";
+import { ChatClient } from "@datonfly-assistant/chat-client";
+import { ChatClientContext } from "@datonfly-assistant/chat-client/react";
+import { ChatHistoryEmbed, ChatUserSettings } from "@datonfly-assistant/chat-ui-mui";
 import { emojiPickerTool } from "@datonfly-assistant/chat-ui-mui/emoji";
 import { highlightComponents } from "@datonfly-assistant/chat-ui-mui/highlight";
 import { RichInput } from "@datonfly-assistant/chat-ui-mui/rich";
@@ -50,6 +54,15 @@ export function App(): ReactElement {
     }, []);
     const handleSwitchClose = useCallback(() => {
         setSwitchAnchorEl(null);
+    }, []);
+    const settingsClient = useMemo(() => new ChatClient({ url: BACKEND_URL }), []);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const handleSettingsOpen = useCallback(() => {
+        handleMenuClose();
+        setSettingsOpen(true);
+    }, [handleMenuClose]);
+    const handleSettingsClose = useCallback(() => {
+        setSettingsOpen(false);
     }, []);
     const handleLogout = useCallback(() => {
         handleMenuClose();
@@ -102,6 +115,12 @@ export function App(): ReactElement {
                                 <ListItemText primary="Switch User" />
                             </MenuItem>
                         )}
+                        <MenuItem onClick={handleSettingsOpen}>
+                            <ListItemIcon>
+                                <SettingsIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText primary="Chat Settings" />
+                        </MenuItem>
                         <Divider />
                         <MenuItem onClick={handleLogout}>
                             <ListItemText primary="Sign out" />
@@ -122,6 +141,11 @@ export function App(): ReactElement {
                             ))}
                         </Menu>
                     )}
+                    <Dialog open={settingsOpen} onClose={handleSettingsClose}>
+                        <ChatClientContext.Provider value={settingsClient}>
+                            <ChatUserSettings onSaved={handleSettingsClose} />
+                        </ChatClientContext.Provider>
+                    </Dialog>
                 </Toolbar>
             </AppBar>
             <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "center" }}>

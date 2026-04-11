@@ -40,7 +40,7 @@ import {
 
 import { AuditLogger } from "./audit-logger.js";
 import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
-import { threadMessagesToAgentMessages } from "./messages.js";
+import { buildAuthorAliases, threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
 
@@ -290,7 +290,38 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
         // Load full history and convert to AgentMessage[]
         const history = await this.persistence.loadMessages({ threadId });
-        const messages: AgentMessage[] = threadMessagesToAgentMessages(history);
+        const members = await this.persistence.listMembersWithUser(threadId);
+        const authorAliases = buildAuthorAliases(members);
+        const messages: AgentMessage[] = threadMessagesToAgentMessages(history, authorAliases);
+
+        // Multi-user triage: decide whether the agent should respond
+        const memberCount = members.length;
+        if (memberCount >= 2) {
+            // Triage context window: last 10 messages or 30 minutes
+            const triageMaxMessages = 10;
+            const triageMaxAgeMs = 30 * 60 * 1000;
+            const cutoff = new Date(Date.now() - triageMaxAgeMs);
+
+            // Slice from the full messages array (skip system prompt at index 0)
+            const conversationMessages = messages.slice(1);
+            const recentByTime = conversationMessages.filter((_, i) => {
+                const original = history[i];
+                return original !== undefined && original.createdAt >= cutoff;
+            });
+            const triageMessages = recentByTime.slice(-triageMaxMessages);
+
+            const triageResult = await this.agent.shouldRespond(triageMessages, threadId, memberCount);
+            this.auditLogger.audit("info", "agent.triage", {
+                threadId,
+                memberCount,
+                shouldRespond: triageResult.shouldRespond,
+                reason: triageResult.reason,
+            });
+
+            if (!triageResult.shouldRespond) {
+                return null;
+            }
+        }
 
         // Set up abort controller for this stream
         const controller = new AbortController();

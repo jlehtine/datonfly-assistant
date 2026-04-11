@@ -68,6 +68,8 @@ export interface IPersistenceProvider {
     findUserById(id: string): Promise<User | null>;
     /** Create or update a user record (matched by ID). */
     upsertUser(user: Omit<User, "createdAt">): Promise<User>;
+    /** Update mutable user properties. */
+    updateUser(userId: string, updates: Partial<Pick<User, "agentAlias">>): Promise<User>;
 
     // Threads
     /** Create a new thread and add the creator as owner. */

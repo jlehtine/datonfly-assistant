@@ -87,6 +87,7 @@ export {
     userSearchQuerySchema,
     userSearchResultWireSchema,
     userSearchResultListWireSchema,
+    updateUserRequestSchema,
 } from "./dto/index.js";
 
 export type {
@@ -101,6 +102,7 @@ export type {
     PaginationQuery,
     UserSearchQuery,
     UserSearchResultWire,
+    UpdateUserRequest,
 } from "./dto/index.js";
 
 // Endpoints
@@ -109,6 +111,7 @@ export {
     WS_PATH,
     THREADS_PATH,
     USERS_SEARCH_PATH,
+    USERS_ME_PATH,
     threadPath,
     threadMessagesPath,
     threadMembersPath,
@@ -118,6 +121,7 @@ export {
     threadMessageListWireSchema,
     threadMemberInfoWireSchema,
     threadMemberInfoListWireSchema,
+    userProfileWireSchema,
 } from "./endpoints/index.js";
 
-export type { ThreadWire, ThreadMessageWire, ThreadMemberInfoWire } from "./endpoints/index.js";
+export type { ThreadWire, ThreadMessageWire, ThreadMemberInfoWire, UserProfileWire } from "./endpoints/index.js";

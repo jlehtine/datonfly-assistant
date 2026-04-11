@@ -1,5 +1,6 @@
 import AddIcon from "@mui/icons-material/Add";
 import ArchiveIcon from "@mui/icons-material/Archive";
+import SettingsIcon from "@mui/icons-material/Settings";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -9,6 +10,7 @@ import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
+import Popover from "@mui/material/Popover";
 import Select from "@mui/material/Select";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -16,6 +18,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from "rea
 
 import type { Thread } from "@datonfly-assistant/core";
 
+import { ChatUserSettings } from "./ChatUserSettings.js";
 import { formatTimestamp } from "./formatTimestamp.js";
 
 export interface ThreadListPanelProps {
@@ -56,6 +59,7 @@ export function ThreadListPanel({
     onLoadMore,
 }: ThreadListPanelProps): ReactElement {
     const [filter, setFilter] = useState<ThreadFilter>("active");
+    const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const filtered = threads.filter((t) => (filter === "archived" ? !!t.archivedAt : !t.archivedAt));
@@ -121,6 +125,31 @@ export function ThreadListPanel({
                     <MenuItem value="active">Active</MenuItem>
                     <MenuItem value="archived">Archived</MenuItem>
                 </Select>
+                <Tooltip title="Settings">
+                    <IconButton
+                        size="small"
+                        onClick={(e) => {
+                            setSettingsAnchor(e.currentTarget);
+                        }}
+                        aria-label="Settings"
+                    >
+                        <SettingsIcon fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+                <Popover
+                    open={Boolean(settingsAnchor)}
+                    anchorEl={settingsAnchor}
+                    onClose={() => {
+                        setSettingsAnchor(null);
+                    }}
+                    anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                >
+                    <ChatUserSettings
+                        onSaved={() => {
+                            setSettingsAnchor(null);
+                        }}
+                    />
+                </Popover>
             </Box>
             <Divider />
             <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto" }}>

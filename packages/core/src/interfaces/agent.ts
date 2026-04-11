@@ -52,7 +52,13 @@ export interface IAgentProvider {
 
     /**
      * Determine whether the agent should respond in a room context.
-     * Always returns true for personal threads.
+     *
+     * Called only for multi-member threads (2+ members). Single-member
+     * threads always receive a response without consulting this method.
+     *
+     * @param messages - Recent conversation messages (triage context window).
+     * @param threadId - The thread to evaluate.
+     * @param memberCount - Total number of human members in the thread.
      */
-    shouldRespond(messages: AgentMessage[], threadId: string): Promise<ShouldRespondResult>;
+    shouldRespond(messages: AgentMessage[], threadId: string, memberCount: number): Promise<ShouldRespondResult>;
 }

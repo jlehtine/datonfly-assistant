@@ -8,6 +8,8 @@ export interface User {
     name: string;
     /** URL to the user's profile picture, if available. */
     avatarUrl?: string | undefined;
+    /** Name shown to the AI agent in place of the user's real name. */
+    agentAlias?: string | undefined;
     /** Timestamp when the user record was created. */
     createdAt: Date;
     /** Timestamp of the user's most recent successful authentication. */

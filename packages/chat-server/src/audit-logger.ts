@@ -9,6 +9,9 @@ export interface AuditData {
     targetUserId?: string;
     newRole?: string;
     error?: string;
+    memberCount?: number | undefined;
+    shouldRespond?: boolean | undefined;
+    reason?: string | undefined;
 }
 
 /**

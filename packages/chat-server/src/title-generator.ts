@@ -1,7 +1,7 @@
 import type { AgentMessage, IPersistenceProvider, ThreadMessage } from "@datonfly-assistant/core";
 
 import type { AuditLogger } from "./audit-logger.js";
-import { threadMessagesToAgentMessages } from "./messages.js";
+import { buildAuthorAliases, threadMessagesToAgentMessages } from "./messages.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const TITLE_MESSAGE_WINDOW = 20;
@@ -80,7 +80,9 @@ export class ThreadTitleGenerator {
                     ? allMessages.slice(allMessages.length - TITLE_MESSAGE_WINDOW)
                     : allMessages;
 
-            const agentMessages = threadMessagesToAgentMessages(recentMessages);
+            const members = await this.persistence.listMembersWithUser(threadId);
+            const authorAliases = buildAuthorAliases(members);
+            const agentMessages = threadMessagesToAgentMessages(recentMessages, authorAliases);
             const rawTitle = await this.generateTitle(agentMessages);
 
             // Clean up the LLM response: strip surrounding quotes and whitespace, truncate.

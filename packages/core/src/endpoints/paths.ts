@@ -24,3 +24,6 @@ export function threadMembersPath(threadId: string): string {
 
 /** Path for the user search endpoint. */
 export const USERS_SEARCH_PATH = `${API_PREFIX}/users/search`;
+
+/** Path for the authenticated user's profile. */
+export const USERS_ME_PATH = `${API_PREFIX}/users/me`;

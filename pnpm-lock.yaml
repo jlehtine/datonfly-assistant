@@ -300,6 +300,9 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@datonfly-assistant/chat-client':
+        specifier: workspace:*
+        version: link:../chat-client
       '@datonfly-assistant/chat-ui-mui':
         specifier: workspace:*
         version: link:../chat-ui-mui

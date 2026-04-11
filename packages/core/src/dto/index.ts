@@ -22,6 +22,8 @@ export {
     userSearchQuerySchema,
     userSearchResultWireSchema,
     userSearchResultListWireSchema,
+    // User profile
+    updateUserRequestSchema,
 } from "./schemas.js";
 
 export type {
@@ -36,4 +38,5 @@ export type {
     PaginationQuery,
     UserSearchQuery,
     UserSearchResultWire,
+    UpdateUserRequest,
 } from "./schemas.js";

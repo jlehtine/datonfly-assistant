@@ -12,6 +12,7 @@
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
+        "@datonfly-assistant/chat-client": "workspace:*",
         "@datonfly-assistant/chat-ui-mui": "workspace:*",
         "@datonfly-assistant/core": "workspace:*",
         "@emotion/react": "^11.14.0",

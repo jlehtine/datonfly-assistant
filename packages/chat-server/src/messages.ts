@@ -1,6 +1,7 @@
-import type { AgentMessage, ContentPart, ThreadMessage } from "@datonfly-assistant/core";
+import type { AgentMessage, ContentPart, ThreadMemberInfo, ThreadMessage } from "@datonfly-assistant/core";
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
+/** Default alias used when a member has not configured an agent alias. */
+const DEFAULT_ALIAS = "Unidentified user";
 
 /** Extract the concatenated text from an array of content parts, ignoring tool calls and results. */
 export function extractText(content: ContentPart[]): string {
@@ -24,29 +25,79 @@ function formatTimestamp(date: Date): string {
     );
 }
 
+/** Build a `Map<authorId, alias>` from a list of thread members. */
+export function buildAuthorAliases(members: ThreadMemberInfo[]): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const m of members) {
+        map.set(m.userId, m.agentAlias ?? DEFAULT_ALIAS);
+    }
+    return map;
+}
+
+/**
+ * Build the system prompt prepended to every agent invocation.
+ *
+ * Single-user threads get a personal assistant prompt; multi-user threads
+ * get a group conversation prompt with participant aliases and engagement
+ * guidelines.
+ */
+export function buildSystemPrompt(authorAliases: Map<string, string>): AgentMessage {
+    if (authorAliases.size <= 1) {
+        return {
+            role: "system",
+            content:
+                "You are a personal AI assistant in a one-on-one conversation. Each of the user's " +
+                "messages includes a header line with their name and timestamp, for example:\n\n" +
+                "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
+                "How do I fix this bug?\n\n" +
+                "Use the timestamp to understand when messages were sent relative to each other.",
+        };
+    }
+
+    const participantList = [...authorAliases.values()].join(", ");
+    return {
+        role: "system",
+        content:
+            "You are an AI assistant participating in a group conversation with multiple " +
+            "users. Each human message includes a header line with the sender's name and " +
+            "timestamp, for example:\n\n" +
+            "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
+            "Can you explain how this works?\n\n" +
+            `Current participants: ${participantList}\n\n` +
+            "Guidelines:\n" +
+            '- Respond when directly addressed by name or by a general reference to "the assistant" / "AI"\n' +
+            "- Respond when asked a question that no specific human is addressed to answer\n" +
+            "- Respond when you can add meaningful value (e.g. factual information, analysis, code help)\n" +
+            "- Do NOT respond when users are clearly talking to each other about personal/social matters\n" +
+            "- Do NOT respond to every message — only when your input is relevant\n" +
+            "- When responding, you may reference what specific users said by name",
+    };
+}
+
 /**
  * Convert an array of persisted {@link ThreadMessage} objects to
  * {@link AgentMessage} instances suitable for agent invocation.
  *
- * Inserts a timestamp system message whenever more than one hour has elapsed
- * between consecutive messages.
+ * Every human message is prefixed with a header line containing the sender's
+ * alias and timestamp: `[alias] @ timestamp`. A system prompt is prepended
+ * describing the conversation context.
+ *
+ * @param messages - Persisted thread messages in chronological order.
+ * @param authorAliases - Map from author user ID to display alias.
  */
-export function threadMessagesToAgentMessages(messages: ThreadMessage[]): AgentMessage[] {
-    const result: AgentMessage[] = [];
-    let lastTimestamp: Date | null = null;
+export function threadMessagesToAgentMessages(
+    messages: ThreadMessage[],
+    authorAliases: Map<string, string>,
+): AgentMessage[] {
+    const result: AgentMessage[] = [buildSystemPrompt(authorAliases)];
 
     for (const msg of messages) {
-        const messageTimestamp = msg.createdAt;
-        let needsTimestamp = false;
-        if (lastTimestamp === null || messageTimestamp.getTime() - lastTimestamp.getTime() >= ONE_HOUR_MS) {
-            needsTimestamp = true;
-            lastTimestamp = messageTimestamp;
-        }
         const text = extractText(msg.content);
         switch (msg.role) {
             case "human": {
-                const body = needsTimestamp ? `@ ${formatTimestamp(messageTimestamp)}\n\n${text}` : text;
-                result.push({ role: "human", content: body });
+                const alias = (msg.authorId && authorAliases.get(msg.authorId)) ?? DEFAULT_ALIAS;
+                const header = `[${alias}] @ ${formatTimestamp(msg.createdAt)}`;
+                result.push({ role: "human", content: `${header}\n\n${text}` });
                 break;
             }
             case "ai":

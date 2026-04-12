@@ -130,7 +130,7 @@ export function MemberDrawer({
                                 hasActions ? (
                                     <IconButton
                                         size="small"
-                                        aria-label={`Actions for ${member.name}`}
+                                        aria-label={t("memberActions", { name: member.name })}
                                         onClick={(e) => {
                                             handleOpenMenu(e, member);
                                         }}

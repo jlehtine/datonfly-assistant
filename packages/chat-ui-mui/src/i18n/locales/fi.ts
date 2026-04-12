@@ -36,6 +36,8 @@ const fi: FlatKeys<typeof en> = {
     active: "Aktiiviset",
     archived: "Arkistoidut",
     settings: "Asetukset",
+    archive: "Arkistoi",
+    unarchive: "Palauta arkistosta",
     noArchivedConversations: "Ei arkistoituja keskusteluja.",
     noConversationsYet: "Ei vielä keskusteluja.",
 
@@ -45,6 +47,7 @@ const fi: FlatKeys<typeof en> = {
     // ── MemberDrawer ──
     membersCount: "Jäsenet ({{count}})",
     closeMembers: "Sulje jäsenlista",
+    memberActions: "Toiminnot käyttäjälle {{name}}",
     owner: "Omistaja",
     promoteToOwner: "Ylennä omistajaksi",
     demoteToMember: "Alenna jäseneksi",

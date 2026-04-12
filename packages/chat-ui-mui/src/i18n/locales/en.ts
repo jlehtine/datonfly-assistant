@@ -30,6 +30,8 @@ const en = {
     active: "Active",
     archived: "Archived",
     settings: "Settings",
+    archive: "Archive",
+    unarchive: "Unarchive",
     noArchivedConversations: "No archived conversations.",
     noConversationsYet: "No conversations yet.",
 
@@ -39,6 +41,7 @@ const en = {
     // ── MemberDrawer ──
     membersCount: "Members ({{count}})",
     closeMembers: "Close members",
+    memberActions: "Actions for {{name}}",
     owner: "Owner",
     promoteToOwner: "Promote to Owner",
     demoteToMember: "Demote to Member",

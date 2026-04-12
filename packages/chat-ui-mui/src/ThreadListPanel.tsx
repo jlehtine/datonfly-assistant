@@ -206,6 +206,7 @@ function ThreadListItem({
     locale,
     tsLabels,
 }: ThreadListItemProps): ReactElement {
+    const { t } = useTranslation();
     const isArchived = !!thread.archivedAt;
     const relativeTime = formatTimestamp(thread.updatedAt, undefined, locale, tsLabels);
     const unread = thread.unreadCount ?? 0;
@@ -236,14 +237,14 @@ function ThreadListItem({
             {unread > 0 && (
                 <Badge badgeContent={unread > 99 ? "99+" : unread} color="primary" sx={{ mx: 1, flexShrink: 0 }} />
             )}
-            <Tooltip title={isArchived ? "Unarchive" : "Archive"}>
+            <Tooltip title={isArchived ? t("unarchive") : t("archive")}>
                 <IconButton
                     size="small"
                     onClick={(e) => {
                         e.stopPropagation();
                         onArchiveToggle(thread.id, !isArchived);
                     }}
-                    aria-label={isArchived ? "Unarchive conversation" : "Archive conversation"}
+                    aria-label={isArchived ? t("unarchive") : t("archive")}
                     sx={{ ml: 0.5, flexShrink: 0 }}
                 >
                     {isArchived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}

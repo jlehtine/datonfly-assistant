@@ -27,6 +27,7 @@ function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
 
 const TITLE_INSTRUCTION = new HumanMessage(
     "Generate a short, descriptive title (3-8 words) for the above conversation. " +
+        "The title MUST be in the same language that the participants are predominantly using in the conversation. " +
         "Respond with ONLY the title, no quotes, no explanation.",
 );
 

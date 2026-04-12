@@ -38,6 +38,10 @@ the available options to the user, and ask how to proceed before continuing.
 After implementing a feature, decide whether the feature warrants unit tests or
 end-to-end tests. If so, implement the required tests and verify they pass.
 
+**Run only the specific test file(s) relevant to the change** (e.g.
+`pnpm exec playwright test tests/thread-management.spec.ts`). Running the entire
+test suite at once easily triggers LLM rate limits, causing spurious failures.
+
 E2E tests require the dev server (`pnpm dev`) to be running. If it is not known
 whether the dev server is running, ask the user to start it. If the user
 previously started the dev server in the session, assume it is still running. Do

@@ -68,6 +68,13 @@ npx playwright install chromium
 pnpm test:e2e
 ```
 
+> **Note:** Running the entire test suite at once easily triggers LLM rate
+> limits, causing spurious failures. Prefer running individual test files:
+>
+> ```bash
+> pnpm exec playwright test tests/thread-management.spec.ts
+> ```
+
 ## Package Structure
 
 The project is organized as a monorepo with library packages and a standalone

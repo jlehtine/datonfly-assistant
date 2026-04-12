@@ -5,8 +5,10 @@ import {
     threadListWireSchema,
     threadPath,
     THREADS_PATH,
+    threadUserStatePath,
     threadWireSchema,
     type Thread,
+    type ThreadUpdatedEvent,
 } from "@datonfly-assistant/core";
 
 import { typedFetch } from "../fetch.js";
@@ -19,6 +21,11 @@ export interface UseThreadListOptions {
     includeArchived?: boolean | undefined;
     /** Number of threads to fetch per page. Defaults to 20. */
     pageSize?: number | undefined;
+    /**
+     * Thread ID that the user is actively viewing (selected + tab visible).
+     * New-message events for this thread will not increment its unread count.
+     */
+    activelyViewingThreadId?: string | null | undefined;
 }
 
 /** Return value of {@link useThreadList}. */
@@ -33,6 +40,8 @@ export interface UseThreadListResult {
     refresh: () => void;
     /** Archive or unarchive a thread by ID. */
     setArchived: (threadId: string, archived: boolean) => Promise<void>;
+    /** Mark a thread as read (set unread count to 0 and update last-read timestamp). */
+    markRead: (threadId: string) => void;
     /** Rename a thread. */
     renameThread: (threadId: string, title: string) => Promise<void>;
     /**
@@ -55,6 +64,7 @@ export interface UseThreadListResult {
 export function useThreadList({
     includeArchived = false,
     pageSize = 20,
+    activelyViewingThreadId = null,
 }: UseThreadListOptions = {}): UseThreadListResult {
     const client = useChatClient();
     const [threads, setThreads] = useState<Thread[]>([]);
@@ -62,6 +72,13 @@ export function useThreadList({
     const [error, setError] = useState<ChatErrorInfo | null>(null);
     const [hasMore, setHasMore] = useState(false);
     const loadingRef = useRef(false);
+
+    // Keep a ref so WS event handlers always see the latest value without
+    // being listed as effect dependencies.
+    const activelyViewingRef = useRef(activelyViewingThreadId);
+    useEffect(() => {
+        activelyViewingRef.current = activelyViewingThreadId;
+    }, [activelyViewingThreadId]);
 
     const sortByUpdatedAt = (list: Thread[]): Thread[] =>
         [...list].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
@@ -129,11 +146,32 @@ export function useThreadList({
     const setArchived = useCallback(
         async (threadId: string, archived: boolean): Promise<void> => {
             const body = { archivedAt: archived ? new Date().toISOString() : null };
-            const updated = await typedFetch(client, threadPath(threadId), threadWireSchema, {
+            // Optimistically update local state.
+            setThreads((prev) =>
+                sortByUpdatedAt(
+                    prev.map((t) => (t.id === threadId ? { ...t, archivedAt: archived ? new Date() : undefined } : t)),
+                ),
+            );
+            await typedFetch(client, threadUserStatePath(threadId), null, {
                 method: "PATCH",
                 body,
             });
-            setThreads((prev) => sortByUpdatedAt(prev.map((t) => (t.id === threadId ? updated : t))));
+        },
+        [client],
+    );
+
+    const markRead = useCallback(
+        (threadId: string): void => {
+            const now = new Date();
+            // Optimistic update.
+            setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0, lastReadAt: now } : t)));
+            // Fire-and-forget PATCH.
+            void typedFetch(client, threadUserStatePath(threadId), null, {
+                method: "PATCH",
+                body: { lastReadAt: now.toISOString() },
+            }).catch((e: unknown) => {
+                console.error("[useThreadList] Failed to mark thread as read:", e);
+            });
         },
         [client],
     );
@@ -169,7 +207,7 @@ export function useThreadList({
         const handler = (event: { thread: Record<string, unknown> }): void => {
             const parsed = threadWireSchema.safeParse(event.thread);
             if (!parsed.success) return;
-            const newThread = parsed.data;
+            const newThread: Thread = { ...parsed.data, unreadCount: 0 };
             setThreads((prev) => {
                 // Avoid duplicates.
                 if (prev.some((t) => t.id === newThread.id)) return prev;
@@ -182,5 +220,89 @@ export function useThreadList({
         };
     }, [client]);
 
-    return { threads, loading, error, refresh, setArchived, renameThread, updateThreadTitle, hasMore, loadMore };
+    // Listen for new-message events to increment unread counts for threads not actively viewed.
+    useEffect(() => {
+        const handleNewMessage = (event: { threadId: string }): void => {
+            const tid = event.threadId;
+            if (tid === activelyViewingRef.current) return;
+            setThreads((prev) =>
+                sortByUpdatedAt(
+                    prev.map((t) =>
+                        t.id === tid ? { ...t, unreadCount: (t.unreadCount ?? 0) + 1, updatedAt: new Date() } : t,
+                    ),
+                ),
+            );
+        };
+
+        const handleMessageComplete = (event: { threadId: string }): void => {
+            const tid = event.threadId;
+            if (tid === activelyViewingRef.current) return;
+            setThreads((prev) =>
+                sortByUpdatedAt(
+                    prev.map((t) =>
+                        t.id === tid ? { ...t, unreadCount: (t.unreadCount ?? 0) + 1, updatedAt: new Date() } : t,
+                    ),
+                ),
+            );
+        };
+
+        client.on("new-message", handleNewMessage as Parameters<typeof client.on<"new-message">>[1]);
+        client.on("message-complete", handleMessageComplete as Parameters<typeof client.on<"message-complete">>[1]);
+        return () => {
+            client.off("new-message", handleNewMessage as Parameters<typeof client.off<"new-message">>[1]);
+            client.off(
+                "message-complete",
+                handleMessageComplete as Parameters<typeof client.off<"message-complete">>[1],
+            );
+        };
+    }, [client]);
+
+    // Listen for thread-updated events (auto-unarchive, multi-tab archive/read sync).
+    useEffect(() => {
+        const handleThreadUpdated = (event: ThreadUpdatedEvent): void => {
+            setThreads((prev) =>
+                sortByUpdatedAt(
+                    prev.map((t) => {
+                        if (t.id !== event.threadId) return t;
+                        const updated = { ...t };
+                        if (event.archived !== undefined) {
+                            updated.archivedAt = event.archived ? (t.archivedAt ?? new Date()) : undefined;
+                        }
+                        if (event.unreadCount !== undefined) {
+                            updated.unreadCount = event.unreadCount;
+                        }
+                        if (event.title !== undefined) {
+                            if (t.titleManuallySet && event.titleManuallySet === false) return t;
+                            updated.title = event.title;
+                            if (event.titleManuallySet !== undefined) {
+                                updated.titleManuallySet = event.titleManuallySet;
+                            }
+                        }
+                        if (event.memoryEnabled !== undefined) {
+                            updated.memoryEnabled = event.memoryEnabled;
+                        }
+                        return updated;
+                    }),
+                ),
+            );
+        };
+
+        client.on("thread-updated", handleThreadUpdated as Parameters<typeof client.on<"thread-updated">>[1]);
+        return () => {
+            client.off("thread-updated", handleThreadUpdated as Parameters<typeof client.off<"thread-updated">>[1]);
+        };
+    }, [client]);
+
+    return {
+        threads,
+        loading,
+        error,
+        refresh,
+        setArchived,
+        markRead,
+        renameThread,
+        updateThreadTitle,
+        hasMore,
+        loadMore,
+    };
 }

@@ -7,6 +7,7 @@ export {
     // Thread
     createThreadRequestSchema,
     updateThreadRequestSchema,
+    updateThreadUserStateRequestSchema,
     // Messages
     chatRequestSchema,
     // Members
@@ -29,6 +30,7 @@ export {
 export type {
     CreateThreadRequest,
     UpdateThreadRequest,
+    UpdateThreadUserStateRequest,
     ChatRequest,
     InviteMemberRequest,
     RemoveMemberRequest,

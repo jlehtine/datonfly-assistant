@@ -154,6 +154,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const user = (socket.data as { user?: User | undefined }).user;
         if (user) {
             socket.emit("welcome", { event: "welcome", userId: user.id });
+            // Join per-user room for multi-tab broadcasts (archive / read sync).
+            void socket.join(`user:${user.id}`);
             this.roomManager.joinActiveRooms(socket);
         }
 
@@ -313,6 +315,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         };
         void this.emitToThreadMembers(threadId, "new-message", newMsgEvent, socket.id);
 
+        // Auto-unarchive for all members who have this thread archived.
+        void this.persistence.autoUnarchiveThread(threadId).then(() => {
+            void this.emitToThreadMembers(threadId, "thread-updated", {
+                event: "thread-updated",
+                threadId,
+                archived: false,
+            } satisfies ThreadUpdatedEvent);
+        });
+
         // Load full history and convert to AgentMessage[]
         const history = await this.persistence.loadMessages({ threadId });
         const members = await this.persistence.listMembersWithUser(threadId);
@@ -445,6 +456,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 };
                 void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
                 this.auditLogger.audit("info", "agent.complete", { userId, threadId, messageId });
+
+                // Auto-unarchive for all members who have this thread archived.
+                void this.persistence.autoUnarchiveThread(threadId).then(() => {
+                    void this.emitToThreadMembers(threadId, "thread-updated", {
+                        event: "thread-updated",
+                        threadId,
+                        archived: false,
+                    } satisfies ThreadUpdatedEvent);
+                });
 
                 // Fire-and-forget title generation.
                 if (this.titleGenerator) {
@@ -755,7 +775,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 title: thread.title,
                 createdAt: thread.createdAt.toISOString(),
                 updatedAt: thread.updatedAt.toISOString(),
-                archivedAt: thread.archivedAt?.toISOString() ?? null,
                 memoryEnabled: thread.memoryEnabled,
                 titleGeneratedAt: thread.titleGeneratedAt?.toISOString() ?? null,
                 titleManuallySet: thread.titleManuallySet,
@@ -808,6 +827,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         } else {
             this.threadLockHeld.delete(threadId);
         }
+    }
+
+    /**
+     * Emit an event to all connected sockets for a specific user (multi-tab sync).
+     *
+     * Uses the `user:{userId}` room that each socket joins on connection.
+     */
+    emitToUser(userId: string, eventName: string, payload: unknown): void {
+        this.server.to(`user:${userId}`).emit(eventName, payload);
     }
 
     /**

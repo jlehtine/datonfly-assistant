@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useCallback, useRef, useState, type ComponentType, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactElement } from "react";
 import type { Components } from "react-markdown";
 
 import { typedFetch } from "@datonfly-assistant/chat-client";
@@ -87,18 +87,47 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
     const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
     const pendingCreateRef = useRef<Promise<string> | null>(null);
 
+    // Track Page Visibility API so we only mark threads as read when the tab
+    // is actually visible.
+    const [tabVisible, setTabVisible] = useState(
+        () => typeof document !== "undefined" && document.visibilityState === "visible",
+    );
+    useEffect(() => {
+        const handler = (): void => {
+            setTabVisible(document.visibilityState === "visible");
+        };
+        document.addEventListener("visibilitychange", handler);
+        return () => {
+            document.removeEventListener("visibilitychange", handler);
+        };
+    }, []);
+
+    const activelyViewingThreadId = tabVisible && selectedThreadId ? selectedThreadId : null;
+
     // Always load all threads (active + archived); ThreadListPanel handles client-side filtering.
-    const { threads, loading, setArchived, renameThread, updateThreadTitle, refresh, hasMore, loadMore } =
+    const { threads, loading, setArchived, markRead, renameThread, updateThreadTitle, refresh, hasMore, loadMore } =
         useThreadList({
             includeArchived: true,
+            activelyViewingThreadId,
         });
+
+    // Mark the thread as read when selected + tab visible.
+    useEffect(() => {
+        if (activelyViewingThreadId) {
+            markRead(activelyViewingThreadId);
+        }
+    }, [activelyViewingThreadId, markRead]);
 
     // Find the full Thread object for the currently selected thread.
     const selectedThread = threads.find((t) => t.id === selectedThreadId);
 
     // Create a new thread via the REST API if none is selected yet.
     const ensureThread = useCallback(async (): Promise<string> => {
-        if (selectedThreadId) return selectedThreadId;
+        if (selectedThreadId) {
+            // Defensively mark as read on message send.
+            markRead(selectedThreadId);
+            return selectedThreadId;
+        }
         if (pendingCreateRef.current) return pendingCreateRef.current;
 
         const promise = (async () => {
@@ -111,7 +140,7 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
 
         pendingCreateRef.current = promise;
         return promise;
-    }, [selectedThreadId, client, refresh]);
+    }, [selectedThreadId, client, refresh, markRead]);
 
     const handleArchiveToggleFromPanel = useCallback(
         (threadId: string, archived: boolean) => {
@@ -143,6 +172,10 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
         [selectedThreadId, renameThread],
     );
 
+    // Thread-updated events from the ChatEmbed's own listener (onThreadUpdated prop)
+    // are title-only updates from the title generator. The useThreadList hook handles
+    // all other thread-updated fields (archive, unreadCount, memoryEnabled) via its
+    // own WS listener.
     const handleThreadUpdated = useCallback(
         (event: ThreadUpdatedEvent) => {
             if (event.title !== undefined) {

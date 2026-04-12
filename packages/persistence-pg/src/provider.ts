@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Kysely, QueryCreator } from "kysely";
+import { sql, type Kysely, type QueryCreator } from "kysely";
 
 import type {
     AppendMessageOptions,
@@ -123,11 +123,35 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         let query = this.qb
             .selectFrom("thread")
             .innerJoin("thread_member", "thread.id", "thread_member.thread_id")
+            .leftJoin("thread_user_state", (join) =>
+                join
+                    .onRef("thread_user_state.thread_id", "=", "thread.id")
+                    .onRef("thread_user_state.user_id", "=", "thread_member.user_id"),
+            )
             .selectAll("thread")
+            .select([
+                "thread_user_state.archived_at as user_archived_at",
+                "thread_user_state.last_read_at as user_last_read_at",
+            ])
+            .select(
+                sql<string>`(
+                    select count(*)
+                    from dfa.message m
+                    where m.thread_id = thread.id
+                      and m.author_id is distinct from thread_member.user_id
+                      and m.created_at > coalesce(thread_user_state.last_read_at, '1970-01-01T00:00:00Z'::timestamptz)
+                )`.as("unread_count"),
+            )
             .where("thread_member.user_id", "=", options.userId);
 
         if (!options.includeArchived) {
-            query = query.where("thread.archived_at", "is", null);
+            query = query.where((eb) =>
+                eb.or([
+                    eb("thread_user_state.archived_at", "is", null),
+                    // No state row → not archived
+                    eb("thread_user_state.user_id", "is", null),
+                ]),
+            );
         }
 
         query = query.orderBy("thread.updated_at", "desc").orderBy("thread.id", "asc");
@@ -140,19 +164,26 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         }
 
         const rows = await query.execute();
-        return rows.map(toThread);
+        return rows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            archivedAt: row.user_archived_at ?? undefined,
+            memoryEnabled: row.memory_enabled,
+            lastReadAt: row.user_last_read_at ?? undefined,
+            unreadCount: parseInt(row.unread_count, 10),
+            titleGeneratedAt: row.title_generated_at ?? undefined,
+            titleManuallySet: row.title_manually_set,
+        }));
     }
 
     async updateThread(
         threadId: string,
-        updates: Partial<
-            Pick<Thread, "title" | "archivedAt" | "memoryEnabled" | "titleGeneratedAt" | "titleManuallySet">
-        >,
+        updates: Partial<Pick<Thread, "title" | "memoryEnabled" | "titleGeneratedAt" | "titleManuallySet">>,
     ): Promise<Thread> {
         const values: Record<string, unknown> = {};
         if (updates.title !== undefined) values.title = updates.title;
-        if (updates.archivedAt !== undefined) values.archived_at = updates.archivedAt;
-        if ("archivedAt" in updates && updates.archivedAt === undefined) values.archived_at = null;
         if (updates.memoryEnabled !== undefined) values.memory_enabled = updates.memoryEnabled;
         if (updates.titleGeneratedAt !== undefined) values.title_generated_at = updates.titleGeneratedAt;
         if ("titleGeneratedAt" in updates && updates.titleGeneratedAt === undefined) values.title_generated_at = null;
@@ -170,6 +201,36 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
     async deleteThread(threadId: string): Promise<void> {
         await this.qb.deleteFrom("thread").where("id", "=", threadId).execute();
+    }
+
+    async updateThreadUserState(
+        threadId: string,
+        userId: string,
+        updates: { archivedAt?: Date | null; lastReadAt?: Date | null },
+    ): Promise<void> {
+        const values: Record<string, unknown> = {};
+        if ("archivedAt" in updates) values.archived_at = updates.archivedAt ?? null;
+        if ("lastReadAt" in updates) values.last_read_at = updates.lastReadAt ?? null;
+
+        await this.qb
+            .insertInto("thread_user_state")
+            .values({
+                user_id: userId,
+                thread_id: threadId,
+                archived_at: (values.archived_at as Date | null) ?? null,
+                last_read_at: (values.last_read_at as Date | null) ?? null,
+            })
+            .onConflict((oc) => oc.columns(["user_id", "thread_id"]).doUpdateSet(values))
+            .execute();
+    }
+
+    async autoUnarchiveThread(threadId: string): Promise<void> {
+        await this.qb
+            .updateTable("thread_user_state")
+            .set({ archived_at: null })
+            .where("thread_id", "=", threadId)
+            .where("archived_at", "is not", null)
+            .execute();
     }
 
     // ─── Membership ───
@@ -378,7 +439,6 @@ function toThread(row: ThreadRow): Thread {
         title: row.title,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        archivedAt: row.archived_at ?? undefined,
         memoryEnabled: row.memory_enabled,
         titleGeneratedAt: row.title_generated_at ?? undefined,
         titleManuallySet: row.title_manually_set,

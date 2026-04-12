@@ -20,6 +20,7 @@ import {
     createThreadRequestSchema,
     paginationQuerySchema,
     updateThreadRequestSchema,
+    updateThreadUserStateRequestSchema,
     type CreateThreadRequest,
     type IPersistenceProvider,
     type PaginationQuery,
@@ -27,6 +28,7 @@ import {
     type ThreadMemberInfo,
     type ThreadMessage,
     type UpdateThreadRequest,
+    type UpdateThreadUserStateRequest,
     type User,
 } from "@datonfly-assistant/core";
 
@@ -136,7 +138,6 @@ export class ThreadController {
 
         const updates: {
             title?: string;
-            archivedAt?: Date | undefined;
             memoryEnabled?: boolean;
             titleManuallySet?: boolean;
         } = {};
@@ -145,13 +146,42 @@ export class ThreadController {
             updates.titleManuallySet = true;
         }
         if (body.memoryEnabled !== undefined) updates.memoryEnabled = body.memoryEnabled;
-        if (body.archivedAt !== undefined) {
-            updates.archivedAt = body.archivedAt ?? undefined;
-        }
 
         const updated = await this.persistence.updateThread(threadId, updates);
         this.auditLogger.audit("info", "thread.update", { userId: user.id, threadId });
         return updated;
+    }
+
+    @Patch(":id/my-state")
+    @HttpCode(204)
+    async updateMyState(
+        @ResolvedUser() user: User,
+        @Param("id", new ZodValidationPipe(z.uuid())) threadId: string,
+        @Body(new ZodValidationPipe(updateThreadUserStateRequestSchema)) body: UpdateThreadUserStateRequest,
+    ): Promise<void> {
+        const isMember = await this.persistence.isMember(threadId, user.id);
+        if (!isMember) {
+            throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
+        }
+
+        const updates: { archivedAt?: Date | null; lastReadAt?: Date | null } = {};
+        if (body.archivedAt !== undefined) {
+            updates.archivedAt = body.archivedAt;
+        }
+        if (body.lastReadAt !== undefined) {
+            updates.lastReadAt = body.lastReadAt;
+        }
+
+        await this.persistence.updateThreadUserState(threadId, user.id, updates);
+        this.auditLogger.audit("info", "thread.update-user-state", { userId: user.id, threadId });
+
+        // Broadcast to the acting user's other sockets for multi-tab sync.
+        this.gateway.emitToUser(user.id, "thread-updated", {
+            event: "thread-updated",
+            threadId,
+            ...(body.archivedAt !== undefined ? { archived: body.archivedAt !== null } : {}),
+            ...(body.lastReadAt !== undefined ? { unreadCount: 0 } : {}),
+        });
     }
 
     @Delete(":id")

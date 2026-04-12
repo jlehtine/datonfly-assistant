@@ -8,10 +8,14 @@ export interface Thread {
     createdAt: Date;
     /** Timestamp of the last modification (title change, new message, etc.). */
     updatedAt: Date;
-    /** Timestamp when the thread was archived, or `undefined` if active. */
+    /** Timestamp when the thread was archived by the requesting user, or `undefined` if active. Per-user. */
     archivedAt?: Date | undefined;
     /** Whether the agent persists long-term memories from this thread. */
     memoryEnabled: boolean;
+    /** Timestamp when the requesting user last read this thread, or `undefined`. Per-user. */
+    lastReadAt?: Date | undefined;
+    /** Number of unread messages from others since the user last read. Per-user. */
+    unreadCount?: number | undefined;
     /** Timestamp of the last auto-generated title, or `undefined` if never generated. */
     titleGeneratedAt?: Date | undefined;
     /** Whether the title was manually set by a user (protected from auto-generation). */

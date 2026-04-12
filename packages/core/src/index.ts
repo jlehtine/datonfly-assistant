@@ -80,6 +80,7 @@ export {
     contentPartSchema,
     createThreadRequestSchema,
     updateThreadRequestSchema,
+    updateThreadUserStateRequestSchema,
     chatRequestSchema,
     inviteMemberRequestSchema,
     removeMemberRequestSchema,
@@ -96,6 +97,7 @@ export {
 export type {
     CreateThreadRequest,
     UpdateThreadRequest,
+    UpdateThreadUserStateRequest,
     ChatRequest,
     InviteMemberRequest,
     RemoveMemberRequest,
@@ -118,6 +120,7 @@ export {
     threadPath,
     threadMessagesPath,
     threadMembersPath,
+    threadUserStatePath,
     threadWireSchema,
     threadListWireSchema,
     threadMessageWireSchema,

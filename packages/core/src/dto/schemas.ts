@@ -47,12 +47,20 @@ export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 /** Zod schema for a request to update an existing thread. */
 export const updateThreadRequestSchema = z.object({
     title: z.string().min(1).max(200).optional(),
-    archivedAt: z.coerce.date().nullable().optional(),
     memoryEnabled: z.boolean().optional(),
 });
 
 /** Validated request body for updating a thread. */
 export type UpdateThreadRequest = z.infer<typeof updateThreadRequestSchema>;
+
+/** Zod schema for a request to update per-user thread state (archive / mark-read). */
+export const updateThreadUserStateRequestSchema = z.object({
+    archivedAt: z.coerce.date().nullable().optional(),
+    lastReadAt: z.coerce.date().nullable().optional(),
+});
+
+/** Validated request body for updating per-user thread state. */
+export type UpdateThreadUserStateRequest = z.infer<typeof updateThreadUserStateRequestSchema>;
 
 // ─── Messages ───
 

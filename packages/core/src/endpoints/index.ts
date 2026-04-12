@@ -7,6 +7,7 @@ export {
     threadPath,
     threadMessagesPath,
     threadMembersPath,
+    threadUserStatePath,
 } from "./paths.js";
 
 export {

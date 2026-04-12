@@ -37,18 +37,35 @@ export interface TypedFetchOptions {
  * the JSON response through the provided Zod schema. Authentication
  * is handled automatically via HTTP-only cookies.
  *
+ * When `schema` is `null` the response body is not parsed and the
+ * return type is `null` — useful for endpoints that return 204 No Content.
+ *
  * @param client - The chat client providing `basePath`.
  * @param path - Absolute endpoint path (e.g. {@link THREADS_PATH}).
- * @param schema - Zod schema used to parse and validate the response body.
+ * @param schema - Zod schema used to parse and validate the response body, or `null` to skip parsing.
  * @param options - Optional HTTP method, body, and query parameters.
- * @returns The parsed and validated response data.
+ * @returns The parsed and validated response data, or `null` when `schema` is `null`.
  */
+/** Overload: schema provided → returns `T`. */
 export async function typedFetch<T>(
     client: ChatClient,
     path: string,
     schema: z.ZodType<T>,
+    options?: TypedFetchOptions,
+): Promise<T>;
+/** Overload: `null` schema → returns `null` (for 204 No Content). */
+export async function typedFetch(
+    client: ChatClient,
+    path: string,
+    schema: null,
+    options?: TypedFetchOptions,
+): Promise<null>;
+export async function typedFetch<T>(
+    client: ChatClient,
+    path: string,
+    schema: z.ZodType<T> | null,
     options: TypedFetchOptions = {},
-): Promise<T> {
+): Promise<T | null> {
     const { method = "GET", body, query } = options;
 
     let url = client.basePath + path;
@@ -84,6 +101,8 @@ export async function typedFetch<T>(
         }
         throw new ChatError(message, code);
     }
+
+    if (!schema || res.status === 204) return null;
 
     const json: unknown = await res.json();
     return schema.parse(json);

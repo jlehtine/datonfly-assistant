@@ -20,7 +20,6 @@ export interface ThreadsTable {
     title: string;
     created_at: ColumnType<Date, Date | undefined, never>;
     updated_at: ColumnType<Date, Date | undefined, Date>;
-    archived_at: Date | null;
     memory_enabled: ColumnType<boolean, boolean | undefined, boolean>;
     title_generated_at: Date | null;
     title_manually_set: ColumnType<boolean, boolean | undefined, boolean>;
@@ -45,6 +44,14 @@ export interface MessagesTable {
     metadata: ColumnType<Record<string, unknown> | null, string | null | undefined, never>;
 }
 
+/** Kysely table definition for the `thread_user_state` database table. */
+export interface ThreadUserStateTable {
+    user_id: string;
+    thread_id: string;
+    archived_at: Date | null;
+    last_read_at: Date | null;
+}
+
 // ─── Database ───
 
 /** Kysely database schema mapping table names to their definitions. */
@@ -53,6 +60,7 @@ export interface Database {
     thread: ThreadsTable;
     thread_member: ThreadMembersTable;
     message: MessagesTable;
+    thread_user_state: ThreadUserStateTable;
 }
 
 // ─── Row Types ───
@@ -76,3 +84,8 @@ export type NewThreadMember = Insertable<ThreadMembersTable>;
 export type MessageRow = Selectable<MessagesTable>;
 /** Insertable row type for the `message` table. */
 export type NewMessage = Insertable<MessagesTable>;
+
+/** Selected (read) row type for the `thread_user_state` table. */
+export type ThreadUserStateRow = Selectable<ThreadUserStateTable>;
+/** Insertable row type for the `thread_user_state` table. */
+export type NewThreadUserState = Insertable<ThreadUserStateTable>;

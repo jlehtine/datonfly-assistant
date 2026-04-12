@@ -16,6 +16,12 @@ export const threadWireSchema = z.object({
         .optional()
         .transform((s) => (s ? new Date(s) : undefined)),
     memoryEnabled: z.boolean(),
+    lastReadAt: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((s) => (s ? new Date(s) : undefined)),
+    unreadCount: z.number().int().nonnegative().optional(),
     titleGeneratedAt: z
         .string()
         .nullable()

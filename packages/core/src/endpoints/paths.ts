@@ -22,6 +22,11 @@ export function threadMembersPath(threadId: string): string {
     return `${THREADS_PATH}/${threadId}/members`;
 }
 
+/** Path for the authenticated user's per-thread state (archive / last-read). */
+export function threadUserStatePath(threadId: string): string {
+    return `${THREADS_PATH}/${threadId}/my-state`;
+}
+
 /** Path for the user search endpoint. */
 export const USERS_SEARCH_PATH = `${API_PREFIX}/users/search`;
 

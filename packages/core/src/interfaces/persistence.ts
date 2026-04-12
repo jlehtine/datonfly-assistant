@@ -81,12 +81,19 @@ export interface IPersistenceProvider {
     /** Update mutable thread properties. */
     updateThread(
         threadId: string,
-        updates: Partial<
-            Pick<Thread, "title" | "archivedAt" | "memoryEnabled" | "titleGeneratedAt" | "titleManuallySet">
-        >,
+        updates: Partial<Pick<Thread, "title" | "memoryEnabled" | "titleGeneratedAt" | "titleManuallySet">>,
     ): Promise<Thread>;
     /** Permanently delete a thread and all its messages. */
     deleteThread(threadId: string): Promise<void>;
+
+    /** Update per-user thread state (archive / last-read). Creates the row on first call (UPSERT). */
+    updateThreadUserState(
+        threadId: string,
+        userId: string,
+        updates: { archivedAt?: Date | null; lastReadAt?: Date | null },
+    ): Promise<void>;
+    /** Clear `archived_at` for all members who have the thread archived (auto-unarchive). */
+    autoUnarchiveThread(threadId: string): Promise<void>;
 
     // Membership
     /** Add a user to a thread with the given role. */

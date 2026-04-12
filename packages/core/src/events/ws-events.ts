@@ -182,6 +182,8 @@ export interface ThreadUpdatedEvent {
     titleManuallySet?: boolean | undefined;
     archived?: boolean | undefined;
     memoryEnabled?: boolean | undefined;
+    /** Per-user unread count (only sent to the affected user's sockets). */
+    unreadCount?: number | undefined;
 }
 
 /** A new thread has been created. */

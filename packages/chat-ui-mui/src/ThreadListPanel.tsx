@@ -2,6 +2,7 @@ import AddIcon from "@mui/icons-material/Add";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import SettingsIcon from "@mui/icons-material/Settings";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
@@ -207,6 +208,7 @@ function ThreadListItem({
 }: ThreadListItemProps): ReactElement {
     const isArchived = !!thread.archivedAt;
     const relativeTime = formatTimestamp(thread.updatedAt, undefined, locale, tsLabels);
+    const unread = thread.unreadCount ?? 0;
 
     return (
         <ListItemButton
@@ -224,12 +226,16 @@ function ThreadListItem({
                     primary: {
                         noWrap: true,
                         variant: "body2",
+                        fontWeight: unread > 0 ? 600 : undefined,
                     },
                     secondary: {
                         variant: "caption",
                     },
                 }}
             />
+            {unread > 0 && (
+                <Badge badgeContent={unread > 99 ? "99+" : unread} color="primary" sx={{ mx: 1, flexShrink: 0 }} />
+            )}
             <Tooltip title={isArchived ? "Unarchive" : "Archive"}>
                 <IconButton
                     size="small"

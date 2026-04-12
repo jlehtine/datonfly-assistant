@@ -91,7 +91,7 @@ export function threadMessagesToAgentMessages(
 ): AgentMessage[] {
     const result: AgentMessage[] = [buildSystemPrompt(authorAliases)];
 
-    for (const msg of messages) {
+    for (const [i, msg] of messages.entries()) {
         const text = extractText(msg.content);
         switch (msg.role) {
             case "human": {
@@ -100,9 +100,20 @@ export function threadMessagesToAgentMessages(
                 result.push({ role: "human", content: `${header}\n\n${text}` });
                 break;
             }
-            case "ai":
-                result.push({ role: "ai", content: text });
+            case "ai": {
+                if (msg.metadata?.interrupted === true) {
+                    const next = messages[i + 1];
+                    const byAlias =
+                        next?.role === "human" && next.authorId
+                            ? (authorAliases.get(next.authorId) ?? DEFAULT_ALIAS)
+                            : undefined;
+                    const tag = byAlias ? `[interrupted by ${byAlias}]` : "[interrupted]";
+                    result.push({ role: "ai", content: `${text}\n\n${tag}` });
+                } else {
+                    result.push({ role: "ai", content: text });
+                }
                 break;
+            }
         }
     }
 

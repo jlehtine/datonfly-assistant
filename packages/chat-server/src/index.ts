@@ -13,6 +13,7 @@ export {
     AGENT_PROVIDER,
     VALIDATE_TOKEN_FN,
     GENERATE_TITLE_FN,
+    COMPACTION_AGENT_PROVIDER,
     CHAT_CORS_OPTIONS,
 } from "./constants.js";
 

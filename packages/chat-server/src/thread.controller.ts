@@ -86,7 +86,12 @@ export class ThreadController {
             throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
         }
 
-        return this.persistence.loadMessages({ threadId, limit: query.limit, before: query.before });
+        return this.persistence.loadMessages({
+            threadId,
+            limit: query.limit,
+            before: query.before,
+            excludeCompactionSummaries: true,
+        });
     }
 
     @Get(":id/members")

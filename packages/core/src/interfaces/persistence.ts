@@ -43,6 +43,8 @@ export interface AppendMessageOptions {
     authorId: string | null;
     /** Arbitrary metadata to attach to the message. */
     metadata?: Record<string, unknown> | undefined;
+    /** Override the logical ordering timestamp. Defaults to the current time. */
+    contentAt?: Date | undefined;
 }
 
 /** Options for loading messages from a thread with cursor-based pagination. */
@@ -53,6 +55,10 @@ export interface LoadMessagesOptions {
     limit?: number | undefined;
     /** Return only messages created before this timestamp. */
     before?: Date | undefined;
+    /** Exclude messages marked as compacted (original messages replaced by a summary). */
+    excludeCompacted?: boolean | undefined;
+    /** Exclude compaction summary messages (agent-generated summaries not shown to users). */
+    excludeCompactionSummaries?: boolean | undefined;
 }
 
 /**
@@ -118,6 +124,10 @@ export interface IPersistenceProvider {
     loadMessages(options: LoadMessagesOptions): Promise<ThreadMessage[]>;
     /** Count the total number of messages in a thread. */
     countMessages(threadId: string): Promise<number>;
+    /** Merge additional metadata into an existing message's metadata JSONB. */
+    updateMessageMetadata(messageId: string, metadata: Record<string, unknown>): Promise<void>;
+    /** Permanently delete a message by ID. */
+    deleteMessage(messageId: string): Promise<void>;
 
     // Search
     /** Search users by name or email (case-insensitive substring match). */

@@ -9,6 +9,7 @@ import type { Server, Socket } from "socket.io";
 import type {
     AgentMessage,
     AgentStreamChunk,
+    AgentUsage,
     Citation,
     IAgentProvider,
     IPersistenceProvider,
@@ -40,7 +41,14 @@ import {
 } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
-import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
+import { CompactionService } from "./compaction.js";
+import {
+    AGENT_PROVIDER,
+    COMPACTION_AGENT_PROVIDER,
+    GENERATE_TITLE_FN,
+    PERSISTENCE_PROVIDER,
+    VALIDATE_TOKEN_FN,
+} from "./constants.js";
 import { buildAuthorAliases, threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
@@ -56,6 +64,15 @@ export type ValidateTokenFn = (token: string) => UserIdentity | null;
  * resolved to a full {@link User} record via the persistence provider and
  * stored in `socket.data.user`.
  */
+/** State for a single active agent stream. */
+interface ActiveStream {
+    controller: AbortController;
+    fullText: string;
+    messageId: string;
+    citations: Citation[];
+    usage: AgentUsage | null;
+}
+
 @WebSocketGateway({ path: WS_PATH })
 @Injectable()
 export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
@@ -63,6 +80,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly server!: Server;
 
     private titleGenerator: ThreadTitleGenerator | null = null;
+    private compactionService: CompactionService | null = null;
     private roomManager!: ThreadRoomManager;
 
     /** Per-thread mutex: thread IDs for which the lock is currently held. */
@@ -71,16 +89,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly threadLockQueues = new Map<string, (() => void)[]>();
 
     /** Active agent streams, keyed by thread ID. */
-    private readonly activeStreams = new Map<
-        string,
-        { controller: AbortController; fullText: string; messageId: string; citations: Citation[] }
-    >();
+    private readonly activeStreams = new Map<string, ActiveStream>();
 
     constructor(
         @Inject(AGENT_PROVIDER) private readonly agent: IAgentProvider,
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
         @Optional() @Inject(GENERATE_TITLE_FN) private readonly generateTitleFn: GenerateTitleFn | null,
+        @Optional() @Inject(COMPACTION_AGENT_PROVIDER) private readonly compactionAgent: IAgentProvider | null,
         private readonly auditLogger: AuditLogger,
     ) {}
 
@@ -128,6 +144,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     });
             });
         }
+
+        // Set up compaction service
+        this.compactionService = new CompactionService({
+            agent: this.agent,
+            persistence: this.persistence,
+            compactionAgent: this.compactionAgent ?? undefined,
+            auditLogger: this.auditLogger,
+        });
 
         // Set up title generator
         if (this.generateTitleFn) {
@@ -227,7 +251,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         await this.acquireThreadLock(threadId);
         let streamSetup: {
             stream: AsyncIterable<AgentStreamChunk>;
-            streamState: { controller: AbortController; fullText: string; messageId: string; citations: Citation[] };
+            streamState: ActiveStream;
             userId: string;
         } | null;
         try {
@@ -254,7 +278,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         data: SendMessageEvent,
     ): Promise<{
         stream: AsyncIterable<AgentStreamChunk>;
-        streamState: { controller: AbortController; fullText: string; messageId: string; citations: Citation[] };
+        streamState: ActiveStream;
         userId: string;
     } | null> {
         const parsed = chatRequestSchema.safeParse(data);
@@ -325,7 +349,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         });
 
         // Load full history and convert to AgentMessage[]
-        const history = await this.persistence.loadMessages({ threadId });
+        const history = await this.persistence.loadMessages({ threadId, excludeCompacted: true });
         const members = await this.persistence.listMembersWithUser(threadId);
         const authorAliases = buildAuthorAliases(members);
         const messages: AgentMessage[] = threadMessagesToAgentMessages(history, authorAliases);
@@ -361,7 +385,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
         // Set up abort controller for this stream
         const controller = new AbortController();
-        const streamState = { controller, fullText: "", messageId: aiMessageId, citations: [] as Citation[] };
+        const streamState: ActiveStream = {
+            controller,
+            fullText: "",
+            messageId: aiMessageId,
+            citations: [],
+            usage: null,
+        };
         this.activeStreams.set(threadId, streamState);
 
         const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
@@ -378,7 +408,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         threadId: string,
         ctx: {
             stream: AsyncIterable<AgentStreamChunk>;
-            streamState: { controller: AbortController; fullText: string; messageId: string; citations: Citation[] };
+            streamState: ActiveStream;
             userId: string;
         },
     ): Promise<void> {
@@ -420,6 +450,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     if (chunk.citations) {
                         streamState.citations.push(...chunk.citations);
                     }
+
+                    // Capture token usage from the final chunk.
+                    if (chunk.usage) {
+                        streamState.usage = chunk.usage;
+                    }
                 } finally {
                     this.releaseThreadLock(threadId);
                 }
@@ -437,6 +472,18 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 const metadata: Record<string, unknown> = {};
                 if (streamState.citations.length > 0) {
                     metadata.citations = streamState.citations;
+                }
+                if (streamState.usage) {
+                    metadata.vendor = streamState.usage.vendor;
+                    metadata.model = streamState.usage.model;
+                    metadata.inputTokens = streamState.usage.inputTokens;
+                    metadata.outputTokens = streamState.usage.outputTokens;
+                    if (streamState.usage.cacheCreationInputTokens) {
+                        metadata.cacheCreationInputTokens = streamState.usage.cacheCreationInputTokens;
+                    }
+                    if (streamState.usage.cacheReadInputTokens) {
+                        metadata.cacheReadInputTokens = streamState.usage.cacheReadInputTokens;
+                    }
                 }
 
                 await this.persistence.appendMessage({
@@ -469,6 +516,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 // Fire-and-forget title generation.
                 if (this.titleGenerator) {
                     void this.titleGenerator.maybeGenerateTitle(threadId);
+                }
+
+                // Fire-and-forget compaction check.
+                if (this.compactionService && streamState.usage) {
+                    void this.compactionService.maybeCompact(threadId, streamState.usage.inputTokens);
                 }
             } finally {
                 this.releaseThreadLock(threadId);

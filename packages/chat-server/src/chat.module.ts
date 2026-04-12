@@ -9,6 +9,7 @@ import { ChatGateway } from "./chat.gateway.js";
 import {
     AGENT_PROVIDER,
     CHAT_CORS_OPTIONS,
+    COMPACTION_AGENT_PROVIDER,
     GENERATE_TITLE_FN,
     PERSISTENCE_PROVIDER,
     VALIDATE_TOKEN_FN,
@@ -29,6 +30,8 @@ export interface ChatModuleConfig {
     validateToken?: ValidateTokenFn | undefined;
     /** Callback that generates a thread title from conversation messages. */
     generateTitle?: GenerateTitleFn | undefined;
+    /** Optional dedicated agent for generating compaction summaries. Falls back to {@link agent}. */
+    compactionAgent?: IAgentProvider | undefined;
     /** CORS configuration forwarded to the WebSocket gateway. */
     cors?: { origin: string | string[]; credentials?: boolean | undefined } | undefined;
 }
@@ -79,6 +82,7 @@ export class ChatModule {
                 { provide: PERSISTENCE_PROVIDER, useValue: config.persistence },
                 { provide: VALIDATE_TOKEN_FN, useValue: config.validateToken ?? null },
                 { provide: GENERATE_TITLE_FN, useValue: config.generateTitle ?? null },
+                { provide: COMPACTION_AGENT_PROVIDER, useValue: config.compactionAgent ?? null },
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 RequireUserGuard,
                 AuditLogger,

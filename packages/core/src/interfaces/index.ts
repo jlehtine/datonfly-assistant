@@ -3,6 +3,7 @@ export type {
     AgentMessage,
     AgentMessageRole,
     AgentStreamChunk,
+    AgentUsage,
     Citation,
     ShouldRespondResult,
 } from "./agent.js";

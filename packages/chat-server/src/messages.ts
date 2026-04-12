@@ -92,6 +92,18 @@ export function threadMessagesToAgentMessages(
     const result: AgentMessage[] = [buildSystemPrompt(authorAliases)];
 
     for (const [i, msg] of messages.entries()) {
+        // Skip messages that have been compacted (replaced by a summary).
+        if (msg.metadata?.compacted === true) continue;
+
+        // Compaction summaries are inserted as human messages so they don't
+        // violate the single-system-message constraint. content_at places
+        // them before preserved messages, right after the system prompt.
+        if (msg.metadata?.compactionSummary === true) {
+            const text = extractText(msg.content);
+            result.push({ role: "human", content: `[Summary of previous conversation]\n\n${text}` });
+            continue;
+        }
+
         const text = extractText(msg.content);
         switch (msg.role) {
             case "human": {

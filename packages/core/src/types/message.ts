@@ -1,5 +1,5 @@
 /** The role of a message author. */
-export type MessageRole = "human" | "ai";
+export type MessageRole = "human" | "ai" | "system";
 
 /** A plain-text content part. */
 export interface TextContentPart {
@@ -53,6 +53,8 @@ export interface ThreadMessage {
     authorAvatarUrl: string | null;
     /** Timestamp when the message was created. */
     createdAt: Date;
+    /** Logical ordering timestamp. Equals {@link createdAt} for regular messages. Only set server-side. */
+    contentAt?: Date | undefined;
     /** Arbitrary key-value metadata attached to the message. */
     metadata?: Record<string, unknown> | undefined;
 }

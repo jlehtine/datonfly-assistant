@@ -37,11 +37,12 @@ export interface ThreadMembersTable {
 export interface MessagesTable {
     id: Generated<string>;
     thread_id: string;
-    role: "human" | "ai";
+    role: "human" | "ai" | "system";
     content: ColumnType<unknown[], string, never>;
     author_id: string | null;
     created_at: ColumnType<Date, Date | undefined, never>;
-    metadata: ColumnType<Record<string, unknown> | null, string | null | undefined, never>;
+    content_at: ColumnType<Date, Date | undefined, never>;
+    metadata: ColumnType<Record<string, unknown> | null, string | null | undefined, string | null>;
 }
 
 /** Kysely table definition for the `thread_user_state` database table. */

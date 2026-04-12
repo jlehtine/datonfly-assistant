@@ -93,6 +93,7 @@ function extractText(msg: ThreadMessage): string {
 
 /** Convert a {@link ThreadMessage} from the REST API to a {@link ChatMessage}. */
 function toChat(msg: ThreadMessage): ChatMessage | null {
+    if (msg.role === "system") return null;
     const text = extractText(msg);
     const interrupted = msg.metadata ? msg.metadata.interrupted === true : false;
     return {
@@ -295,7 +296,9 @@ export function useMessages(
 
         const handleNewMessage = (event: NewMessageEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
+            if (event.role === "system") return;
 
+            const role = event.role;
             const text = event.content
                 .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
                 .map((p) => p.text)
@@ -308,7 +311,7 @@ export function useMessages(
                     ...prev,
                     {
                         id: event.messageId,
-                        role: event.role,
+                        role,
                         text,
                         streaming: false,
                         createdAt: new Date(event.createdAt),

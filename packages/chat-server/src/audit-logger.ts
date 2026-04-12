@@ -12,6 +12,8 @@ export interface AuditData {
     memberCount?: number | undefined;
     shouldRespond?: boolean | undefined;
     reason?: string | undefined;
+    messageCount?: number | undefined;
+    compactedCount?: number | undefined;
 }
 
 /**
@@ -30,10 +32,12 @@ export class AuditLogger {
     }
 
     /** Emit a structured audit log entry. */
-    audit(level: "info" | "error", op: string, data: AuditData): void {
+    audit(level: "debug" | "info" | "error", op: string, data: AuditData): void {
         const entry = { audit: true, op, ...data };
         if (level === "error") {
             this.logger.error(entry, op);
+        } else if (level === "debug") {
+            this.logger.debug(entry, op);
         } else {
             this.logger.info(entry, op);
         }

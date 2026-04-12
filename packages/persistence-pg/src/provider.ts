@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { sql, type Kysely, type QueryCreator } from "kysely";
+import { sql, type Kysely, type QueryCreator, type SqlBool } from "kysely";
 
 import type {
     AppendMessageOptions,
@@ -338,6 +338,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                 content: JSON.stringify(options.content),
                 author_id: options.authorId,
                 created_at: now,
+                content_at: options.contentAt ?? now,
                 metadata: options.metadata ? JSON.stringify(options.metadata) : null,
             })
             .returningAll()
@@ -369,6 +370,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                 "message.content",
                 "message.author_id",
                 "message.created_at",
+                "message.content_at",
                 "message.metadata",
                 "user.name as author_name",
                 "user.avatar_url as author_avatar_url",
@@ -376,10 +378,16 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             .where("message.thread_id", "=", options.threadId);
 
         if (options.before) {
-            query = query.where("message.created_at", "<", options.before);
+            query = query.where("message.content_at", "<", options.before);
+        }
+        if (options.excludeCompacted) {
+            query = query.where(sql<SqlBool>`coalesce(message.metadata->>'compacted', '') != 'true'`);
+        }
+        if (options.excludeCompactionSummaries) {
+            query = query.where(sql<SqlBool>`coalesce(message.metadata->>'compactionSummary', '') != 'true'`);
         }
 
-        query = query.orderBy("message.created_at", "asc");
+        query = query.orderBy("message.content_at", "asc");
 
         if (options.limit) {
             query = query.limit(options.limit);
@@ -395,8 +403,26 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             authorName: row.author_name ?? null,
             authorAvatarUrl: row.author_avatar_url ?? null,
             createdAt: row.created_at,
+            contentAt: row.content_at,
             metadata: row.metadata ?? undefined,
         }));
+    }
+
+    async updateMessageMetadata(messageId: string, metadata: Record<string, unknown>): Promise<void> {
+        const result = await this.qb
+            .updateTable("message")
+            .set({
+                metadata: sql`coalesce(metadata, '{}'::jsonb) || ${JSON.stringify(metadata)}::jsonb`,
+            })
+            .where("id", "=", messageId)
+            .executeTakeFirst();
+        if (result.numUpdatedRows === 0n) {
+            throw new Error(`updateMessageMetadata: message ${messageId} not found`);
+        }
+    }
+
+    async deleteMessage(messageId: string): Promise<void> {
+        await this.qb.deleteFrom("message").where("id", "=", messageId).execute();
     }
 
     // ─── Search ───
@@ -464,6 +490,7 @@ function toMessage(row: MessageRow): ThreadMessage {
         authorName: null,
         authorAvatarUrl: null,
         createdAt: row.created_at,
+        contentAt: row.content_at,
         metadata: row.metadata ?? undefined,
     };
 }

@@ -26,6 +26,7 @@ export type {
     AgentMessage,
     AgentMessageRole,
     AgentStreamChunk,
+    AgentUsage,
     Citation,
     ShouldRespondResult,
     IPersistenceProvider,

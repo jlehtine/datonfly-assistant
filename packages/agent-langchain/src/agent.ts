@@ -6,6 +6,7 @@ import type { ServerTool } from "@langchain/core/tools";
 import type {
     AgentMessage,
     AgentStreamChunk,
+    AgentUsage,
     Citation,
     IAgentProvider,
     ShouldRespondResult,
@@ -160,6 +161,8 @@ export interface LangGraphAgentConfig {
      * agent always responds.
      */
     triageModelName?: string | undefined;
+    /** Context window size of the model in tokens. Defaults to `200000`. */
+    contextWindowSize?: number | undefined;
 }
 
 /**
@@ -175,6 +178,8 @@ export class LangGraphAgent implements IAgentProvider {
     private triageModel: ChatAnthropic | null = null;
     private readonly triageModelName: string | undefined;
     private readonly triageApiKey: string | undefined;
+    private readonly modelName: string;
+    private readonly contextWindowSize: number;
 
     /** Create the agent with the given model configuration. */
     constructor(config: LangGraphAgentConfig) {
@@ -182,11 +187,14 @@ export class LangGraphAgent implements IAgentProvider {
             model: config.modelName,
             temperature: config.temperature ?? 0.7,
             maxTokens: config.maxTokens ?? 4096,
+            streamUsage: true,
         };
         if (config.apiKey) {
             options.anthropicApiKey = config.apiKey;
         }
         this.model = new ChatAnthropic(options);
+        this.modelName = config.modelName;
+        this.contextWindowSize = config.contextWindowSize ?? 200_000;
         this.triageModelName = config.triageModelName;
         this.triageApiKey = config.apiKey;
 
@@ -232,15 +240,43 @@ export class LangGraphAgent implements IAgentProvider {
     ): Promise<AsyncIterable<AgentStreamChunk>> {
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
         const langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(messages), opts);
+        const modelName = this.modelName;
         return {
             async *[Symbol.asyncIterator]() {
                 const allCitations: RawCitation[] = [];
+                let usage: AgentUsage | undefined;
                 for await (const chunk of langchainStream) {
                     const rawChunk = chunk as Record<string, unknown>;
                     const rawContent = rawChunk.content as string | Record<string, unknown>[];
                     const text = extractTextFromContent(rawContent);
                     const toolStatus = detectToolStatus(rawChunk);
                     allCitations.push(...extractCitations(rawContent));
+
+                    // Capture token usage from the final chunk's usage_metadata.
+                    // Multiple chunks may carry usage_metadata; keep the one with
+                    // the highest input_tokens (the real totals, not partial zeros).
+                    const usageMeta = rawChunk.usage_metadata as
+                        | {
+                              input_tokens?: number;
+                              output_tokens?: number;
+                              input_token_details?: { cache_creation?: number; cache_read?: number };
+                          }
+                        | undefined;
+                    if (
+                        usageMeta &&
+                        typeof usageMeta.input_tokens === "number" &&
+                        usageMeta.input_tokens > (usage?.inputTokens ?? 0)
+                    ) {
+                        const details = usageMeta.input_token_details;
+                        usage = {
+                            vendor: "anthropic",
+                            model: modelName,
+                            inputTokens: usageMeta.input_tokens,
+                            outputTokens: usageMeta.output_tokens ?? 0,
+                            ...(details?.cache_creation ? { cacheCreationInputTokens: details.cache_creation } : {}),
+                            ...(details?.cache_read ? { cacheReadInputTokens: details.cache_read } : {}),
+                        };
+                    }
 
                     if (text || toolStatus) {
                         yield {
@@ -249,12 +285,22 @@ export class LangGraphAgent implements IAgentProvider {
                         };
                     }
                 }
+                // Yield final chunk with citations and/or usage.
                 const citations = deduplicateCitations(allCitations);
-                if (citations.length > 0) {
-                    yield { content: "", citations };
+                if (citations.length > 0 || usage) {
+                    yield {
+                        content: "",
+                        ...(citations.length > 0 ? { citations } : {}),
+                        ...(usage ? { usage } : {}),
+                    };
                 }
             },
         };
+    }
+
+    /** Return the context window size (in tokens) of the underlying model. */
+    getContextWindowSize(): number {
+        return this.contextWindowSize;
     }
 
     /**

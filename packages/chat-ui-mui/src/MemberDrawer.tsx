@@ -21,6 +21,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ThreadMemberInfo, ThreadMemberRole } from "@datonfly-assistant/core";
 
@@ -59,6 +60,7 @@ export function MemberDrawer({
     onRemoveMember,
     onUpdateMemberRole,
 }: MemberDrawerProps): ReactElement {
+    const { t } = useTranslation();
     const isDesktop = useMediaQuery("(min-width:900px)");
     const excludeUserIds = members.map((m) => m.userId);
     const currentUserRole = members.find((m) => m.userId === currentUserId)?.role ?? null;
@@ -104,9 +106,9 @@ export function MemberDrawer({
         >
             <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1.5 }}>
                 <Typography variant="subtitle1" sx={{ flex: 1, fontWeight: 600 }}>
-                    Members ({members.length})
+                    {t("membersCount", { count: members.length })}
                 </Typography>
-                <IconButton size="small" onClick={onClose} aria-label="Close members">
+                <IconButton size="small" onClick={onClose} aria-label={t("closeMembers")}>
                     <CloseIcon fontSize="small" />
                 </IconButton>
             </Box>
@@ -148,7 +150,7 @@ export function MemberDrawer({
                                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                         <Typography variant="body2">{member.name}</Typography>
                                         {member.role === "owner" && (
-                                            <Chip label="Owner" size="small" variant="outlined" />
+                                            <Chip label={t("owner")} size="small" variant="outlined" />
                                         )}
                                     </Box>
                                 }
@@ -173,7 +175,7 @@ export function MemberDrawer({
                                     handleCloseMenu();
                                 }}
                             >
-                                Promote to Owner
+                                {t("promoteToOwner")}
                             </MenuItem>
                         ) : (
                             <MenuItem
@@ -183,7 +185,7 @@ export function MemberDrawer({
                                     handleCloseMenu();
                                 }}
                             >
-                                Demote to Member
+                                {t("demoteToMember")}
                             </MenuItem>
                         ),
                         <MenuItem
@@ -194,7 +196,7 @@ export function MemberDrawer({
                             }}
                             sx={{ color: "error.main" }}
                         >
-                            Remove from Thread
+                            {t("removeFromThread")}
                         </MenuItem>,
                     ]}
                 {menuMember && currentUserRole === "member" && menuMember.userId === currentUserId && (
@@ -205,25 +207,27 @@ export function MemberDrawer({
                         }}
                         sx={{ color: "error.main" }}
                     >
-                        Leave Thread
+                        {t("leaveThread")}
                     </MenuItem>
                 )}
             </Menu>
 
             {/* Confirmation dialog for destructive actions */}
             <Dialog open={Boolean(confirmAction)} onClose={handleCancelConfirm}>
-                <DialogTitle>{confirmAction?.type === "leave" ? "Leave Thread" : "Remove Member"}</DialogTitle>
+                <DialogTitle>{confirmAction?.type === "leave" ? t("leaveThread") : t("removeMember")}</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
                         {confirmAction?.type === "leave"
-                            ? "Are you sure you want to leave this thread? You will no longer see messages in this thread."
-                            : `Are you sure you want to remove ${confirmAction?.member.name ?? "this member"} from this thread?`}
+                            ? t("leaveThreadConfirmation")
+                            : confirmAction?.member.name
+                              ? t("removeMemberConfirmation", { name: confirmAction.member.name })
+                              : t("removeMemberConfirmationUnnamed")}
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCancelConfirm}>Cancel</Button>
+                    <Button onClick={handleCancelConfirm}>{t("cancel")}</Button>
                     <Button onClick={handleConfirmAction} color="error" variant="contained">
-                        {confirmAction?.type === "leave" ? "Leave" : "Remove"}
+                        {confirmAction?.type === "leave" ? t("leave") : t("remove")}
                     </Button>
                 </DialogActions>
             </Dialog>

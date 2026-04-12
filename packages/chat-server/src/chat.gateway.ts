@@ -9,6 +9,7 @@ import type { Server, Socket } from "socket.io";
 import type {
     AgentMessage,
     AgentStreamChunk,
+    Citation,
     IAgentProvider,
     IPersistenceProvider,
     InviteMemberEvent,
@@ -30,7 +31,7 @@ import type {
 } from "@datonfly-assistant/core";
 
 import {
-    INTERRUPTION_MARKER,
+    ERROR_CODES,
     WS_PATH,
     chatRequestSchema,
     inviteMemberRequestSchema,
@@ -72,7 +73,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     /** Active agent streams, keyed by thread ID. */
     private readonly activeStreams = new Map<
         string,
-        { controller: AbortController; fullText: string; messageId: string }
+        { controller: AbortController; fullText: string; messageId: string; citations: Citation[] }
     >();
 
     constructor(
@@ -161,7 +162,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 this.auditLogger.audit("error", "ws.send-message.unhandled", {
                     error: err instanceof Error ? err.message : String(err),
                 });
-                socket.emit("error", { event: "error", message: "Internal server error" });
+                socket.emit("error", {
+                    event: "error",
+                    message: "Internal server error",
+                    code: ERROR_CODES.internal_error,
+                });
             });
         });
         socket.on("invite-member", (data: InviteMemberEvent) => {
@@ -169,7 +174,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 this.auditLogger.audit("error", "ws.invite-member.unhandled", {
                     error: err instanceof Error ? err.message : String(err),
                 });
-                socket.emit("error", { event: "error", message: "Internal server error" });
+                socket.emit("error", {
+                    event: "error",
+                    message: "Internal server error",
+                    code: ERROR_CODES.internal_error,
+                });
             });
         });
         socket.on("remove-member", (data: RemoveMemberEvent) => {
@@ -177,7 +186,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 this.auditLogger.audit("error", "ws.remove-member.unhandled", {
                     error: err instanceof Error ? err.message : String(err),
                 });
-                socket.emit("error", { event: "error", message: "Internal server error" });
+                socket.emit("error", {
+                    event: "error",
+                    message: "Internal server error",
+                    code: ERROR_CODES.internal_error,
+                });
             });
         });
         socket.on("update-member-role", (data: UpdateMemberRoleEvent) => {
@@ -185,7 +198,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 this.auditLogger.audit("error", "ws.update-member-role.unhandled", {
                     error: err instanceof Error ? err.message : String(err),
                 });
-                socket.emit("error", { event: "error", message: "Internal server error" });
+                socket.emit("error", {
+                    event: "error",
+                    message: "Internal server error",
+                    code: ERROR_CODES.internal_error,
+                });
             });
         });
     }
@@ -194,7 +211,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const parsed = chatRequestSchema.safeParse(data);
         if (!parsed.success) {
             const errorMessage = parsed.error.issues[0]?.message ?? "Invalid message";
-            socket.emit("error", { event: "error", message: errorMessage });
+            socket.emit("error", { event: "error", message: errorMessage, code: ERROR_CODES.invalid_message });
             return;
         }
 
@@ -208,7 +225,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         await this.acquireThreadLock(threadId);
         let streamSetup: {
             stream: AsyncIterable<AgentStreamChunk>;
-            streamState: { controller: AbortController; fullText: string; messageId: string };
+            streamState: { controller: AbortController; fullText: string; messageId: string; citations: Citation[] };
             userId: string;
         } | null;
         try {
@@ -235,7 +252,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         data: SendMessageEvent,
     ): Promise<{
         stream: AsyncIterable<AgentStreamChunk>;
-        streamState: { controller: AbortController; fullText: string; messageId: string };
+        streamState: { controller: AbortController; fullText: string; messageId: string; citations: Citation[] };
         userId: string;
     } | null> {
         const parsed = chatRequestSchema.safeParse(data);
@@ -250,7 +267,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         if (user) {
             const isMember = await this.persistence.isMember(threadId, user.id);
             if (!isMember) {
-                socket.emit("error", { event: "error", message: "Not a member of this thread" });
+                socket.emit("error", {
+                    event: "error",
+                    message: "Not a member of this thread",
+                    code: ERROR_CODES.not_member,
+                });
                 return null;
             }
         }
@@ -269,7 +290,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 authorId: user?.id ?? null,
             });
         } catch {
-            socket.emit("error", { event: "error", message: "Duplicate message ID" });
+            socket.emit("error", {
+                event: "error",
+                message: "Duplicate message ID",
+                code: ERROR_CODES.duplicate_message,
+            });
             return null;
         }
         this.auditLogger.audit("info", "message.send", { userId, threadId, messageId });
@@ -325,7 +350,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
         // Set up abort controller for this stream
         const controller = new AbortController();
-        const streamState = { controller, fullText: "", messageId: aiMessageId };
+        const streamState = { controller, fullText: "", messageId: aiMessageId, citations: [] as Citation[] };
         this.activeStreams.set(threadId, streamState);
 
         const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
@@ -342,7 +367,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         threadId: string,
         ctx: {
             stream: AsyncIterable<AgentStreamChunk>;
-            streamState: { controller: AbortController; fullText: string; messageId: string };
+            streamState: { controller: AbortController; fullText: string; messageId: string; citations: Citation[] };
             userId: string;
         },
     ): Promise<void> {
@@ -375,8 +400,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             threadId,
                             messageId,
                             status: chunk.status,
+                            statusText: chunk.statusText ?? chunk.status,
                         };
                         void this.emitToThreadMembers(threadId, "message-status", statusEvent);
+                    }
+
+                    // Collect structured citations from the chunk.
+                    if (chunk.citations) {
+                        streamState.citations.push(...chunk.citations);
                     }
                 } finally {
                     this.releaseThreadLock(threadId);
@@ -392,11 +423,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
                 this.activeStreams.delete(threadId);
 
+                const metadata: Record<string, unknown> = {};
+                if (streamState.citations.length > 0) {
+                    metadata.citations = streamState.citations;
+                }
+
                 await this.persistence.appendMessage({
                     threadId,
                     role: "ai",
                     content: [{ type: "text", text: streamState.fullText }],
                     authorId: null,
+                    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
                 });
 
                 const completeEvent: MessageCompleteEvent = {
@@ -404,6 +441,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     threadId,
                     messageId,
                     content: [{ type: "text", text: streamState.fullText }],
+                    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
                 };
                 void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
                 this.auditLogger.audit("info", "agent.complete", { userId, threadId, messageId });
@@ -425,15 +463,19 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
             this.activeStreams.delete(threadId);
             const message = error instanceof Error ? error.message : "Unknown error";
-            socket.emit("error", { event: "error", message });
+            socket.emit("error", {
+                event: "error",
+                message,
+                code: ERROR_CODES.unspecified,
+            });
             this.auditLogger.audit("error", "agent.error", { userId, threadId, messageId, error: message });
         }
     }
 
     /**
      * If an agent stream is active for the given thread, abort it, persist
-     * the partial response with an interruption marker, and broadcast a
-     * `message-complete` event with `interrupted: true`.
+     * the partial response, and broadcast a `message-complete` event with
+     * `interrupted: true`.
      *
      * Must be called under the per-thread mutex.
      */
@@ -449,13 +491,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
         this.activeStreams.delete(threadId);
 
-        // Persist partial response with interruption marker (if any text was generated)
+        // Persist partial response (if any text was generated)
         if (active.fullText) {
-            const interruptedText = active.fullText + INTERRUPTION_MARKER;
             await this.persistence.appendMessage({
                 threadId,
                 role: "ai",
-                content: [{ type: "text", text: interruptedText }],
+                content: [{ type: "text", text: active.fullText }],
                 authorId: null,
                 metadata: { interrupted: true },
             });
@@ -464,7 +505,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 event: "message-complete",
                 threadId,
                 messageId: active.messageId,
-                content: [{ type: "text", text: interruptedText }],
+                content: [{ type: "text", text: active.fullText }],
                 interrupted: true,
             };
             void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
@@ -475,7 +516,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const parsed = inviteMemberRequestSchema.safeParse({ email: data.email });
         if (!parsed.success) {
             const errorMessage = parsed.error.issues[0]?.message ?? "Invalid invite request";
-            socket.emit("error", { event: "error", message: errorMessage });
+            socket.emit("error", { event: "error", message: errorMessage, code: ERROR_CODES.invalid_request });
             return;
         }
 
@@ -484,28 +525,40 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const user = (socket.data as { user?: User | undefined }).user;
 
         if (!threadId || !user) {
-            socket.emit("error", { event: "error", message: "Invalid invite request" });
+            socket.emit("error", {
+                event: "error",
+                message: "Invalid invite request",
+                code: ERROR_CODES.invalid_request,
+            });
             return;
         }
 
         // Sender must be a member of the thread
         const senderIsMember = await this.persistence.isMember(threadId, user.id);
         if (!senderIsMember) {
-            socket.emit("error", { event: "error", message: "Not a member of this thread" });
+            socket.emit("error", {
+                event: "error",
+                message: "Not a member of this thread",
+                code: ERROR_CODES.not_member,
+            });
             return;
         }
 
         // Look up the invited user by email
         const invitedUser = await this.persistence.findUserByEmail(email);
         if (!invitedUser) {
-            socket.emit("error", { event: "error", message: "User not found" });
+            socket.emit("error", { event: "error", message: "User not found", code: ERROR_CODES.user_not_found });
             return;
         }
 
         // Check if already a member
         const alreadyMember = await this.persistence.isMember(threadId, invitedUser.id);
         if (alreadyMember) {
-            socket.emit("error", { event: "error", message: "User is already a member of this thread" });
+            socket.emit("error", {
+                event: "error",
+                message: "User is already a member of this thread",
+                code: ERROR_CODES.already_member,
+            });
             return;
         }
 
@@ -534,7 +587,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     private async handleRemoveMember(socket: Socket, data: RemoveMemberEvent): Promise<void> {
         const parsed = removeMemberRequestSchema.safeParse({ userId: data.userId });
         if (!parsed.success) {
-            socket.emit("error", { event: "error", message: parsed.error.issues[0]?.message ?? "Invalid request" });
+            socket.emit("error", {
+                event: "error",
+                message: parsed.error.issues[0]?.message ?? "Invalid request",
+                code: ERROR_CODES.invalid_request,
+            });
             return;
         }
 
@@ -543,13 +600,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const user = (socket.data as { user?: User | undefined }).user;
 
         if (!threadId || !user) {
-            socket.emit("error", { event: "error", message: "Invalid request" });
+            socket.emit("error", { event: "error", message: "Invalid request", code: ERROR_CODES.invalid_request });
             return;
         }
 
         const senderRole = await this.persistence.getMemberRole(threadId, user.id);
         if (!senderRole) {
-            socket.emit("error", { event: "error", message: "Not a member of this thread" });
+            socket.emit("error", {
+                event: "error",
+                message: "Not a member of this thread",
+                code: ERROR_CODES.not_member,
+            });
             return;
         }
 
@@ -558,13 +619,21 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         if (isSelf) {
             // Self-removal: only non-owners can leave
             if (senderRole === "owner") {
-                socket.emit("error", { event: "error", message: "Owners cannot remove themselves" });
+                socket.emit("error", {
+                    event: "error",
+                    message: "Owners cannot remove themselves",
+                    code: ERROR_CODES.owner_cannot_self_remove,
+                });
                 return;
             }
         } else {
             // Removing another user: only owners can do this
             if (senderRole !== "owner") {
-                socket.emit("error", { event: "error", message: "Only owners can remove other members" });
+                socket.emit("error", {
+                    event: "error",
+                    message: "Only owners can remove other members",
+                    code: ERROR_CODES.only_owners_can_remove,
+                });
                 return;
             }
         }
@@ -572,7 +641,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         // Verify target is actually a member
         const targetIsMember = await this.persistence.isMember(threadId, targetUserId);
         if (!targetIsMember) {
-            socket.emit("error", { event: "error", message: "User is not a member of this thread" });
+            socket.emit("error", {
+                event: "error",
+                message: "User is not a member of this thread",
+                code: ERROR_CODES.not_a_member_target,
+            });
             return;
         }
 
@@ -602,7 +675,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     private async handleUpdateMemberRole(socket: Socket, data: UpdateMemberRoleEvent): Promise<void> {
         const parsed = updateMemberRoleRequestSchema.safeParse({ userId: data.userId, role: data.role });
         if (!parsed.success) {
-            socket.emit("error", { event: "error", message: parsed.error.issues[0]?.message ?? "Invalid request" });
+            socket.emit("error", {
+                event: "error",
+                message: parsed.error.issues[0]?.message ?? "Invalid request",
+                code: ERROR_CODES.invalid_request,
+            });
             return;
         }
 
@@ -612,27 +689,39 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const user = (socket.data as { user?: User | undefined }).user;
 
         if (!threadId || !user) {
-            socket.emit("error", { event: "error", message: "Invalid request" });
+            socket.emit("error", { event: "error", message: "Invalid request", code: ERROR_CODES.invalid_request });
             return;
         }
 
         // Only owners can change roles
         const senderRole = await this.persistence.getMemberRole(threadId, user.id);
         if (senderRole !== "owner") {
-            socket.emit("error", { event: "error", message: "Only owners can change member roles" });
+            socket.emit("error", {
+                event: "error",
+                message: "Only owners can change member roles",
+                code: ERROR_CODES.only_owners_can_change_roles,
+            });
             return;
         }
 
         // Cannot change own role
         if (targetUserId === user.id) {
-            socket.emit("error", { event: "error", message: "Cannot change your own role" });
+            socket.emit("error", {
+                event: "error",
+                message: "Cannot change your own role",
+                code: ERROR_CODES.cannot_change_own_role,
+            });
             return;
         }
 
         // Verify target is a member
         const targetRole = await this.persistence.getMemberRole(threadId, targetUserId);
         if (!targetRole) {
-            socket.emit("error", { event: "error", message: "User is not a member of this thread" });
+            socket.emit("error", {
+                event: "error",
+                message: "User is not a member of this thread",
+                code: ERROR_CODES.not_a_member_target,
+            });
             return;
         }
 

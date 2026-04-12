@@ -3,6 +3,19 @@ const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
 const TWELVE_HOURS_MS = 12 * ONE_HOUR_MS;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 
+/** Translatable labels used by {@link formatTimestamp}. */
+export interface FormatTimestampLabels {
+    /** Label for timestamps less than one minute ago. */
+    justNow: string;
+    /**
+     * Template for yesterday's timestamps. Use `{{time}}` as the placeholder
+     * for the formatted time string. Example: `"Yesterday, {{time}}"`.
+     */
+    yesterday: string;
+}
+
+const DEFAULT_LABELS: FormatTimestampLabels = { justNow: "Just now", yesterday: "Yesterday, {{time}}" };
+
 /**
  * Format a timestamp into a human-friendly display string with tiered logic:
  *
@@ -22,12 +35,18 @@ const ONE_DAY_MS = 24 * ONE_HOUR_MS;
  * @param date - The timestamp to format.
  * @param now - Reference "now" timestamp (defaults to `new Date()`). Useful for testing.
  * @param locale - BCP 47 locale string, e.g. `"en-US"`. Defaults to browser locale.
+ * @param labels - Translatable labels. When omitted, English defaults are used.
  */
-export function formatTimestamp(date: Date, now: Date = new Date(), locale?: string): string {
+export function formatTimestamp(
+    date: Date,
+    now: Date = new Date(),
+    locale?: string,
+    labels: FormatTimestampLabels = DEFAULT_LABELS,
+): string {
     const diffMs = now.getTime() - date.getTime();
 
     if (diffMs < ONE_MINUTE_MS) {
-        return "Just now";
+        return labels.justNow;
     }
 
     if (diffMs < ONE_HOUR_MS) {
@@ -53,7 +72,7 @@ export function formatTimestamp(date: Date, now: Date = new Date(), locale?: str
     // Check if yesterday
     const yesterday = new Date(now.getTime() - ONE_DAY_MS);
     if (isSameDay(date, yesterday)) {
-        return `Yesterday, ${timeStr}`;
+        return labels.yesterday.replace("{{time}}", timeStr);
     }
 
     // Check if within the past 6 days (same week-ish)

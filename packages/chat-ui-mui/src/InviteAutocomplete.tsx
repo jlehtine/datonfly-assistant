@@ -5,6 +5,7 @@ import ListItemAvatar from "@mui/material/ListItemAvatar";
 import ListItemText from "@mui/material/ListItemText";
 import TextField from "@mui/material/TextField";
 import { useCallback, useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useUserSearch, type UseUserSearchResult } from "@datonfly-assistant/chat-client/react";
 import type { UserSearchResultWire } from "@datonfly-assistant/core";
@@ -25,6 +26,7 @@ export interface InviteAutocompleteProps {
  * and the input is cleared.
  */
 export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompleteProps): ReactElement {
+    const { t } = useTranslation();
     const { results, isSearching, search, clear }: UseUserSearchResult = useUserSearch(excludeUserIds);
     const [inputValue, setInputValue] = useState("");
 
@@ -57,7 +59,7 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
             getOptionLabel={(option) => option.name}
             getOptionKey={(option) => option.id}
             filterOptions={(x) => x}
-            noOptionsText={inputValue ? "No users found" : "Type to search"}
+            noOptionsText={inputValue ? t("noUsersFound") : t("typeToSearch")}
             renderOption={(props, option) => (
                 <ListItem {...props} key={option.id}>
                     <ListItemAvatar>
@@ -76,7 +78,7 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
                 </ListItem>
             )}
             renderInput={(params) => (
-                <TextField {...params} placeholder="Search users to invite..." size="small" variant="outlined" />
+                <TextField {...params} placeholder={t("searchUsersToInvite")} size="small" variant="outlined" />
             )}
             size="small"
             sx={{ mt: 1 }}

@@ -15,11 +15,12 @@ import Select from "@mui/material/Select";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { Thread } from "@datonfly-assistant/core";
 
 import { ChatUserSettings } from "./ChatUserSettings.js";
-import { formatTimestamp } from "./formatTimestamp.js";
+import { formatTimestamp, type FormatTimestampLabels } from "./formatTimestamp.js";
 
 export interface ThreadListPanelProps {
     /** The list of threads to display. */
@@ -58,6 +59,7 @@ export function ThreadListPanel({
     hasMore = false,
     onLoadMore,
 }: ThreadListPanelProps): ReactElement {
+    const { t, i18n } = useTranslation();
     const [filter, setFilter] = useState<ThreadFilter>("active");
     const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -107,8 +109,8 @@ export function ThreadListPanel({
         >
             <Box sx={{ px: 1.5, pt: 1.5, pb: 1, display: "flex", alignItems: "center", gap: 1 }}>
                 {onNewThread && (
-                    <Tooltip title="New conversation">
-                        <IconButton size="small" onClick={onNewThread} aria-label="New conversation">
+                    <Tooltip title={t("newConversation")}>
+                        <IconButton size="small" onClick={onNewThread} aria-label={t("newConversation")}>
                             <AddIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
@@ -122,16 +124,16 @@ export function ThreadListPanel({
                     variant="outlined"
                     sx={{ flex: 1, fontSize: "0.8125rem" }}
                 >
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="archived">Archived</MenuItem>
+                    <MenuItem value="active">{t("active")}</MenuItem>
+                    <MenuItem value="archived">{t("archived")}</MenuItem>
                 </Select>
-                <Tooltip title="Settings">
+                <Tooltip title={t("settings")}>
                     <IconButton
                         size="small"
                         onClick={(e) => {
                             setSettingsAnchor(e.currentTarget);
                         }}
-                        aria-label="Settings"
+                        aria-label={t("settings")}
                     >
                         <SettingsIcon fontSize="small" />
                     </IconButton>
@@ -159,7 +161,7 @@ export function ThreadListPanel({
                     </Box>
                 ) : filtered.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: "center" }}>
-                        {filter === "archived" ? "No archived conversations." : "No conversations yet."}
+                        {filter === "archived" ? t("noArchivedConversations") : t("noConversationsYet")}
                     </Typography>
                 ) : (
                     <List dense disablePadding>
@@ -170,6 +172,8 @@ export function ThreadListPanel({
                                 selected={thread.id === selectedThreadId}
                                 onSelect={onSelectThread}
                                 onArchiveToggle={onArchiveToggle}
+                                locale={i18n.language}
+                                tsLabels={{ justNow: t("justNow"), yesterday: t("yesterday") }}
                             />
                         ))}
                         {loading && (
@@ -189,11 +193,20 @@ interface ThreadListItemProps {
     selected: boolean;
     onSelect: (threadId: string) => void;
     onArchiveToggle: (threadId: string, archived: boolean) => void;
+    locale: string | undefined;
+    tsLabels: FormatTimestampLabels;
 }
 
-function ThreadListItem({ thread, selected, onSelect, onArchiveToggle }: ThreadListItemProps): ReactElement {
+function ThreadListItem({
+    thread,
+    selected,
+    onSelect,
+    onArchiveToggle,
+    locale,
+    tsLabels,
+}: ThreadListItemProps): ReactElement {
     const isArchived = !!thread.archivedAt;
-    const relativeTime = formatTimestamp(thread.updatedAt);
+    const relativeTime = formatTimestamp(thread.updatedAt, undefined, locale, tsLabels);
 
     return (
         <ListItemButton

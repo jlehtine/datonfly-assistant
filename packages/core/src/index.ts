@@ -14,9 +14,11 @@ export type {
     ToolResultContentPart,
     SearchResult,
     MemoryEntry,
+    StatusCode,
+    ErrorCode,
 } from "./types/index.js";
 
-export { INTERRUPTION_MARKER } from "./types/index.js";
+export { STATUS_CODES, ERROR_CODES } from "./types/index.js";
 
 // Interfaces
 export type {
@@ -24,6 +26,7 @@ export type {
     AgentMessage,
     AgentMessageRole,
     AgentStreamChunk,
+    Citation,
     ShouldRespondResult,
     IPersistenceProvider,
     CreateThreadOptions,

@@ -1,4 +1,6 @@
+import type { ErrorCode } from "../types/error-code.js";
 import type { ContentPart, MessageRole } from "../types/message.js";
+import type { StatusCode } from "../types/status-code.js";
 
 // ─── Client → Server Events ───
 
@@ -98,8 +100,10 @@ export interface MessageStatusEvent {
     threadId: string;
     /** Stable ID for the message being streamed. */
     messageId: string;
-    /** Human-readable status label. */
-    status: string;
+    /** Machine-readable status code for translation lookup. */
+    status: StatusCode;
+    /** Human-readable English status label. Always included as a fallback for UIs without i18n. */
+    statusText: string;
 }
 
 /** Signals that assistant streaming is finished and provides the final content. */
@@ -111,6 +115,8 @@ export interface MessageCompleteEvent {
     content: ContentPart[];
     /** `true` when the response was interrupted by a new message before completion. */
     interrupted?: boolean | undefined;
+    /** Arbitrary key-value metadata attached to the completed message (e.g. citations). */
+    metadata?: Record<string, unknown> | undefined;
 }
 
 /** A fully-formed message broadcast to all thread members (e.g. another user's message). */
@@ -197,10 +203,10 @@ export interface ThreadCreatedEvent {
 /** Server-side error related to the current connection or a specific operation. */
 export interface ErrorEvent {
     event: "error";
-    /** Human-readable error description. */
+    /** Human-readable English error description. Always included as a fallback for UIs without i18n. */
     message: string;
-    /** Machine-readable error code for programmatic handling. */
-    code?: string | undefined;
+    /** Machine-readable error code for programmatic handling and translation lookup. */
+    code: ErrorCode;
 }
 
 /** Emitted to a client immediately after successful WebSocket authentication. */

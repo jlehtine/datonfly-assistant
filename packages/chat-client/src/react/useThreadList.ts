@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+    ERROR_CODES,
     threadListWireSchema,
     threadPath,
     THREADS_PATH,
@@ -10,6 +11,7 @@ import {
 
 import { typedFetch } from "../fetch.js";
 import { useChatClient } from "./context.js";
+import type { ChatErrorInfo } from "./useMessages.js";
 
 /** Options for {@link useThreadList}. */
 export interface UseThreadListOptions {
@@ -25,8 +27,8 @@ export interface UseThreadListResult {
     threads: Thread[];
     /** `true` while the initial or refresh fetch is in progress. */
     loading: boolean;
-    /** The most recent fetch error message, or `null`. */
-    error: string | null;
+    /** The most recent fetch error, or `null`. */
+    error: ChatErrorInfo | null;
     /** Re-fetch the thread list from scratch. */
     refresh: () => void;
     /** Archive or unarchive a thread by ID. */
@@ -57,7 +59,7 @@ export function useThreadList({
     const client = useChatClient();
     const [threads, setThreads] = useState<Thread[]>([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<ChatErrorInfo | null>(null);
     const [hasMore, setHasMore] = useState(false);
     const loadingRef = useRef(false);
 
@@ -84,7 +86,8 @@ export function useThreadList({
             setThreads(sortByUpdatedAt(result.data));
             setHasMore(result.hasMore);
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Failed to load threads");
+            console.error("[useThreadList] Failed to load threads:", e);
+            setError({ code: ERROR_CODES.client_error, message: "Failed to load threads" });
         } finally {
             setLoading(false);
             loadingRef.current = false;
@@ -114,7 +117,8 @@ export function useThreadList({
                 });
                 setHasMore(result.hasMore);
             } catch (e: unknown) {
-                setError(e instanceof Error ? e.message : "Failed to load threads");
+                console.error("[useThreadList] Failed to load threads:", e);
+                setError({ code: ERROR_CODES.client_error, message: "Failed to load threads" });
             } finally {
                 setLoading(false);
                 loadingRef.current = false;

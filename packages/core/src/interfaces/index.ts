@@ -1,4 +1,11 @@
-export type { IAgentProvider, AgentMessage, AgentMessageRole, AgentStreamChunk, ShouldRespondResult } from "./agent.js";
+export type {
+    IAgentProvider,
+    AgentMessage,
+    AgentMessageRole,
+    AgentStreamChunk,
+    Citation,
+    ShouldRespondResult,
+} from "./agent.js";
 export type {
     IPersistenceProvider,
     CreateThreadOptions,

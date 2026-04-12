@@ -16,6 +16,7 @@ import { THREADS_PATH, threadWireSchema, type ThreadUpdatedEvent } from "@datonf
 
 import { ChatEmbed } from "./ChatEmbed.js";
 import type { ComposerInputProps } from "./Composer.js";
+import { AssistantI18nProvider } from "./i18n/index.js";
 import type { InputTool } from "./InputTool.js";
 import { ThreadListPanel } from "./ThreadListPanel.js";
 
@@ -28,6 +29,8 @@ export interface ChatHistoryEmbedConfig {
      * @see ChatClientConfig.basePath
      */
     basePath?: string | undefined;
+    /** BCP 47 language tag (e.g. `"en"`, `"fi"`). Falls back to `navigator.language`. */
+    locale?: string | undefined;
     /** Override the default plain-text input with a custom component. */
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
     /** Optional input tools (e.g. emoji picker) to attach to the composer. */
@@ -66,11 +69,13 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
     const { client, userId } = useChatConnection({ url, basePath });
 
     return (
-        <ChatClientContext.Provider value={client}>
-            <CurrentUserIdContext.Provider value={userId}>
-                <ChatHistoryInner config={config} />
-            </CurrentUserIdContext.Provider>
-        </ChatClientContext.Provider>
+        <AssistantI18nProvider locale={config.locale}>
+            <ChatClientContext.Provider value={client}>
+                <CurrentUserIdContext.Provider value={userId}>
+                    <ChatHistoryInner config={config} />
+                </CurrentUserIdContext.Provider>
+            </ChatClientContext.Provider>
+        </AssistantI18nProvider>
     );
 }
 
@@ -204,6 +209,7 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
                     config={{
                         url,
                         basePath,
+                        locale: config.locale,
                         threadId: selectedThreadId ?? undefined,
                         onBeforeSend: onBeforeSend ?? ensureThread,
                         inputComponent,

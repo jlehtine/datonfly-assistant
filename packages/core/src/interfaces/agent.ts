@@ -1,4 +1,5 @@
 import type { MessageRole } from "../types/message.js";
+import type { StatusCode } from "../types/status-code.js";
 
 /** The role of an agent message. Extends {@link MessageRole} with any agent-specific roles. */
 export type AgentMessageRole = MessageRole | "system";
@@ -9,14 +10,28 @@ export interface AgentMessage {
     role: AgentMessageRole;
     /** The text content of the message. */
     content: string;
+    /** Web-search citations collected during the response. */
+    citations?: Citation[] | undefined;
+}
+
+/** A URL + title pair for a web-search citation. */
+export interface Citation {
+    /** The source URL. */
+    url: string;
+    /** The human-readable title of the source. */
+    title: string;
 }
 
 /** A single chunk of streamed agent output. */
 export interface AgentStreamChunk {
     /** The text content of this chunk. */
     content: string;
-    /** Transient status label shown during streaming (e.g. "Running code…"). Not persisted. */
-    status?: string | undefined;
+    /** Machine-readable status code for translation lookup. Not persisted. */
+    status?: StatusCode | undefined;
+    /** Human-readable English status label. Always included alongside {@link status} as a fallback. */
+    statusText?: string | undefined;
+    /** Web-search citations collected during the response. Sent with the final chunk. */
+    citations?: Citation[] | undefined;
 }
 
 /** Result of an agent's decision on whether to respond in a room thread. */

@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -31,6 +32,7 @@ export interface MessageBubbleProps {
  * avatar and author name above the bubble.
  */
 export function MessageBubble({ message, isOwnMessage, components }: MessageBubbleProps): ReactElement {
+    const { t } = useTranslation();
     const alignRight = isOwnMessage;
     const authorName = !isOwnMessage && message.role === "human" ? message.authorName : null;
 
@@ -100,6 +102,14 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                     {message.streaming && (
                         <Typography variant="caption" sx={{ opacity: 0.6 }}>
                             ●
+                        </Typography>
+                    )}
+                    {message.interrupted && (
+                        <Typography
+                            variant="caption"
+                            sx={{ display: "block", mt: 0.5, fontStyle: "italic", color: "text.disabled" }}
+                        >
+                            {t("responseInterrupted")}
                         </Typography>
                     )}
                 </Paper>

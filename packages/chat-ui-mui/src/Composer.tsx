@@ -5,6 +5,7 @@ import IconButton from "@mui/material/IconButton";
 import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useComposer } from "@datonfly-assistant/chat-client/react";
 
@@ -66,6 +67,7 @@ function DefaultInput({
     inputTools,
     maxRows,
 }: ComposerInputProps): ReactElement {
+    const { t } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
     const selectionRef = useRef({ start: 0, end: 0 });
     const [activeTool, setActiveTool] = useState<InputTool | null>(null);
@@ -108,7 +110,7 @@ function DefaultInput({
             {hasMultipleTools ? (
                 <IconButton
                     size="small"
-                    aria-label="Tools"
+                    aria-label={t("tools")}
                     onClick={(e) => {
                         setMenuAnchor(e.currentTarget);
                         setToolsMenuOpen(true);
@@ -212,6 +214,7 @@ export function Composer({
     inputTools,
     maxRows,
 }: ComposerProps): ReactElement {
+    const { t } = useTranslation();
     const { text, setText, submit } = useComposer(onSend);
     const isDisabled = disabled ?? false;
 
@@ -226,7 +229,7 @@ export function Composer({
         value: text,
         onChange: setText,
         onKeyDown: handleKeyDown,
-        placeholder: "Type a message...",
+        placeholder: t("typeAMessage"),
         disabled: isDisabled,
         autoFocus: !isDisabled,
         inputTools,
@@ -244,7 +247,7 @@ export function Composer({
                 onClick={submit}
                 disabled={isDisabled || !text.trim()}
                 color="primary"
-                aria-label="Send"
+                aria-label={t("send")}
                 sx={{ mb: 0.5 }}
             >
                 <SendIcon />

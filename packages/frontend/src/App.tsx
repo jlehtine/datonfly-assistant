@@ -14,11 +14,10 @@ import MenuItem from "@mui/material/MenuItem";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 
-import { ChatClient } from "@datonfly-assistant/chat-client";
-import { ChatClientContext } from "@datonfly-assistant/chat-client/react";
-import { ChatHistoryEmbed, ChatUserSettings } from "@datonfly-assistant/chat-ui-mui";
+import { ChatHistoryEmbed, ChatUserSettingsEmbed } from "@datonfly-assistant/chat-ui-mui";
 import { emojiPickerTool } from "@datonfly-assistant/chat-ui-mui/emoji";
 import { highlightComponents } from "@datonfly-assistant/chat-ui-mui/highlight";
 import { RichInput } from "@datonfly-assistant/chat-ui-mui/rich";
@@ -38,6 +37,7 @@ const FAKE_USERS = [
 ];
 
 export function App(): ReactElement {
+    const { t, i18n } = useTranslation();
     const { user, loading, authMode, login, logout } = useAuth();
     const isDesktop = useMediaQuery("(min-height:768px)");
     const maxRows = isDesktop ? 10 : 4;
@@ -55,7 +55,6 @@ export function App(): ReactElement {
     const handleSwitchClose = useCallback(() => {
         setSwitchAnchorEl(null);
     }, []);
-    const settingsClient = useMemo(() => new ChatClient({ url: BACKEND_URL }), []);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const handleSettingsOpen = useCallback(() => {
         handleMenuClose();
@@ -98,9 +97,9 @@ export function App(): ReactElement {
             <AppBar position="static" elevation={0}>
                 <Toolbar sx={{ maxWidth: "80rem", width: "100%", mx: "auto" }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                        Datonfly Assistant
+                        {t("appTitle")}
                     </Typography>
-                    <IconButton color="inherit" onClick={handleMenuOpen} aria-label="User menu">
+                    <IconButton color="inherit" onClick={handleMenuOpen} aria-label={t("userMenu")}>
                         <AccountCircle />
                     </IconButton>
                     <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
@@ -112,18 +111,18 @@ export function App(): ReactElement {
                                 <ListItemIcon>
                                     <SwitchAccountIcon fontSize="small" />
                                 </ListItemIcon>
-                                <ListItemText primary="Switch User" />
+                                <ListItemText primary={t("switchUser")} />
                             </MenuItem>
                         )}
                         <MenuItem onClick={handleSettingsOpen}>
                             <ListItemIcon>
                                 <SettingsIcon fontSize="small" />
                             </ListItemIcon>
-                            <ListItemText primary="Chat Settings" />
+                            <ListItemText primary={t("chatSettings")} />
                         </MenuItem>
                         <Divider />
                         <MenuItem onClick={handleLogout}>
-                            <ListItemText primary="Sign out" />
+                            <ListItemText primary={t("signOut")} />
                         </MenuItem>
                     </Menu>
                     {authMode === "fake" && (
@@ -142,9 +141,10 @@ export function App(): ReactElement {
                         </Menu>
                     )}
                     <Dialog open={settingsOpen} onClose={handleSettingsClose}>
-                        <ChatClientContext.Provider value={settingsClient}>
-                            <ChatUserSettings onSaved={handleSettingsClose} />
-                        </ChatClientContext.Provider>
+                        <ChatUserSettingsEmbed
+                            config={{ url: BACKEND_URL, locale: i18n.language }}
+                            onSaved={handleSettingsClose}
+                        />
                     </Dialog>
                 </Toolbar>
             </AppBar>
@@ -153,6 +153,7 @@ export function App(): ReactElement {
                     <ChatHistoryEmbed
                         config={{
                             url: BACKEND_URL,
+                            locale: i18n.language,
                             inputComponent: RichInput,
                             inputTools: [emojiPickerTool],
                             maxRows,

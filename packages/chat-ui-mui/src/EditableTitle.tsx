@@ -4,6 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 
 /** Props for the {@link EditableTitle} component. */
 export interface EditableTitleProps {
@@ -21,6 +22,7 @@ export interface EditableTitleProps {
  * - **Escape** cancels and reverts to the original title.
  */
 export function EditableTitle({ title, onSave }: EditableTitleProps): ReactElement {
+    const { t } = useTranslation();
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(title);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +107,7 @@ export function EditableTitle({ title, onSave }: EditableTitleProps): ReactEleme
             <IconButton
                 className="edit-icon"
                 size="small"
-                aria-label="Edit title"
+                aria-label={t("editTitle")}
                 sx={{ opacity: 0, transition: "opacity 0.15s", p: 0.25 }}
                 onClick={(e) => {
                     e.stopPropagation();

@@ -9,6 +9,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useEffect, useState, type ComponentType, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
 import {
@@ -24,6 +25,7 @@ import type { MemberLeftEvent, Thread, ThreadUpdatedEvent } from "@datonfly-assi
 
 import { Composer, type ComposerInputProps } from "./Composer.js";
 import { EditableTitle } from "./EditableTitle.js";
+import { AssistantI18nProvider } from "./i18n/index.js";
 import type { InputTool } from "./InputTool.js";
 import { MemberDrawer } from "./MemberDrawer.js";
 import { MessageList } from "./MessageList.js";
@@ -39,6 +41,8 @@ export interface ChatEmbedConfig {
      * @see ChatClientConfig.basePath
      */
     basePath?: string | undefined;
+    /** BCP 47 language tag (e.g. `"en"`, `"fi"`). Falls back to `navigator.language`. */
+    locale?: string | undefined;
     /** Optional async callback invoked before each send; must resolve to the thread ID to use. */
     onBeforeSend?: (() => Promise<string>) | undefined;
     /** Override the default plain-text input with a custom component. */
@@ -97,24 +101,26 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
     const threadId = config.threadId ?? null;
 
     return (
-        <ChatClientContext.Provider value={client}>
-            <CurrentUserIdContext.Provider value={userId}>
-                <ChatInner
-                    threadId={threadId}
-                    connected={connected}
-                    onBeforeSend={config.onBeforeSend}
-                    inputComponent={config.inputComponent}
-                    inputTools={config.inputTools}
-                    maxRows={config.maxRows}
-                    messageComponents={config.messageComponents}
-                    thread={config.thread}
-                    onOpenThreadList={config.onOpenThreadList}
-                    onRenameThread={config.onRenameThread}
-                    onThreadUpdated={config.onThreadUpdated}
-                    onLeftThread={config.onLeftThread}
-                />
-            </CurrentUserIdContext.Provider>
-        </ChatClientContext.Provider>
+        <AssistantI18nProvider locale={config.locale}>
+            <ChatClientContext.Provider value={client}>
+                <CurrentUserIdContext.Provider value={userId}>
+                    <ChatInner
+                        threadId={threadId}
+                        connected={connected}
+                        onBeforeSend={config.onBeforeSend}
+                        inputComponent={config.inputComponent}
+                        inputTools={config.inputTools}
+                        maxRows={config.maxRows}
+                        messageComponents={config.messageComponents}
+                        thread={config.thread}
+                        onOpenThreadList={config.onOpenThreadList}
+                        onRenameThread={config.onRenameThread}
+                        onThreadUpdated={config.onThreadUpdated}
+                        onLeftThread={config.onLeftThread}
+                    />
+                </CurrentUserIdContext.Provider>
+            </ChatClientContext.Provider>
+        </AssistantI18nProvider>
     );
 }
 
@@ -147,6 +153,7 @@ function ChatInner({
     onThreadUpdated,
     onLeftThread,
 }: ChatInnerProps): ReactElement {
+    const { t } = useTranslation();
     const client = useChatClient();
     const currentUserId = useCurrentUserId();
     const { members, inviteMember, removeMember, updateMemberRole } = useMembers(threadId);
@@ -216,7 +223,7 @@ function ChatInner({
                     {onOpenThreadList && (
                         <IconButton
                             size="small"
-                            aria-label="Open conversations"
+                            aria-label={t("openConversations")}
                             onClick={onOpenThreadList}
                             edge="start"
                         >
@@ -250,8 +257,12 @@ function ChatInner({
                                     ))}
                                 </AvatarGroup>
                             )}
-                            <Tooltip title="Invite member">
-                                <IconButton size="small" aria-label="Invite member" onClick={handleOpenMemberDrawer}>
+                            <Tooltip title={t("inviteMember")}>
+                                <IconButton
+                                    size="small"
+                                    aria-label={t("inviteMember")}
+                                    onClick={handleOpenMemberDrawer}
+                                >
                                     <PersonAddAltIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
@@ -261,12 +272,12 @@ function ChatInner({
             ) : null}
             {!connected && (
                 <Typography variant="caption" sx={{ textAlign: "center", p: 1, color: "warning.main" }}>
-                    Connecting...
+                    {t("connecting")}
                 </Typography>
             )}
             {error && (
                 <Alert severity="error" onClose={clearError} sx={{ mx: 2, mt: 1 }}>
-                    {error}
+                    {t(`error.${error.code}`, { defaultValue: error.message })}
                 </Alert>
             )}
             <MessageList

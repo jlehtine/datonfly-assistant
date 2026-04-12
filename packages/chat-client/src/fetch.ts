@@ -1,6 +1,24 @@
 import type { z } from "zod";
 
+import type { ErrorCode } from "@datonfly-assistant/core";
+
 import type { ChatClient } from "./client.js";
+
+/**
+ * Error subclass that may carry a machine-readable {@link ErrorCode}.
+ *
+ * When the server responds with a JSON body containing a `code` field, it is
+ * attached to this error so callers can handle it programmatically.
+ */
+export class ChatError extends Error {
+    readonly code: ErrorCode | undefined;
+
+    constructor(message: string, code?: ErrorCode) {
+        super(message);
+        this.name = "ChatError";
+        this.code = code;
+    }
+}
 
 /** Options for {@link typedFetch}. */
 export interface TypedFetchOptions {
@@ -52,7 +70,19 @@ export async function typedFetch<T>(
     });
 
     if (!res.ok) {
-        throw new Error(`${method} ${path} failed: ${res.statusText}`);
+        let code: ErrorCode | undefined;
+        let message = `${method} ${path} failed: ${res.statusText}`;
+        try {
+            const body: unknown = await res.json();
+            if (typeof body === "object" && body !== null) {
+                const obj = body as Record<string, unknown>;
+                if (typeof obj.code === "string") code = obj.code as ErrorCode;
+                if (typeof obj.message === "string") message = obj.message;
+            }
+        } catch {
+            // Response body is not JSON — use the default message.
+        }
+        throw new ChatError(message, code);
     }
 
     const json: unknown = await res.json();

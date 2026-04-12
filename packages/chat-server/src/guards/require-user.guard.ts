@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { type CanActivate, type ExecutionContext, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import type { Request } from "express";
 
-import type { IPersistenceProvider, User, UserIdentity } from "@datonfly-assistant/core";
+import { ERROR_CODES, type IPersistenceProvider, type User, type UserIdentity } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "../audit-logger.js";
 import { PERSISTENCE_PROVIDER } from "../constants.js";
@@ -32,7 +32,10 @@ export class RequireUserGuard implements CanActivate {
 
         if (!identity?.email) {
             this.auditLogger.audit("error", "auth.rejected", { error: "User identity not provided" });
-            throw new UnauthorizedException("User identity not provided");
+            throw new UnauthorizedException({
+                message: "User identity not provided",
+                code: ERROR_CODES.user_identity_not_provided,
+            });
         }
 
         // Resolve identity → User record (cached per request)

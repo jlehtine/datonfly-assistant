@@ -16,6 +16,7 @@ import {
 import { z } from "zod";
 
 import {
+    ERROR_CODES,
     createThreadRequestSchema,
     paginationQuerySchema,
     updateThreadRequestSchema,
@@ -80,7 +81,7 @@ export class ThreadController {
     ): Promise<ThreadMessage[]> {
         const isMember = await this.persistence.isMember(threadId, user.id);
         if (!isMember) {
-            throw new ForbiddenException("Not a member of this thread");
+            throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
         }
 
         return this.persistence.loadMessages({ threadId, limit: query.limit, before: query.before });
@@ -93,7 +94,7 @@ export class ThreadController {
     ): Promise<ThreadMemberInfo[]> {
         const isMember = await this.persistence.isMember(threadId, user.id);
         if (!isMember) {
-            throw new ForbiddenException("Not a member of this thread");
+            throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
         }
 
         return this.persistence.listMembersWithUser(threadId);
@@ -106,12 +107,12 @@ export class ThreadController {
     ): Promise<Thread> {
         const isMember = await this.persistence.isMember(threadId, user.id);
         if (!isMember) {
-            throw new ForbiddenException("Not a member of this thread");
+            throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
         }
 
         const thread = await this.persistence.getThread(threadId);
         if (!thread) {
-            throw new NotFoundException("Thread not found");
+            throw new NotFoundException({ message: "Thread not found", code: ERROR_CODES.thread_not_found });
         }
         return thread;
     }
@@ -124,10 +125,13 @@ export class ThreadController {
     ): Promise<Thread> {
         const role = await this.persistence.getMemberRole(threadId, user.id);
         if (!role) {
-            throw new ForbiddenException("Not a member of this thread");
+            throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
         }
         if (role !== "owner") {
-            throw new ForbiddenException("Only the thread owner can update this thread");
+            throw new ForbiddenException({
+                message: "Only the thread owner can update this thread",
+                code: ERROR_CODES.not_thread_owner,
+            });
         }
 
         const updates: {
@@ -158,10 +162,13 @@ export class ThreadController {
     ): Promise<void> {
         const role = await this.persistence.getMemberRole(threadId, user.id);
         if (!role) {
-            throw new ForbiddenException("Not a member of this thread");
+            throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
         }
         if (role !== "owner") {
-            throw new ForbiddenException("Only the thread owner can delete this thread");
+            throw new ForbiddenException({
+                message: "Only the thread owner can delete this thread",
+                code: ERROR_CODES.not_thread_owner,
+            });
         }
 
         await this.persistence.deleteThread(threadId);

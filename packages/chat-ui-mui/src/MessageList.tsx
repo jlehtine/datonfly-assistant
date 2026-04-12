@@ -4,11 +4,17 @@ import { keyframes } from "@mui/material/styles";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useEffect, useRef, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
-import { useCurrentUserId, type ChatMessage } from "@datonfly-assistant/chat-client/react";
+import { useCurrentUserId, type ChatMessage, type ChatStatusInfo } from "@datonfly-assistant/chat-client/react";
 
-import { formatTimestamp, formatTimestampFull, shouldShowTimestamp } from "./formatTimestamp.js";
+import {
+    formatTimestamp,
+    formatTimestampFull,
+    shouldShowTimestamp,
+    type FormatTimestampLabels,
+} from "./formatTimestamp.js";
 import { MessageBubble } from "./MessageBubble.js";
 
 const bounce = keyframes`
@@ -16,9 +22,9 @@ const bounce = keyframes`
     40% { opacity: 1; transform: scale(1); }
 `;
 
-function ThinkingBubble(): ReactElement {
+function ThinkingBubble({ label }: { label: string }): ReactElement {
     return (
-        <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }} aria-label="Assistant is thinking">
+        <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }} aria-label={label}>
             <Box
                 sx={{
                     display: "flex",
@@ -47,9 +53,11 @@ function ThinkingBubble(): ReactElement {
     );
 }
 
-function StatusBubble({ status }: { status: string }): ReactElement {
+function StatusBubble({ status }: { status: ChatStatusInfo }): ReactElement {
+    const { t } = useTranslation();
+    const label = t(`status.${status.code}`, { defaultValue: status.text });
     return (
-        <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }} aria-label={status}>
+        <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }} aria-label={label}>
             <Box
                 sx={{
                     display: "flex",
@@ -63,16 +71,24 @@ function StatusBubble({ status }: { status: string }): ReactElement {
             >
                 <CircularProgress size={14} thickness={5} />
                 <Typography variant="body2" color="text.secondary">
-                    {status}
+                    {label}
                 </Typography>
             </Box>
         </Box>
     );
 }
 
-function TimestampDivider({ date }: { date: Date }): ReactElement {
-    const label = formatTimestamp(date);
-    const fullLabel = formatTimestampFull(date);
+function TimestampDivider({
+    date,
+    locale,
+    labels,
+}: {
+    date: Date;
+    locale: string | undefined;
+    labels: FormatTimestampLabels;
+}): ReactElement {
+    const label = formatTimestamp(date, undefined, locale, labels);
+    const fullLabel = formatTimestampFull(date, locale);
     return (
         <Tooltip title={fullLabel}>
             <Typography
@@ -95,8 +111,8 @@ export interface MessageListProps {
     messages: ChatMessage[];
     /** When `true`, a typing indicator is shown after the last message. */
     isStreaming?: boolean | undefined;
-    /** Transient status label during streaming (e.g. "Running code…"). */
-    streamingStatus?: string | null | undefined;
+    /** Transient status during streaming (e.g. code execution). */
+    streamingStatus?: ChatStatusInfo | null | undefined;
     /**
      * Optional custom element renderers forwarded to each {@link MessageBubble}.
      * Use this to enable syntax highlighting by passing `highlightComponents`
@@ -129,6 +145,7 @@ export function MessageList({
     hasMore,
     onLoadMore,
 }: MessageListProps): ReactElement {
+    const { t, i18n } = useTranslation();
     const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const currentUserId = useCurrentUserId();
@@ -136,6 +153,7 @@ export function MessageList({
     const showThinking = isStreaming === true && !lastMsg?.streaming;
     const prevLengthRef = useRef(messages.length);
     const wasStreamingRef = useRef(false);
+    const tsLabels: FormatTimestampLabels = { justNow: t("justNow"), yesterday: t("yesterday") };
 
     // Scroll to bottom on new messages or streaming state change
     useEffect(() => {
@@ -183,7 +201,14 @@ export function MessageList({
                 const prev = i > 0 ? messages[i - 1] : undefined;
                 const elements: ReactElement[] = [];
                 if (msg.createdAt && shouldShowTimestamp(prev?.createdAt, msg.createdAt)) {
-                    elements.push(<TimestampDivider key={`ts-${msg.id}`} date={msg.createdAt} />);
+                    elements.push(
+                        <TimestampDivider
+                            key={`ts-${msg.id}`}
+                            date={msg.createdAt}
+                            locale={i18n.language}
+                            labels={tsLabels}
+                        />,
+                    );
                 }
                 elements.push(
                     <MessageBubble
@@ -195,7 +220,7 @@ export function MessageList({
                 );
                 return elements;
             })}
-            {showThinking && !streamingStatus && <ThinkingBubble />}
+            {showThinking && !streamingStatus && <ThinkingBubble label={t("assistantIsThinking")} />}
             {isStreaming && streamingStatus && <StatusBubble status={streamingStatus} />}
             <Box ref={endRef} className="datonfly-message-list-end" />
         </Box>

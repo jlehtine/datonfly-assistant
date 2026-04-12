@@ -3,7 +3,14 @@ import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langc
 import type { Runnable } from "@langchain/core/runnables";
 import type { ServerTool } from "@langchain/core/tools";
 
-import type { AgentMessage, AgentStreamChunk, IAgentProvider, ShouldRespondResult } from "@datonfly-assistant/core";
+import type {
+    AgentMessage,
+    AgentStreamChunk,
+    Citation,
+    IAgentProvider,
+    ShouldRespondResult,
+    StatusCode,
+} from "@datonfly-assistant/core";
 
 /** Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances. */
 function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
@@ -37,11 +44,17 @@ function extractTextFromContent(content: string | Record<string, unknown>[]): st
         .join("");
 }
 
-/** Map a tool name to a user-visible status string, or `undefined`. */
-function toolNameToStatus(name: unknown): string | undefined {
+/** Status info returned for a detected tool invocation. */
+interface ToolStatus {
+    code: StatusCode;
+    text: string;
+}
+
+/** Map a tool name to a {@link ToolStatus}, or `undefined`. */
+function toolNameToStatus(name: unknown): ToolStatus | undefined {
     if (typeof name !== "string") return undefined;
-    if (CODE_EXECUTION_TOOL_NAMES.has(name)) return "Running code\u2026";
-    if (name === "web_search") return "Searching the web\u2026";
+    if (CODE_EXECUTION_TOOL_NAMES.has(name)) return { code: "tool_code_execution", text: "Running code…" };
+    if (name === "web_search") return { code: "tool_web_search", text: "Searching the web…" };
     return undefined;
 }
 
@@ -53,7 +66,7 @@ function toolNameToStatus(name: unknown): string | undefined {
  * streaming it often routes them into `tool_call_chunks` or even
  * `invalid_tool_calls` (see LangChain #9911).  We check all three.
  */
-function detectToolStatus(chunk: Record<string, unknown>): string | undefined {
+function detectToolStatus(chunk: Record<string, unknown>): ToolStatus | undefined {
     // 1. Check content blocks (works for non-streaming / invoke)
     const content = chunk.content;
     if (Array.isArray(content)) {
@@ -87,15 +100,15 @@ function detectToolStatus(chunk: Record<string, unknown>): string | undefined {
 }
 
 /** A URL + title pair extracted from a web search citation. */
-interface Citation {
+interface RawCitation {
     url: string;
     title: string;
 }
 
 /** Extract web-search citations from content blocks. */
-function extractCitations(content: string | Record<string, unknown>[]): Citation[] {
+function extractCitations(content: string | Record<string, unknown>[]): RawCitation[] {
     if (typeof content === "string") return [];
-    const citations: Citation[] = [];
+    const citations: RawCitation[] = [];
     for (const block of content) {
         if (block.type !== "text" || !Array.isArray(block.citations)) continue;
         for (const cite of block.citations as Record<string, unknown>[]) {
@@ -107,8 +120,8 @@ function extractCitations(content: string | Record<string, unknown>[]): Citation
     return citations;
 }
 
-/** Build a deduplicated markdown "Sources" section from collected citations. */
-function buildSourcesSection(citations: Citation[]): string {
+/** Deduplicate citations by URL. */
+function deduplicateCitations(citations: RawCitation[]): Citation[] {
     const seen = new Set<string>();
     const unique: Citation[] = [];
     for (const c of citations) {
@@ -117,9 +130,7 @@ function buildSourcesSection(citations: Citation[]): string {
             unique.push(c);
         }
     }
-    if (unique.length === 0) return "";
-    const lines = unique.map((c) => `- [${c.title}](${c.url})`);
-    return `\n\n---\n**Sources**\n${lines.join("\n")}\n`;
+    return unique;
 }
 
 /** Configuration options for {@link LangGraphAgent}. */
@@ -208,9 +219,8 @@ export class LangGraphAgent implements IAgentProvider {
             content: string | Record<string, unknown>[];
         };
         const text = extractTextFromContent(response.content);
-        const citations = extractCitations(response.content);
-        const sources = buildSourcesSection(citations);
-        return { role: "ai", content: text + sources };
+        const citations = deduplicateCitations(extractCitations(response.content));
+        return { role: "ai", content: text, ...(citations.length > 0 ? { citations } : {}) };
     }
 
     /** Run the agent and return a stream of incremental response chunks. */
@@ -224,21 +234,24 @@ export class LangGraphAgent implements IAgentProvider {
         const langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(messages), opts);
         return {
             async *[Symbol.asyncIterator]() {
-                const allCitations: Citation[] = [];
+                const allCitations: RawCitation[] = [];
                 for await (const chunk of langchainStream) {
                     const rawChunk = chunk as Record<string, unknown>;
                     const rawContent = rawChunk.content as string | Record<string, unknown>[];
                     const text = extractTextFromContent(rawContent);
-                    const status = detectToolStatus(rawChunk);
+                    const toolStatus = detectToolStatus(rawChunk);
                     allCitations.push(...extractCitations(rawContent));
 
-                    if (text || status) {
-                        yield { content: text, ...(status ? { status } : {}) };
+                    if (text || toolStatus) {
+                        yield {
+                            content: text,
+                            ...(toolStatus ? { status: toolStatus.code, statusText: toolStatus.text } : {}),
+                        };
                     }
                 }
-                const sources = buildSourcesSection(allCitations);
-                if (sources) {
-                    yield { content: sources };
+                const citations = deduplicateCitations(allCitations);
+                if (citations.length > 0) {
+                    yield { content: "", citations };
                 }
             },
         };

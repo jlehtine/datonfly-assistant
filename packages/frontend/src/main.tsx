@@ -5,6 +5,8 @@ import { StrictMode, useMemo, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+// Initialize i18next before rendering.
+import "./i18n/instance.js";
 
 function Root(): ReactElement {
     const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");

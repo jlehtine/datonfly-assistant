@@ -1,18 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+    ERROR_CODES,
     threadMessageListWireSchema,
     threadMessagesPath,
+    type ErrorCode,
     type ErrorEvent,
     type MessageCompleteEvent,
     type MessageDeltaEvent,
     type MessageStatusEvent,
     type NewMessageEvent,
+    type StatusCode,
     type ThreadMessage,
 } from "@datonfly-assistant/core";
 
 import { typedFetch } from "../fetch.js";
 import { useChatClient, useCurrentUserId } from "./context.js";
+
+/** Structured error exposed by {@link useMessages}. */
+export interface ChatErrorInfo {
+    /** Machine-readable error code. */
+    code: ErrorCode;
+    /** Human-readable English error message. */
+    message: string;
+}
+
+/** Structured streaming status exposed by {@link useMessages}. */
+export interface ChatStatusInfo {
+    /** Machine-readable status code for i18n lookup. */
+    code: StatusCode;
+    /** Human-readable English status text (fallback). */
+    text: string;
+}
 
 /** A single chat message held in local React state. */
 export interface ChatMessage {
@@ -50,10 +69,10 @@ export interface UseMessagesResult {
     sendMessage: (text: string) => void;
     /** `true` while the assistant is generating a response. */
     isStreaming: boolean;
-    /** Transient status label during streaming (e.g. "Running code…"), or `null`. */
-    streamingStatus: string | null;
-    /** The most recent error message, or `null` if there is none. */
-    error: string | null;
+    /** Transient status during streaming (e.g. code execution), or `null`. */
+    streamingStatus: ChatStatusInfo | null;
+    /** The most recent error, or `null` if there is none. */
+    error: ChatErrorInfo | null;
     /** Dismiss the current error. */
     clearError: () => void;
     /** `true` while history is being fetched from the server. */
@@ -110,8 +129,8 @@ export function useMessages(
     const currentUserId = useCurrentUserId();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
-    const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [streamingStatus, setStreamingStatus] = useState<ChatStatusInfo | null>(null);
+    const [error, setError] = useState<ChatErrorInfo | null>(null);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [hasMore, setHasMore] = useState(false);
     const streamingIdRef = useRef<string | null>(null);
@@ -177,7 +196,8 @@ export function useMessages(
                 setHasMore(result.hasMore);
                 oldestCreatedAtRef.current = result.messages[0]?.createdAt ?? null;
             } catch (e: unknown) {
-                setError(e instanceof Error ? e.message : "Failed to load history");
+                console.error("[useMessages] Failed to load history:", e);
+                setError({ code: ERROR_CODES.client_error, message: "Failed to load history" });
             } finally {
                 isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
@@ -214,7 +234,8 @@ export function useMessages(
                 setIsLoadingHistory(false);
             })
             .catch((e: unknown) => {
-                setError(e instanceof Error ? e.message : "Failed to load more messages");
+                console.error("[useMessages] Failed to load more messages:", e);
+                setError({ code: ERROR_CODES.client_error, message: "Failed to load more messages" });
                 isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
             });
@@ -269,7 +290,7 @@ export function useMessages(
 
         const handleStatus = (event: MessageStatusEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
-            setStreamingStatus(event.status);
+            setStreamingStatus({ code: event.status, text: event.statusText });
         };
 
         const handleNewMessage = (event: NewMessageEvent): void => {
@@ -300,7 +321,7 @@ export function useMessages(
         };
 
         const handleError = (event: ErrorEvent): void => {
-            setError(event.message);
+            setError({ code: event.code, message: event.message });
             setIsStreaming(false);
             setStreamingStatus(null);
             streamingIdRef.current = null;
@@ -345,7 +366,8 @@ export function useMessages(
                     resolvedThreadIdRef.current = tid;
                     client.sendMessage(tid, messageId, text);
                 } catch (e: unknown) {
-                    setError(e instanceof Error ? e.message : "Failed to send message");
+                    console.error("[useMessages] Failed to send message:", e);
+                    setError({ code: ERROR_CODES.client_error, message: "Failed to send message" });
                     setIsStreaming(false);
                 }
             })();

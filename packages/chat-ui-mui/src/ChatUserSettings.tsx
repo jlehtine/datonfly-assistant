@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 
 import { typedFetch } from "@datonfly-assistant/chat-client";
 import { useChatClient } from "@datonfly-assistant/chat-client/react";
@@ -25,6 +26,7 @@ export interface ChatUserSettingsProps {
  * `PATCH /datonfly-assistant/users/me`.
  */
 export function ChatUserSettings({ onSaved }: ChatUserSettingsProps): ReactElement {
+    const { t } = useTranslation();
     const client = useChatClient();
 
     const [alias, setAlias] = useState("");
@@ -74,24 +76,21 @@ export function ChatUserSettings({ onSaved }: ChatUserSettingsProps): ReactEleme
     return (
         <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5, minWidth: 240 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Typography variant="subtitle2">AI Alias</Typography>
-                <Tooltip
-                    title="This name identifies you to the AI assistant in all conversations. It is especially useful in group chats, where each participant's messages are labeled so the AI can follow who said what. If not set, you appear as 'Unidentified user'."
-                    arrow
-                >
+                <Typography variant="subtitle2">{t("displayNameForAI")}</Typography>
+                <Tooltip title={t("displayNameForAITooltip")} arrow>
                     <HelpOutlineIcon fontSize="small" color="action" sx={{ cursor: "help" }} />
                 </Tooltip>
             </Box>
             <TextField
                 size="small"
-                placeholder="Unidentified user"
+                placeholder={t("unidentifiedUser")}
                 value={alias}
                 onChange={handleChange}
                 slotProps={{ htmlInput: { maxLength: 100 } }}
                 fullWidth
             />
             <Button variant="contained" size="small" disabled={!dirty || saving} onClick={() => void handleSave()}>
-                {saving ? "Saving…" : "Save"}
+                {saving ? t("saving") : t("save")}
             </Button>
         </Box>
     );

@@ -7,6 +7,7 @@ import { useTheme } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
 import MDEditor, { commands, type ICommand, type TextAreaTextApi } from "@uiw/react-md-editor";
 import { useEffect, useRef, useState, type ReactElement, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ComposerInputProps } from "./Composer.js";
 import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
@@ -58,6 +59,7 @@ export function RichInput({
     inputTools,
     maxRows,
 }: ComposerInputProps): ReactElement {
+    const { t } = useTranslation();
     const theme = useTheme();
     const colorMode = theme.palette.mode === "dark" ? "dark" : "light";
     const resolvedMaxRows = maxRows ?? 6;
@@ -170,7 +172,7 @@ export function RichInput({
                     setExpanded((prev) => !prev);
                 }}
                 color="default"
-                aria-label="Toggle formatting"
+                aria-label={t("toggleFormatting")}
                 sx={{ mb: 0.5 }}
             >
                 {expanded ? <ExpandMoreIcon sx={{ fontSize: 20 }} /> : <ExpandLessIcon sx={{ fontSize: 20 }} />}

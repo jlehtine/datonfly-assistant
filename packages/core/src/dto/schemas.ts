@@ -35,11 +35,9 @@ export const contentPartSchema = z.discriminatedUnion("type", [
 // ─── Thread ───
 
 /** Zod schema for a request to create a new thread. */
-export const createThreadRequestSchema = z
-    .object({
-        title: z.string().min(1).max(200).optional().default("Conversation"),
-    })
-    .default({ title: "Conversation" });
+export const createThreadRequestSchema = z.object({
+    title: z.string().min(1).max(200),
+});
 
 /** Validated request body for creating a new thread. */
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;

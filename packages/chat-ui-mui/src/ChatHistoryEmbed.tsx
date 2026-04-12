@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
 import { typedFetch } from "@datonfly-assistant/chat-client";
@@ -81,6 +82,7 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
 
 function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
     const { url, basePath, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
+    const { t } = useTranslation();
 
     const client = useChatClient();
 
@@ -131,7 +133,10 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
         if (pendingCreateRef.current) return pendingCreateRef.current;
 
         const promise = (async () => {
-            const thread = await typedFetch(client, THREADS_PATH, threadWireSchema, { method: "POST" });
+            const thread = await typedFetch(client, THREADS_PATH, threadWireSchema, {
+                method: "POST",
+                body: { title: t("newConversation") },
+            });
             setSelectedThreadId(thread.id);
             pendingCreateRef.current = null;
             refresh();
@@ -140,7 +145,7 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
 
         pendingCreateRef.current = promise;
         return promise;
-    }, [selectedThreadId, client, refresh, markRead]);
+    }, [selectedThreadId, client, t, refresh, markRead]);
 
     const handleArchiveToggleFromPanel = useCallback(
         (threadId: string, archived: boolean) => {

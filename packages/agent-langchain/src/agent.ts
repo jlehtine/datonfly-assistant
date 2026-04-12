@@ -214,7 +214,7 @@ export class LangGraphAgent implements IAgentProvider {
         _userId: string,
         signal?: AbortSignal,
     ): Promise<AgentMessage> {
-        const opts = signal ? { signal } : undefined;
+        const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
         const response = (await this.runnableModel.invoke(agentMessagesToBaseMessages(messages), opts)) as {
             content: string | Record<string, unknown>[];
         };
@@ -230,7 +230,7 @@ export class LangGraphAgent implements IAgentProvider {
         _userId: string,
         signal?: AbortSignal,
     ): Promise<AsyncIterable<AgentStreamChunk>> {
-        const opts = signal ? { signal } : undefined;
+        const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
         const langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(messages), opts);
         return {
             async *[Symbol.asyncIterator]() {

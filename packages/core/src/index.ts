@@ -1,6 +1,7 @@
 // Types
 export type {
     UserIdentity,
+    MemberSearchStrategy,
     User,
     Thread,
     ThreadMember,

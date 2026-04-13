@@ -442,6 +442,34 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             .execute();
         return rows.map(toUser);
     }
+
+    async searchCoMembers(userId: string, query: string, limit = 20): Promise<User[]> {
+        const escaped = query.replace(/[%_\\]/g, "\\$&");
+        const pattern = `%${escaped}%`;
+
+        const rows = await this.qb
+            .selectFrom("user")
+            .selectAll("user")
+            .where("user.deleted_at", "is", null)
+            .where("user.id", "!=", userId)
+            .where((eb) =>
+                eb(
+                    "user.id",
+                    "in",
+                    eb
+                        .selectFrom("thread_member as tm1")
+                        .select("tm1.user_id")
+                        .innerJoin("thread_member as tm2", "tm1.thread_id", "tm2.thread_id")
+                        .where("tm2.user_id", "=", userId)
+                        .where("tm1.user_id", "!=", userId),
+                ),
+            )
+            .where((eb) => eb.or([eb("user.name", "ilike", pattern), eb("user.email", "ilike", pattern)]))
+            .orderBy("user.name", "asc")
+            .limit(limit)
+            .execute();
+        return rows.map(toUser);
+    }
 }
 
 // ─── Row → Domain Mappers ───

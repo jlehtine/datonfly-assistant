@@ -65,6 +65,7 @@ const fi: FlatKeys<typeof en> = {
     noUsersFound: "Käyttäjiä ei löytynyt",
     typeToSearch: "Kirjoita hakeaksesi",
     searchUsersToInvite: "Hae kutsuttavia käyttäjiä...",
+    inviteByEmail: "Kutsu {{email}}",
 
     // ── RichInput ──
     toggleFormatting: "Vaihda muotoilu",

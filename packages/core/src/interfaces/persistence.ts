@@ -132,4 +132,11 @@ export interface IPersistenceProvider {
     // Search
     /** Search users by name or email (case-insensitive substring match). */
     searchUsers(query: string, limit?: number): Promise<User[]>;
+    /**
+     * Search users who share at least one thread with `userId`.
+     *
+     * Results are filtered by a case-insensitive substring match on name or
+     * email, exclude the caller, and exclude soft-deleted users.
+     */
+    searchCoMembers(userId: string, query: string, limit?: number): Promise<User[]>;
 }

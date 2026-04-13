@@ -1,14 +1,27 @@
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import Autocomplete from "@mui/material/Autocomplete";
 import Avatar from "@mui/material/Avatar";
 import ListItem from "@mui/material/ListItem";
 import ListItemAvatar from "@mui/material/ListItemAvatar";
 import ListItemText from "@mui/material/ListItemText";
 import TextField from "@mui/material/TextField";
-import { useCallback, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useUserSearch, type UseUserSearchResult } from "@datonfly-assistant/chat-client/react";
 import type { UserSearchResultWire } from "@datonfly-assistant/core";
+
+/** Synthetic option representing an invite-by-email entry. */
+interface EmailInviteOption {
+    kind: "email-invite";
+    email: string;
+}
+
+/** Union of option types shown in the autocomplete dropdown. */
+type InviteOption = (UserSearchResultWire & { kind?: undefined }) | EmailInviteOption;
+
+/** Loose email check — intentionally permissive (server validates with Zod). */
+const looksLikeEmail = (v: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 /** Props for the {@link InviteAutocomplete} component. */
 export interface InviteAutocompleteProps {
@@ -24,11 +37,23 @@ export interface InviteAutocompleteProps {
  * Performs a debounced search via {@link useUserSearch} and renders results
  * with avatar, name, and email. On selection the `onInvite` callback is fired
  * and the input is cleared.
+ *
+ * When the input looks like an email address and no search result matches that
+ * exact email, a synthetic "Invite {email}" option is prepended so the user
+ * can invite by exact email even when the person is not discoverable via search.
  */
 export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompleteProps): ReactElement {
     const { t } = useTranslation();
     const { results, isSearching, search, clear }: UseUserSearchResult = useUserSearch(excludeUserIds);
     const [inputValue, setInputValue] = useState("");
+
+    const options: InviteOption[] = useMemo(() => {
+        const trimmed = inputValue.trim();
+        if (looksLikeEmail(trimmed) && !results.some((r) => r.email.toLowerCase() === trimmed.toLowerCase())) {
+            return [{ kind: "email-invite" as const, email: trimmed }, ...results];
+        }
+        return results;
+    }, [inputValue, results]);
 
     const handleInputChange = useCallback(
         (_event: unknown, value: string): void => {
@@ -39,9 +64,9 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
     );
 
     const handleChange = useCallback(
-        (_event: unknown, value: UserSearchResultWire | null): void => {
+        (_event: unknown, value: InviteOption | null): void => {
             if (value) {
-                onInvite(value.email);
+                onInvite(value.kind === "email-invite" ? value.email : value.email);
                 setInputValue("");
                 clear();
             }
@@ -49,34 +74,59 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
         [onInvite, clear],
     );
 
+    const getOptionLabel = useCallback(
+        (option: InviteOption): string =>
+            option.kind === "email-invite" ? t("inviteByEmail", { email: option.email }) : option.name,
+        [t],
+    );
+
+    const getOptionKey = useCallback(
+        (option: InviteOption): string => (option.kind === "email-invite" ? `email:${option.email}` : option.id),
+        [],
+    );
+
     return (
-        <Autocomplete<UserSearchResultWire>
-            options={results}
+        <Autocomplete<InviteOption>
+            options={options}
             loading={isSearching}
             inputValue={inputValue}
             onInputChange={handleInputChange}
             onChange={handleChange}
-            getOptionLabel={(option) => option.name}
-            getOptionKey={(option) => option.id}
+            getOptionLabel={getOptionLabel}
+            getOptionKey={getOptionKey}
             filterOptions={(x) => x}
             noOptionsText={inputValue ? t("noUsersFound") : t("typeToSearch")}
-            renderOption={(props, option) => (
-                <ListItem {...props} key={option.id}>
-                    <ListItemAvatar>
-                        <Avatar src={option.avatarUrl ?? undefined} sx={{ width: 32, height: 32 }}>
-                            {option.name.charAt(0).toUpperCase()}
-                        </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                        primary={option.name}
-                        secondary={option.email}
-                        slotProps={{
-                            primary: { variant: "body2" },
-                            secondary: { variant: "caption" },
-                        }}
-                    />
-                </ListItem>
-            )}
+            renderOption={(props, option) =>
+                option.kind === "email-invite" ? (
+                    <ListItem {...props} key={`email:${option.email}`}>
+                        <ListItemAvatar>
+                            <Avatar sx={{ width: 32, height: 32 }}>
+                                <PersonAddIcon fontSize="small" />
+                            </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                            primary={t("inviteByEmail", { email: option.email })}
+                            slotProps={{ primary: { variant: "body2" } }}
+                        />
+                    </ListItem>
+                ) : (
+                    <ListItem {...props} key={option.id}>
+                        <ListItemAvatar>
+                            <Avatar src={option.avatarUrl ?? undefined} sx={{ width: 32, height: 32 }}>
+                                {option.name.charAt(0).toUpperCase()}
+                            </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                            primary={option.name}
+                            secondary={option.email}
+                            slotProps={{
+                                primary: { variant: "body2" },
+                                secondary: { variant: "caption" },
+                            }}
+                        />
+                    </ListItem>
+                )
+            }
             renderInput={(params) => (
                 <TextField {...params} placeholder={t("searchUsersToInvite")} size="small" variant="outlined" />
             )}

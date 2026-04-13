@@ -60,6 +60,7 @@ const en = {
     noUsersFound: "No users found",
     typeToSearch: "Type to search",
     searchUsersToInvite: "Search users to invite...",
+    inviteByEmail: "Invite {{email}}",
 
     // ── RichInput ──
     toggleFormatting: "Toggle formatting",

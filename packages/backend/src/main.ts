@@ -12,6 +12,7 @@ import { Logger } from "nestjs-pino";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
 import { ChatModule } from "@datonfly-assistant/chat-server";
+import type { MemberSearchStrategy } from "@datonfly-assistant/core";
 import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
 
 import { AppModule } from "./app.module.js";
@@ -124,12 +125,19 @@ async function bootstrap(): Promise<void> {
           })
         : undefined;
 
+    const rawStrategy = process.env.MEMBER_SEARCH_STRATEGY ?? "default";
+    if (rawStrategy !== "default" && rawStrategy !== "limited-visibility") {
+        throw new Error(`MEMBER_SEARCH_STRATEGY must be "default" or "limited-visibility", got "${rawStrategy}"`);
+    }
+    const memberSearchStrategy: MemberSearchStrategy = rawStrategy;
+
     const chatModule = ChatModule.forRoot({
         agent,
         persistence,
         validateToken: (token: string) => authService.authenticateToken(token),
         generateTitle,
         cors: { origin: frontendUrl, credentials: true },
+        memberSearchStrategy,
     });
 
     const extraModules = [chatModule];

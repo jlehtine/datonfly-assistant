@@ -2,7 +2,7 @@ import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
 import { LoggerModule } from "nestjs-pino";
 
-import type { IAgentProvider, IPersistenceProvider } from "@datonfly-assistant/core";
+import type { IAgentProvider, IPersistenceProvider, MemberSearchStrategy } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
@@ -11,6 +11,7 @@ import {
     CHAT_CORS_OPTIONS,
     COMPACTION_AGENT_PROVIDER,
     GENERATE_TITLE_FN,
+    MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
@@ -34,6 +35,13 @@ export interface ChatModuleConfig {
     compactionAgent?: IAgentProvider | undefined;
     /** CORS configuration forwarded to the WebSocket gateway. */
     cors?: { origin: string | string[]; credentials?: boolean | undefined } | undefined;
+    /**
+     * Controls how the user-search endpoint behaves for member invites.
+     *
+     * - `"default"` (default) – any registered user can be discovered by partial name/email match.
+     * - `"limited-visibility"` – search only returns users who already share a thread with the searcher.
+     */
+    memberSearchStrategy?: MemberSearchStrategy | undefined;
 }
 
 @Module({})
@@ -84,6 +92,7 @@ export class ChatModule {
                 { provide: GENERATE_TITLE_FN, useValue: config.generateTitle ?? null },
                 { provide: COMPACTION_AGENT_PROVIDER, useValue: config.compactionAgent ?? null },
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
+                { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },
                 RequireUserGuard,
                 AuditLogger,
                 ChatGateway,

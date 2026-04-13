@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Inject, Patch, Query, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 
-import type { IPersistenceProvider, User } from "@datonfly-assistant/core";
+import type { IPersistenceProvider, MemberSearchStrategy, User } from "@datonfly-assistant/core";
 import { updateUserRequestSchema } from "@datonfly-assistant/core";
 
-import { PERSISTENCE_PROVIDER } from "./constants.js";
+import { MEMBER_SEARCH_STRATEGY, PERSISTENCE_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
@@ -34,7 +34,10 @@ interface UserProfile {
 @Controller("datonfly-assistant/users")
 @UseGuards(RequireUserGuard)
 export class UserController {
-    constructor(@Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider) {}
+    constructor(
+        @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
+        @Inject(MEMBER_SEARCH_STRATEGY) private readonly memberSearchStrategy: MemberSearchStrategy,
+    ) {}
 
     @Get("me")
     getMe(@ResolvedUser() user: User): UserProfile {
@@ -65,8 +68,14 @@ export class UserController {
     }
 
     @Get("search")
-    async search(@Query(new ZodValidationPipe(searchQuerySchema)) query: SearchQuery): Promise<UserSearchResult[]> {
-        const users: User[] = await this.persistence.searchUsers(query.q, query.limit);
+    async search(
+        @ResolvedUser() user: User,
+        @Query(new ZodValidationPipe(searchQuerySchema)) query: SearchQuery,
+    ): Promise<UserSearchResult[]> {
+        const users: User[] =
+            this.memberSearchStrategy === "limited-visibility"
+                ? await this.persistence.searchCoMembers(user.id, query.q, query.limit)
+                : await this.persistence.searchUsers(query.q, query.limit);
         return users.map((u) => ({
             id: u.id,
             email: u.email,

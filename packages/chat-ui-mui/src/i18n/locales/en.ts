@@ -70,6 +70,7 @@ const en = {
     // ── Status codes ──
     status: {
         tool_code_execution: "Running code…",
+        tool_web_fetch: "Fetching page…",
         tool_web_search: "Searching the web…",
         unspecified: "Working…",
     },

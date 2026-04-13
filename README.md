@@ -35,8 +35,10 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
 - **Rich text & code** — Messages support full Markdown formatting with a
   toggleable rich text editor (bold, italic, strikethrough, code, lists, links).
   Code blocks render with syntax highlighting.
-- **AI agent tools** — The assistant can search the web (with source citations),
-  execute code, and use application-specific tools injected by the host app.
+- **AI agent tools** — The default implementation uses Claude as the AI model,
+  with built-in Claude tools for web search (with source citations), web page
+  fetching, and code execution. Application-specific tools can be injected by
+  the host app.
 - **Context management** — Long conversations are automatically compacted with
   AI-generated summaries to stay within context limits. Per-thread long-term
   memory can be toggled on or off.

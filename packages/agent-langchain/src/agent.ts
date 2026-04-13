@@ -55,6 +55,7 @@ interface ToolStatus {
 function toolNameToStatus(name: unknown): ToolStatus | undefined {
     if (typeof name !== "string") return undefined;
     if (CODE_EXECUTION_TOOL_NAMES.has(name)) return { code: "tool_code_execution", text: "Running code…" };
+    if (name === "web_fetch") return { code: "tool_web_fetch", text: "Fetching page…" };
     if (name === "web_search") return { code: "tool_web_search", text: "Searching the web…" };
     return undefined;
 }
@@ -156,6 +157,18 @@ export interface LangGraphAgentConfig {
     /** Maximum number of web searches per request. Defaults to unlimited when omitted. */
     webSearchMaxUses?: number | undefined;
     /**
+     * Enable the Anthropic server-side web fetch tool (`web_fetch_20260209`).
+     *
+     * Allows the agent to retrieve full content from URLs provided in the
+     * conversation.  The `20260209` version supports dynamic filtering when
+     * {@link enableCodeExecution} is also `true`.
+     */
+    enableWebFetch?: boolean | undefined;
+    /** Maximum number of web fetches per request. Defaults to unlimited when omitted. */
+    webFetchMaxUses?: number | undefined;
+    /** Maximum content length (in tokens) for fetched pages. Defaults to unlimited when omitted. */
+    webFetchMaxContentTokens?: number | undefined;
+    /**
      * Anthropic model used to decide whether the agent should respond in
      * multi-user threads (e.g. `"claude-haiku-4-5"`).  When omitted the
      * agent always responds.
@@ -211,6 +224,19 @@ export class LangGraphAgent implements IAgentProvider {
                 webSearchTool.max_uses = config.webSearchMaxUses;
             }
             serverTools.push(webSearchTool as ServerTool);
+        }
+        if (config.enableWebFetch) {
+            const webFetchTool: Record<string, unknown> = {
+                type: "web_fetch_20260209",
+                name: "web_fetch",
+            };
+            if (config.webFetchMaxUses != null) {
+                webFetchTool.max_uses = config.webFetchMaxUses;
+            }
+            if (config.webFetchMaxContentTokens != null) {
+                webFetchTool.max_content_tokens = config.webFetchMaxContentTokens;
+            }
+            serverTools.push(webFetchTool as ServerTool);
         }
         this.runnableModel = serverTools.length > 0 ? this.model.bindTools(serverTools) : this.model;
     }

@@ -75,6 +75,7 @@ const fi: FlatKeys<typeof en> = {
     // ── Status codes ──
     status: {
         tool_code_execution: "Suoritetaan koodia…",
+        tool_web_fetch: "Haetaan sivua…",
         tool_web_search: "Haetaan verkosta…",
         unspecified: "Työskentelee…",
     },

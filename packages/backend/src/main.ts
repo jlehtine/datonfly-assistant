@@ -112,6 +112,7 @@ async function bootstrap(): Promise<void> {
         triageModelName: process.env.ANTHROPIC_TRIAGE_MODEL,
         enableCodeExecution: process.env.ENABLE_CODE_EXECUTION !== "false",
         enableWebSearch: process.env.ENABLE_WEB_SEARCH !== "false",
+        enableWebFetch: process.env.ENABLE_WEB_FETCH !== "false",
     });
 
     // Optional: separate (cheaper) model for automatic thread title generation.

@@ -21,6 +21,34 @@ access to application data and control.
 See [INSTALL.md](INSTALL.md) for detailed setup instructions and
 [CONVENTIONS.md](CONVENTIONS.md) for coding and database conventions.
 
+## Features
+
+- **Real-time streaming chat** — AI responses stream incrementally as they are
+  generated, with live tool status updates (e.g. "Searching the web…", "Running
+  code…").
+- **Multi-user conversations** — Invite other users to threads by email, with
+  real-time message delivery, typing indicators, presence awareness, and member
+  role management (owner / member).
+- **Thread management** — Create, rename, and archive conversations. Threads
+  support automatic AI-generated titles, unread message counts, and per-user
+  archive state.
+- **Rich text & code** — Messages support full Markdown formatting with a
+  toggleable rich text editor (bold, italic, strikethrough, code, lists, links).
+  Code blocks render with syntax highlighting.
+- **AI agent tools** — The assistant can search the web (with source citations),
+  execute code, and use application-specific tools injected by the host app.
+- **Context management** — Long conversations are automatically compacted with
+  AI-generated summaries to stay within context limits. Per-thread long-term
+  memory can be toggled on or off.
+- **Emoji picker** — Quick emoji insertion from an integrated picker.
+- **User customization** — Set a personal alias for how the AI addresses you,
+  choose between simple or rich text input, and manage profile settings.
+- **Flexible authentication** — Supports OIDC (Google, Azure AD, Keycloak,
+  Auth0, etc.) for production and a zero-config fake mode for development.
+- **Embeddable architecture** — All library packages can be embedded
+  independently into existing applications, with pluggable AI agent and
+  persistence providers.
+
 ## Prerequisites
 
 - Node.js >= 22

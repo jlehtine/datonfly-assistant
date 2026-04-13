@@ -4,7 +4,7 @@
 
 - **Node.js** 22+
 - **pnpm** 10+
-- **Docker** and **Docker Compose** (for PostgreSQL, Qdrant, TEI)
+- **Docker** and **Docker Compose** (for PostgreSQL, Qdrant, Infinity)
 
 ## Quick Start (Local Development)
 
@@ -19,13 +19,26 @@ cp .env.example .env
 # Start infrastructure services
 docker compose up -d
 
-# Build all packages
-pnpm build
-
-# Start backend and frontend
-pnpm start          # backend on :3000
-pnpm dev            # frontend on :5173 (in another terminal)
+# Start all packages in dev/watch mode
+pnpm dev
 ```
+
+This runs all library packages with `tsc --watch`, the backend with `tsx watch`
+(auto-restart on changes), and the frontend with Vite HMR — so any code change
+across the repo is reflected on the fly.
+
+Open http://localhost:5173 — the frontend proxies WebSocket connections to the
+backend on port 3000.
+
+Alternatively, to build and run without watch mode:
+
+```bash
+pnpm build
+pnpm start
+```
+
+This starts the backend, which also serves the pre-built frontend to the
+browser.
 
 By default, `AUTH_MODE=fake` is used — no login is required for local
 development.
@@ -82,6 +95,41 @@ JWT_SECRET=a-strong-random-secret
   address ends with `@<domain>` are allowed to log in (e.g. `example.com`).
   Useful when the identity provider cannot restrict sign-ins to a single
   organization.
+- **`OIDC_ALLOWED_EMAILS`** _(optional)_ — Comma-separated list of allowed email
+  addresses. If set, only these addresses can authenticate. Other restrictions
+  (e.g. domain) still apply.
+- **`SESSION_TTL_SECONDS`** _(optional, default: 604800 = 7 days)_ — Session
+  idle timeout. Both the JWT expiry and cookie maxAge are set to this value. The
+  session is automatically extended on each authenticated `/auth/me` request.
+
+## AI Model Configuration
+
+The AI agent is powered by Anthropic models. Configure the model and optional
+title generation model:
+
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-opus-4-6
+ANTHROPIC_TITLE_MODEL=claude-haiku-4-5
+```
+
+- **`ANTHROPIC_API_KEY`** — Required. Your Anthropic API key.
+- **`ANTHROPIC_MODEL`** _(optional, default: claude-opus-4-6)_ — The model used
+  for chat responses.
+- **`ANTHROPIC_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
+  titles. Omit to disable title generation.
+
+## Logging
+
+```env
+LOG_FORMAT=pretty
+LOG_LEVEL=info
+```
+
+- **`LOG_FORMAT`** _(optional, default: pretty)_ — `"json"` for
+  machine-parseable JSON lines, or `"pretty"` for human-readable output.
+- **`LOG_LEVEL`** _(optional, default: info)_ — One of `"trace"`, `"debug"`,
+  `"info"`, `"warn"`, `"error"`, `"fatal"`.
 
 ---
 

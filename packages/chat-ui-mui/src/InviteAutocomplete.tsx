@@ -56,7 +56,9 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
     }, [inputValue, results]);
 
     const handleInputChange = useCallback(
-        (_event: unknown, value: string): void => {
+        (_event: unknown, value: string, reason: string): void => {
+            // After a selection MUI tries to fill the input with the option label — ignore it.
+            if (reason === "reset") return;
             setInputValue(value);
             search(value);
         },
@@ -66,10 +68,10 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
     const handleChange = useCallback(
         (_event: unknown, value: InviteOption | null): void => {
             if (value) {
-                onInvite(value.kind === "email-invite" ? value.email : value.email);
-                setInputValue("");
-                clear();
+                onInvite(value.email);
             }
+            setInputValue("");
+            clear();
         },
         [onInvite, clear],
     );
@@ -88,6 +90,7 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
     return (
         <Autocomplete<InviteOption>
             options={options}
+            value={null}
             loading={isSearching}
             inputValue={inputValue}
             onInputChange={handleInputChange}

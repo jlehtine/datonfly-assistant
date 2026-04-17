@@ -5,7 +5,7 @@ import { z } from "zod";
 /** Zod schema for a plain-text content part. */
 export const textContentPartSchema = z.object({
     type: z.literal("text"),
-    text: z.string().min(1).max(100_000),
+    text: z.string().max(100_000),
 });
 
 /** Zod schema for a tool-call content part. */

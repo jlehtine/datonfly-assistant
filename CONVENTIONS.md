@@ -1,5 +1,10 @@
 # Conventions
 
+## Language
+
+All source identifiers (variables, functions, classes, etc.) and documentation
+(comments, JSDoc, READMEs, commit messages) are written in **English**.
+
 ## TypeScript
 
 Strict TypeScript everywhere. All packages use strict compiler settings.
@@ -33,6 +38,16 @@ Run `pnpm format` to format all files, or `pnpm format:check` to verify.
 the monorepo root.
 
 Run `pnpm lint` to lint all packages, or `pnpm lint:fix` to auto-fix.
+
+## Commit Messages
+
+- **Sentence case**, ending with a **period**.
+- Use **imperative mood** when describing an action (e.g. "Add support for…",
+  "Fix an issue with…"). Descriptive noun phrases are acceptable for broader
+  changes (e.g. "Multi-user chat backend implementation.").
+- Optional **scope prefix** with a colon for scoped changes (e.g. "CoPilot
+  instructions: …", "Docker Compose: …").
+- Keep to a **single summary line** — no body paragraph.
 
 ## Editor Configuration
 

@@ -28,7 +28,8 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   code…").
 - **Multi-user conversations** — Invite other users to threads by email, with
   real-time message delivery, typing indicators, presence awareness, and member
-  role management (owner / member).
+  role management (owner / member). Configurable member search strategy supports
+  a privacy-preserving mode where user search is limited to existing co-members.
 - **Thread management** — Create, rename, and archive conversations. Threads
   support automatic AI-generated titles, unread message counts, and per-user
   archive state.
@@ -39,9 +40,10 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   with built-in Claude tools for web search (with source citations), web page
   fetching, and code execution. Application-specific tools can be injected by
   the host app.
-- **Context management** — Long conversations are automatically compacted with
-  AI-generated summaries to stay within context limits. Per-thread long-term
-  memory can be toggled on or off.
+- **Context management** — Long conversations are automatically compacted to
+  stay within context limits. Compaction can be handled natively by the AI
+  provider (e.g. Claude's built-in compaction) or externally by the gateway
+  using AI-generated summaries.
 - **Emoji picker** — Quick emoji insertion from an integrated picker.
 - **User customization** — Set a personal alias for how the AI addresses you,
   choose between simple or rich text input, and manage profile settings.
@@ -143,7 +145,8 @@ Configured and initialized by application specific logic. Designed to be
 embedded into the Node.js backend of the host application or to be used as a
 building block of an application specific assistant backend. Provides hooks for
 custom logic such as assistant tools that can access application data or control
-the application.
+the application. Supports a configurable member search strategy that can limit
+user discovery to existing co-members for privacy-sensitive deployments.
 
 Uses pluggable provider packages only indirectly through the generic API
 interfaces declared by `core`. The application logic initializes and configures
@@ -189,7 +192,9 @@ React, MUI.
 #### `@datonfly-assistant/agent-langchain`
 
 Provides an AI agent service implementation based on LangChain. Implements the
-AI agent service API declared by `core` and used by `chat-server`.
+AI agent service API declared by `core` and used by `chat-server`. When using
+Claude, leverages built-in provider compaction for context management; for other
+providers, external compaction via the gateway is used as a fallback.
 
 Configured and initialized by application specific logic and passed to
 `chat-server` as AI agent service.

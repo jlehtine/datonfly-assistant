@@ -27,6 +27,14 @@ conventions in [CONVENTIONS.md](../CONVENTIONS.md).
 - Database: PostgreSQL, `dfa` schema, singular table names, `snake_case`
   columns, Kysely migrations with ISO 8601 timestamp prefixes.
 
+## E2E Test Selectors
+
+- Add `datonfly-*` CSS marker classes to UI elements that E2E tests need to
+  locate (e.g. `datonfly-thread-item`, `datonfly-unread-badge`). Never rely on
+  MUI internal class names in tests.
+- When an element needs a dynamic identifier (e.g. a specific thread or
+  message), use `data-` attributes (e.g. `data-thread-id`).
+
 ## Decision Making
 
 Stick to the agreed plan. If during implementation you encounter unforeseen

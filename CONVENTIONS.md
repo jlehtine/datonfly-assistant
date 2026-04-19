@@ -1,5 +1,20 @@
 # Conventions
 
+## TypeScript
+
+Strict TypeScript everywhere. All packages use strict compiler settings.
+
+## Architecture
+
+- **`core`** declares shared types, interfaces, and the REST/WebSocket endpoint
+  contract (paths + Zod schemas). All other packages depend on `core` — never
+  duplicate its definitions.
+- **Pluggable providers** — the AI agent (`agent-langchain`) and persistence
+  layer (`persistence-pg`) implement generic interfaces from `core`. Keep
+  provider-specific details out of `chat-server` and `chat-client`.
+- **`backend`** and **`frontend`** are thin standalone shims — keep them
+  minimal.
+
 ## Code Formatting
 
 **Prettier** handles all code formatting. Configuration lives in
@@ -27,6 +42,11 @@ across editors.
 ## Documentation
 
 All public API interfaces are documented with **JSDoc**.
+
+Project-wide conventions belong in this file (`CONVENTIONS.md`) or `README.md`.
+Agent-specific instructions (e.g. `.github/copilot-instructions.md`) should only
+contain agent workflow rules and reference this file for general conventions —
+never duplicate them.
 
 ## User Interface
 
@@ -72,3 +92,11 @@ test. This avoids redundant setup time and keeps the suite fast.
 
 Extract any generic reusable steps (e.g. logging in, sending a message, inviting
 a member) into helper functions in `tests/helpers.ts`.
+
+### Selectors
+
+- Add `datonfly-*` CSS marker classes to UI elements that E2E tests need to
+  locate (e.g. `datonfly-thread-item`, `datonfly-unread-badge`). Never rely on
+  MUI internal class names in tests.
+- When an element needs a dynamic identifier (e.g. a specific thread or
+  message), use `data-` attributes (e.g. `data-thread-id`).

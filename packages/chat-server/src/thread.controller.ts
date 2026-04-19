@@ -86,12 +86,19 @@ export class ThreadController {
             throw new ForbiddenException({ message: "Not a member of this thread", code: ERROR_CODES.not_member });
         }
 
-        return this.persistence.loadMessages({
+        const messages = await this.persistence.loadMessages({
             threadId,
             limit: query.limit,
             before: query.before,
             excludeCompactionSummaries: true,
         });
+
+        // Strip opaque content parts — they are internal provider data
+        // (e.g. compaction blocks) not intended for the client.
+        return messages.map((msg) => ({
+            ...msg,
+            content: msg.content.filter((p) => p.type !== "opaque"),
+        }));
     }
 
     @Get(":id/members")

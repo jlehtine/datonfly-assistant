@@ -509,7 +509,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     event: "message-complete",
                     threadId,
                     messageId,
-                    content: contentParts,
+                    content: contentParts.filter((p) => p.type !== "opaque"),
                     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
                 };
                 void this.emitToThreadMembers(threadId, "message-complete", completeEvent);

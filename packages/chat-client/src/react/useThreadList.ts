@@ -176,6 +176,12 @@ export function useThreadList({
         [client],
     );
 
+    // Keep a ref so WS event handlers can call markRead without re-registering.
+    const markReadRef = useRef(markRead);
+    useEffect(() => {
+        markReadRef.current = markRead;
+    }, [markRead]);
+
     const renameThread = useCallback(
         async (threadId: string, title: string): Promise<void> => {
             // Optimistically mark the thread as manually titled so incoming
@@ -224,26 +230,41 @@ export function useThreadList({
     useEffect(() => {
         const handleNewMessage = (event: { threadId: string }): void => {
             const tid = event.threadId;
-            if (tid === activelyViewingRef.current) return;
+            const isActivelyViewing = tid === activelyViewingRef.current;
             setThreads((prev) =>
                 sortByUpdatedAt(
-                    prev.map((t) =>
-                        t.id === tid ? { ...t, unreadCount: (t.unreadCount ?? 0) + 1, updatedAt: new Date() } : t,
-                    ),
+                    prev.map((t) => {
+                        if (t.id !== tid) return t;
+                        return {
+                            ...t,
+                            ...(isActivelyViewing ? {} : { unreadCount: (t.unreadCount ?? 0) + 1 }),
+                            updatedAt: new Date(),
+                        };
+                    }),
                 ),
             );
         };
 
         const handleMessageComplete = (event: { threadId: string }): void => {
             const tid = event.threadId;
-            if (tid === activelyViewingRef.current) return;
+            const isActivelyViewing = tid === activelyViewingRef.current;
             setThreads((prev) =>
                 sortByUpdatedAt(
-                    prev.map((t) =>
-                        t.id === tid ? { ...t, unreadCount: (t.unreadCount ?? 0) + 1, updatedAt: new Date() } : t,
-                    ),
+                    prev.map((t) => {
+                        if (t.id !== tid) return t;
+                        return {
+                            ...t,
+                            ...(isActivelyViewing ? {} : { unreadCount: (t.unreadCount ?? 0) + 1 }),
+                            updatedAt: new Date(),
+                        };
+                    }),
                 ),
             );
+            // Persist lastReadAt on the server so the unread count stays 0
+            // after a page refresh or when opening from another tab.
+            if (isActivelyViewing) {
+                markReadRef.current(tid);
+            }
         };
 
         client.on("new-message", handleNewMessage as Parameters<typeof client.on<"new-message">>[1]);

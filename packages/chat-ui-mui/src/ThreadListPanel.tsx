@@ -235,7 +235,12 @@ function ThreadListItem({
                 }}
             />
             {unread > 0 && (
-                <Badge badgeContent={unread > 99 ? "99+" : unread} color="primary" sx={{ mx: 1, flexShrink: 0 }} />
+                <Badge
+                    className="datonfly-unread-badge"
+                    badgeContent={unread > 99 ? "99+" : unread}
+                    color="primary"
+                    sx={{ mx: 1, flexShrink: 0 }}
+                />
             )}
             <Tooltip title={isArchived ? t("unarchive") : t("archive")}>
                 <IconButton

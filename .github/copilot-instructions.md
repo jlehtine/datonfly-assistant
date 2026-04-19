@@ -41,6 +41,11 @@ Stick to the agreed plan. If during implementation you encounter unforeseen
 complications, inconsistencies, or ambiguities — stop, describe the problem and
 the available options to the user, and ask how to proceed before continuing.
 
+## Linting
+
+After code changes, run `pnpm lint:fix` and fix any linting errors caused by the
+changes.
+
 ## Testing
 
 After implementing a feature, decide whether the feature warrants unit tests or

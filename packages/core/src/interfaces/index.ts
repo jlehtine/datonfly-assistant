@@ -5,6 +5,7 @@ export type {
     AgentStreamChunk,
     AgentUsage,
     Citation,
+    OpaqueContentBlock,
     ShouldRespondResult,
 } from "./agent.js";
 export type {

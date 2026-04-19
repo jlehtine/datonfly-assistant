@@ -1,14 +1,28 @@
-import type { AgentMessage, ContentPart, ThreadMemberInfo, ThreadMessage } from "@datonfly-assistant/core";
+import type {
+    AgentMessage,
+    ContentPart,
+    OpaqueContentBlock,
+    OpaqueContentPart,
+    ThreadMemberInfo,
+    ThreadMessage,
+} from "@datonfly-assistant/core";
 
 /** Default alias used when a member has not configured an agent alias. */
 const DEFAULT_ALIAS = "Unidentified user";
 
-/** Extract the concatenated text from an array of content parts, ignoring tool calls and results. */
+/** Extract the concatenated text from an array of content parts, ignoring tool calls, results, and opaque parts. */
 export function extractText(content: ContentPart[]): string {
     return content
         .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
         .map((part) => part.text)
         .join("\n");
+}
+
+/** Extract opaque content parts and map them to {@link OpaqueContentBlock} instances. */
+function extractOpaqueBlocks(content: ContentPart[]): OpaqueContentBlock[] {
+    return content
+        .filter((part): part is OpaqueContentPart => part.type === "opaque")
+        .map((part) => ({ provider: part.provider, data: part.data }));
 }
 
 function formatTimestamp(date: Date): string {
@@ -113,6 +127,8 @@ export function threadMessagesToAgentMessages(
                 break;
             }
             case "ai": {
+                const opaqueBlocks = extractOpaqueBlocks(msg.content);
+                let aiContent = text;
                 if (msg.metadata?.interrupted === true) {
                     const next = messages[i + 1];
                     const byAlias =
@@ -120,10 +136,11 @@ export function threadMessagesToAgentMessages(
                             ? (authorAliases.get(next.authorId) ?? DEFAULT_ALIAS)
                             : undefined;
                     const tag = byAlias ? `[interrupted by ${byAlias}]` : "[interrupted]";
-                    result.push({ role: "ai", content: `${text}\n\n${tag}` });
-                } else {
-                    result.push({ role: "ai", content: text });
+                    aiContent = `${text}\n\n${tag}`;
                 }
+                const agentMsg: AgentMessage = { role: "ai", content: aiContent };
+                if (opaqueBlocks.length > 0) agentMsg.opaqueBlocks = opaqueBlocks;
+                result.push(agentMsg);
                 break;
             }
         }

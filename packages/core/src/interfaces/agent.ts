@@ -4,6 +4,14 @@ import type { StatusCode } from "../types/status-code.js";
 /** The role of an agent message. Extends {@link MessageRole} with any agent-specific roles. */
 export type AgentMessageRole = MessageRole | "system";
 
+/** An opaque block of provider-specific data carried alongside agent messages. */
+export interface OpaqueContentBlock {
+    /** Identifier of the provider that produced this block (e.g. `"anthropic"`). */
+    provider: string;
+    /** Provider-specific payload. */
+    data: unknown;
+}
+
 /** A message in the format used by the agent service API. */
 export interface AgentMessage {
     /** The role of the message author. */
@@ -12,6 +20,8 @@ export interface AgentMessage {
     content: string;
     /** Web-search citations collected during the response. */
     citations?: Citation[] | undefined;
+    /** Opaque provider-specific blocks (e.g. compaction summaries). */
+    opaqueBlocks?: OpaqueContentBlock[] | undefined;
 }
 
 /** A URL + title pair for a web-search citation. */
@@ -50,6 +60,8 @@ export interface AgentStreamChunk {
     citations?: Citation[] | undefined;
     /** Token usage statistics. Only present on the final chunk. */
     usage?: AgentUsage | undefined;
+    /** Opaque provider-specific blocks emitted during the response. Sent with the final chunk. */
+    opaqueBlocks?: OpaqueContentBlock[] | undefined;
 }
 
 /** Result of an agent's decision on whether to respond in a room thread. */
@@ -97,4 +109,13 @@ export interface IAgentProvider {
 
     /** Return the context window size (in tokens) of the underlying model. */
     getContextWindowSize(): number;
+
+    /**
+     * Whether the gateway should run external compaction (e.g. {@link CompactionService})
+     * after each response from this provider.
+     *
+     * - `true` — provider lacks built-in compaction; the gateway manages it.
+     * - `false` — provider handles compaction internally or does not compact.
+     */
+    readonly externalCompaction: boolean;
 }

@@ -9,13 +9,39 @@ import type {
     AgentUsage,
     Citation,
     IAgentProvider,
+    OpaqueContentBlock,
     ShouldRespondResult,
     StatusCode,
 } from "@datonfly-assistant/core";
 
-/** Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances. */
+/** The opaque block provider identifier used by this agent. */
+const PROVIDER_ID = "anthropic";
+
+/**
+ * Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances.
+ *
+ * When an AI message carries opaque blocks with Anthropic compaction data, the
+ * compaction block is included in the content array so LangChain sends it back
+ * to the API.
+ */
 function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
     return messages.map((msg) => {
+        // Check for Anthropic compaction opaque blocks on AI messages.
+        if (msg.role === "ai" && msg.opaqueBlocks?.length) {
+            const contentBlocks: Record<string, unknown>[] = [];
+            for (const block of msg.opaqueBlocks) {
+                if (block.provider === PROVIDER_ID) {
+                    const data = block.data as Record<string, unknown>;
+                    if (data.type === "compaction" && typeof data.content === "string") {
+                        contentBlocks.push({ type: "compaction", content: data.content });
+                    }
+                }
+            }
+            if (msg.content) {
+                contentBlocks.push({ type: "text", text: msg.content });
+            }
+            return new AIMessage({ content: contentBlocks as AIMessage["content"] });
+        }
         switch (msg.role) {
             case "human":
                 return new HumanMessage(msg.content);
@@ -122,6 +148,46 @@ function extractCitations(content: string | Record<string, unknown>[]): RawCitat
     return citations;
 }
 
+/** Extract compaction blocks from content. */
+function extractCompactionBlocks(content: string | Record<string, unknown>[]): OpaqueContentBlock[] {
+    if (typeof content === "string") return [];
+    const blocks: OpaqueContentBlock[] = [];
+    for (const block of content) {
+        if (block.type === "compaction" && typeof block.content === "string") {
+            blocks.push({ provider: PROVIDER_ID, data: { type: "compaction", content: block.content } });
+        }
+    }
+    return blocks;
+}
+
+/**
+ * Trim messages before the latest compaction block.
+ *
+ * The Anthropic API ignores all content before a compaction block, so
+ * sending those messages would only waste bandwidth. The system message
+ * (index 0) is always preserved.
+ */
+function trimBeforeCompaction(messages: AgentMessage[]): AgentMessage[] {
+    // Walk backwards to find the latest AI message with a compaction block.
+    let compactionIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (
+            msg?.role === "ai" &&
+            msg.opaqueBlocks?.some(
+                (b) => b.provider === PROVIDER_ID && (b.data as Record<string, unknown>).type === "compaction",
+            )
+        ) {
+            compactionIndex = i;
+            break;
+        }
+    }
+    if (compactionIndex <= 0) return messages;
+    // Keep system message(s) at the start + everything from the compaction index onward.
+    const system = messages.filter((m, i) => i < compactionIndex && m.role === "system");
+    return [...system, ...messages.slice(compactionIndex)];
+}
+
 /** Deduplicate citations by URL. */
 function deduplicateCitations(citations: RawCitation[]): Citation[] {
     const seen = new Set<string>();
@@ -176,6 +242,11 @@ export interface LangGraphAgentConfig {
     triageModelName?: string | undefined;
     /** Context window size of the model in tokens. Defaults to `200000`. */
     contextWindowSize?: number | undefined;
+    /**
+     * Input token threshold at which the Anthropic API triggers compaction.
+     * Defaults to `contextWindowSize * 0.6`.
+     */
+    compactionTriggerTokens?: number | undefined;
 }
 
 /**
@@ -194,6 +265,9 @@ export class LangGraphAgent implements IAgentProvider {
     private readonly modelName: string;
     private readonly contextWindowSize: number;
 
+    /** @inheritdoc */
+    readonly externalCompaction = false;
+
     /** Create the agent with the given model configuration. */
     constructor(config: LangGraphAgentConfig) {
         const options: ConstructorParameters<typeof ChatAnthropic>[0] = {
@@ -201,6 +275,19 @@ export class LangGraphAgent implements IAgentProvider {
             temperature: config.temperature ?? 0.7,
             maxTokens: config.maxTokens ?? 4096,
             streamUsage: true,
+            contextManagement: {
+                edits: [
+                    {
+                        type: "compact_20260112" as const,
+                        trigger: {
+                            type: "input_tokens",
+                            value:
+                                config.compactionTriggerTokens ??
+                                Math.round((config.contextWindowSize ?? 200_000) * 0.6),
+                        },
+                    },
+                ],
+            },
         };
         if (config.apiKey) {
             options.anthropicApiKey = config.apiKey;
@@ -248,13 +335,20 @@ export class LangGraphAgent implements IAgentProvider {
         _userId: string,
         signal?: AbortSignal,
     ): Promise<AgentMessage> {
+        const trimmed = trimBeforeCompaction(messages);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
-        const response = (await this.runnableModel.invoke(agentMessagesToBaseMessages(messages), opts)) as {
+        const response = (await this.runnableModel.invoke(agentMessagesToBaseMessages(trimmed), opts)) as {
             content: string | Record<string, unknown>[];
         };
         const text = extractTextFromContent(response.content);
         const citations = deduplicateCitations(extractCitations(response.content));
-        return { role: "ai", content: text, ...(citations.length > 0 ? { citations } : {}) };
+        const opaqueBlocks = extractCompactionBlocks(response.content);
+        return {
+            role: "ai",
+            content: text,
+            ...(citations.length > 0 ? { citations } : {}),
+            ...(opaqueBlocks.length > 0 ? { opaqueBlocks } : {}),
+        };
     }
 
     /** Run the agent and return a stream of incremental response chunks. */
@@ -264,12 +358,14 @@ export class LangGraphAgent implements IAgentProvider {
         _userId: string,
         signal?: AbortSignal,
     ): Promise<AsyncIterable<AgentStreamChunk>> {
+        const trimmed = trimBeforeCompaction(messages);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
-        const langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(messages), opts);
+        const langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(trimmed), opts);
         const modelName = this.modelName;
         return {
             async *[Symbol.asyncIterator]() {
                 const allCitations: RawCitation[] = [];
+                const allOpaqueBlocks: OpaqueContentBlock[] = [];
                 let usage: AgentUsage | undefined;
                 for await (const chunk of langchainStream) {
                     const rawChunk = chunk as Record<string, unknown>;
@@ -277,6 +373,7 @@ export class LangGraphAgent implements IAgentProvider {
                     const text = extractTextFromContent(rawContent);
                     const toolStatus = detectToolStatus(rawChunk);
                     allCitations.push(...extractCitations(rawContent));
+                    allOpaqueBlocks.push(...extractCompactionBlocks(rawContent));
 
                     // Capture token usage from the final chunk's usage_metadata.
                     // Multiple chunks may carry usage_metadata; keep the one with
@@ -311,13 +408,14 @@ export class LangGraphAgent implements IAgentProvider {
                         };
                     }
                 }
-                // Yield final chunk with citations and/or usage.
+                // Yield final chunk with citations, usage, and/or opaque blocks.
                 const citations = deduplicateCitations(allCitations);
-                if (citations.length > 0 || usage) {
+                if (citations.length > 0 || usage || allOpaqueBlocks.length > 0) {
                     yield {
                         content: "",
                         ...(citations.length > 0 ? { citations } : {}),
                         ...(usage ? { usage } : {}),
+                        ...(allOpaqueBlocks.length > 0 ? { opaqueBlocks: allOpaqueBlocks } : {}),
                     };
                 }
             },

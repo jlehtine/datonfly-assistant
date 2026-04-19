@@ -11,6 +11,7 @@ import type {
     AgentStreamChunk,
     AgentUsage,
     Citation,
+    ContentPart,
     IAgentProvider,
     IPersistenceProvider,
     InviteMemberEvent,
@@ -21,6 +22,7 @@ import type {
     MessageDeltaEvent,
     MessageStatusEvent,
     NewMessageEvent,
+    OpaqueContentBlock,
     RemoveMemberEvent,
     SendMessageEvent,
     Thread,
@@ -42,13 +44,7 @@ import {
 
 import { AuditLogger } from "./audit-logger.js";
 import { CompactionService } from "./compaction.js";
-import {
-    AGENT_PROVIDER,
-    COMPACTION_AGENT_PROVIDER,
-    GENERATE_TITLE_FN,
-    PERSISTENCE_PROVIDER,
-    VALIDATE_TOKEN_FN,
-} from "./constants.js";
+import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
 import { buildAuthorAliases, threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
@@ -71,6 +67,7 @@ interface ActiveStream {
     messageId: string;
     citations: Citation[];
     usage: AgentUsage | null;
+    opaqueBlocks: OpaqueContentBlock[];
 }
 
 @WebSocketGateway({ path: WS_PATH })
@@ -96,7 +93,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
         @Optional() @Inject(GENERATE_TITLE_FN) private readonly generateTitleFn: GenerateTitleFn | null,
-        @Optional() @Inject(COMPACTION_AGENT_PROVIDER) private readonly compactionAgent: IAgentProvider | null,
         private readonly auditLogger: AuditLogger,
     ) {}
 
@@ -149,7 +145,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         this.compactionService = new CompactionService({
             agent: this.agent,
             persistence: this.persistence,
-            compactionAgent: this.compactionAgent ?? undefined,
             auditLogger: this.auditLogger,
         });
 
@@ -349,7 +344,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         });
 
         // Load full history and convert to AgentMessage[]
-        const history = await this.persistence.loadMessages({ threadId, excludeCompacted: true });
+        const history = await this.persistence.loadMessages({
+            threadId,
+            excludeCompacted: this.agent.externalCompaction,
+        });
         const members = await this.persistence.listMembersWithUser(threadId);
         const authorAliases = buildAuthorAliases(members);
         const messages: AgentMessage[] = threadMessagesToAgentMessages(history, authorAliases);
@@ -391,6 +389,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             messageId: aiMessageId,
             citations: [],
             usage: null,
+            opaqueBlocks: [],
         };
         this.activeStreams.set(threadId, streamState);
 
@@ -455,6 +454,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     if (chunk.usage) {
                         streamState.usage = chunk.usage;
                     }
+
+                    // Collect opaque blocks (e.g. compaction) from the chunk.
+                    if (chunk.opaqueBlocks) {
+                        streamState.opaqueBlocks.push(...chunk.opaqueBlocks);
+                    }
                 } finally {
                     this.releaseThreadLock(threadId);
                 }
@@ -486,10 +490,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     }
                 }
 
+                // Build content array: prepend opaque blocks (e.g. compaction) before text.
+                const contentParts: ContentPart[] = [];
+                for (const block of streamState.opaqueBlocks) {
+                    contentParts.push({ type: "opaque", provider: block.provider, data: block.data });
+                }
+                contentParts.push({ type: "text", text: streamState.fullText });
+
                 await this.persistence.appendMessage({
                     threadId,
                     role: "ai",
-                    content: [{ type: "text", text: streamState.fullText }],
+                    content: contentParts,
                     authorId: null,
                     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
                 });
@@ -498,7 +509,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     event: "message-complete",
                     threadId,
                     messageId,
-                    content: [{ type: "text", text: streamState.fullText }],
+                    content: contentParts,
                     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
                 };
                 void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
@@ -518,8 +529,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     void this.titleGenerator.maybeGenerateTitle(threadId);
                 }
 
-                // Fire-and-forget compaction check.
-                if (this.compactionService && streamState.usage) {
+                // Fire-and-forget compaction check (only for external compaction providers).
+                if (this.compactionService && this.agent.externalCompaction && streamState.usage) {
                     void this.compactionService.maybeCompact(threadId, streamState.usage.inputTokens);
                 }
             } finally {

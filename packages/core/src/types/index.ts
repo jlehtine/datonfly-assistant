@@ -9,6 +9,7 @@ export type {
     TextContentPart,
     ToolCallContentPart,
     ToolResultContentPart,
+    OpaqueContentPart,
 } from "./message.js";
 export type { SearchResult, MemoryEntry } from "./search.js";
 export type { StatusCode } from "./status-code.js";

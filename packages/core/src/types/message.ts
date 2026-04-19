@@ -32,8 +32,22 @@ export interface ToolResultContentPart {
     isError?: boolean | undefined;
 }
 
+/**
+ * An opaque content part carrying provider-specific data.
+ *
+ * The server stores and round-trips these without interpretation.
+ * Only the originating provider knows how to consume them.
+ */
+export interface OpaqueContentPart {
+    type: "opaque";
+    /** Identifier of the provider that produced this block (e.g. `"anthropic"`). */
+    provider: string;
+    /** Provider-specific payload. */
+    data: unknown;
+}
+
 /** Discriminated union of all possible message content parts. */
-export type ContentPart = TextContentPart | ToolCallContentPart | ToolResultContentPart;
+export type ContentPart = TextContentPart | ToolCallContentPart | ToolResultContentPart | OpaqueContentPart;
 
 /** A single message within a thread. */
 export interface ThreadMessage {

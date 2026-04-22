@@ -306,6 +306,7 @@ export function useMessages(
 
         const handleStatus = (event: MessageStatusEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
+
             setStreamingStatus({ code: event.status, text: event.statusText });
         };
 

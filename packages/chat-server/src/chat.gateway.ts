@@ -68,6 +68,15 @@ interface ActiveStream {
     citations: Citation[];
     usage: AgentUsage | null;
     opaqueBlocks: OpaqueContentBlock[];
+    hasTextSinceToolBoundary: boolean;
+    pendingToolBoundaryBreak: boolean;
+}
+
+function toolBoundarySeparator(text: string): string {
+    if (!text) return "";
+    if (text.endsWith("\n\n")) return "";
+    if (text.endsWith("\n")) return "\n";
+    return "\n\n";
 }
 
 @WebSocketGateway({ path: WS_PATH })
@@ -390,6 +399,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             citations: [],
             usage: null,
             opaqueBlocks: [],
+            hasTextSinceToolBoundary: false,
+            pendingToolBoundaryBreak: false,
         };
         this.activeStreams.set(threadId, streamState);
 
@@ -423,18 +434,33 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
                     const delta = typeof chunk.content === "string" ? chunk.content : "";
                     if (delta) {
-                        streamState.fullText += delta;
+                        let normalizedDelta = delta;
+                        if (streamState.pendingToolBoundaryBreak) {
+                            const separator = toolBoundarySeparator(streamState.fullText);
+                            if (separator) {
+                                normalizedDelta = `${separator}${normalizedDelta}`;
+                            }
+                            streamState.pendingToolBoundaryBreak = false;
+                        }
+
+                        streamState.fullText += normalizedDelta;
+                        streamState.hasTextSinceToolBoundary = true;
                         const deltaEvent: MessageDeltaEvent = {
                             event: "message-delta",
                             threadId,
                             messageId,
-                            delta,
+                            delta: normalizedDelta,
                         };
                         void this.emitToThreadMembers(threadId, "message-delta", deltaEvent);
                     }
 
                     // Emit transient status indicator (e.g. "Running code…") if present.
                     if (chunk.status) {
+                        if (streamState.hasTextSinceToolBoundary) {
+                            streamState.pendingToolBoundaryBreak = true;
+                            streamState.hasTextSinceToolBoundary = false;
+                        }
+
                         const statusEvent: MessageStatusEvent = {
                             event: "message-status",
                             threadId,

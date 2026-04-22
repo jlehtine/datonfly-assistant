@@ -276,13 +276,28 @@ export function useMessages(
                 .map((p) => p.text)
                 .join("\n");
 
-            setMessages((prev) =>
-                prev.map((m) =>
-                    m.id === event.messageId
-                        ? { ...m, text: fullText, streaming: false, interrupted: event.interrupted ?? undefined }
-                        : m,
-                ),
-            );
+            setMessages((prev) => {
+                const existingIndex = prev.findIndex((m) => m.id === event.messageId);
+                if (existingIndex >= 0) {
+                    return prev.map((m) =>
+                        m.id === event.messageId
+                            ? { ...m, text: fullText, streaming: false, interrupted: event.interrupted }
+                            : m,
+                    );
+                }
+
+                return [
+                    ...prev,
+                    {
+                        id: event.messageId,
+                        role: "ai",
+                        text: fullText,
+                        streaming: false,
+                        createdAt: new Date(),
+                        interrupted: event.interrupted,
+                    },
+                ];
+            });
             streamingIdRef.current = null;
             pendingSendRef.current = false;
             setIsStreaming(false);

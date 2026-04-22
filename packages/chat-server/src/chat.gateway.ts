@@ -473,6 +473,26 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
                 this.activeStreams.delete(threadId);
 
+                const assistantVisibleLength = streamState.fullText.replace(/[\s\u200B-\u200D\uFEFF]/g, "").length;
+
+                if (assistantVisibleLength === 0) {
+                    const message = "Assistant returned an empty response";
+                    socket.emit("error", {
+                        event: "error",
+                        message,
+                        code: ERROR_CODES.unspecified,
+                    });
+                    this.auditLogger.audit("error", "agent.empty-response", {
+                        userId,
+                        threadId,
+                        messageId,
+                        error: message,
+                        assistantTextLength: streamState.fullText.length,
+                        assistantVisibleLength,
+                    });
+                    return;
+                }
+
                 const metadata: Record<string, unknown> = {};
                 if (streamState.citations.length > 0) {
                     metadata.citations = streamState.citations;
@@ -512,8 +532,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     content: contentParts.filter((p) => p.type !== "opaque"),
                     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
                 };
-                void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
-                this.auditLogger.audit("info", "agent.complete", { userId, threadId, messageId });
+                // Always deliver completion to the initiating socket directly.
+                // If room emission fails, the sender still receives the final payload.
+                socket.emit("message-complete", completeEvent);
+                await this.emitToThreadMembers(threadId, "message-complete", completeEvent, socket.id);
+                this.auditLogger.audit("info", "agent.complete", {
+                    userId,
+                    threadId,
+                    messageId,
+                    assistantTextLength: streamState.fullText.length,
+                    assistantVisibleLength,
+                });
 
                 // Auto-unarchive for all members who have this thread archived.
                 void this.persistence.autoUnarchiveThread(threadId).then(() => {
@@ -916,12 +945,20 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         payload: unknown,
         excludeSocketId?: string,
     ): Promise<void> {
-        await this.roomManager.ensureRoom(threadId);
-        const room = `thread:${threadId}`;
-        if (excludeSocketId) {
-            this.server.to(room).except(excludeSocketId).emit(eventName, payload);
-        } else {
-            this.server.to(room).emit(eventName, payload);
+        try {
+            await this.roomManager.ensureRoom(threadId);
+            const room = `thread:${threadId}`;
+            if (excludeSocketId) {
+                this.server.to(room).except(excludeSocketId).emit(eventName, payload);
+            } else {
+                this.server.to(room).emit(eventName, payload);
+            }
+        } catch (error) {
+            this.auditLogger.audit("error", "ws.emit.failed", {
+                threadId,
+                eventName,
+                error: error instanceof Error ? error.message : String(error),
+            });
         }
     }
 }

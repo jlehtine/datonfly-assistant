@@ -1,5 +1,6 @@
 export type {
     IAgentProvider,
+    AgentLogger,
     AgentMessage,
     AgentMessageRole,
     AgentStreamChunk,

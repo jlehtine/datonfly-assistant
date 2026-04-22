@@ -25,6 +25,7 @@ export { STATUS_CODES, ERROR_CODES } from "./types/index.js";
 // Interfaces
 export type {
     IAgentProvider,
+    AgentLogger,
     AgentMessage,
     AgentMessageRole,
     AgentStreamChunk,

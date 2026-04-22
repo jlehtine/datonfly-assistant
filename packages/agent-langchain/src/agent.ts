@@ -4,6 +4,7 @@ import type { Runnable } from "@langchain/core/runnables";
 import type { ServerTool } from "@langchain/core/tools";
 
 import type {
+    AgentLogger,
     AgentMessage,
     AgentStreamChunk,
     AgentUsage,
@@ -16,6 +17,94 @@ import type {
 
 /** The opaque block provider identifier used by this agent. */
 const PROVIDER_ID = "anthropic";
+
+const NOOP_AGENT_LOGGER: AgentLogger = {
+    error() {
+        // Intentionally empty.
+    },
+    child() {
+        return NOOP_AGENT_LOGGER;
+    },
+};
+
+interface AssistantApiErrorDetails {
+    errorName?: string | undefined;
+    errorMessage?: string | undefined;
+    errorCode?: string | undefined;
+    errorType?: string | undefined;
+    apiStatusCode?: number | undefined;
+    requestId?: string | undefined;
+    retryAfterSeconds?: number | undefined;
+    isAbortError?: boolean | undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+function asString(value: unknown): string | undefined {
+    return typeof value === "string" ? value : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readHeaderValue(headers: Record<string, unknown>, key: string): string | undefined {
+    const direct = asString(headers[key]);
+    if (direct) return direct;
+    const lower = asString(headers[key.toLowerCase()]);
+    if (lower) return lower;
+    return undefined;
+}
+
+function parseRetryAfterSeconds(value: string | undefined): number | undefined {
+    if (!value) return undefined;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+        return parsed;
+    }
+    return undefined;
+}
+
+function extractAssistantApiErrorDetails(error: unknown): AssistantApiErrorDetails {
+    if (!isRecord(error)) {
+        return {
+            errorMessage: error instanceof Error ? error.message : undefined,
+            errorName: error instanceof Error ? error.name : undefined,
+        };
+    }
+
+    const response = isRecord(error.response) ? error.response : undefined;
+    const topHeaders = isRecord(error.headers) ? error.headers : undefined;
+    const responseHeaders = response && isRecord(response.headers) ? response.headers : undefined;
+    const errorPayload = isRecord(error.error) ? error.error : undefined;
+
+    const statusCode =
+        asNumber(error.status) ?? asNumber(error.statusCode) ?? (response ? asNumber(response.status) : undefined);
+    const requestId =
+        asString(error.request_id) ??
+        asString(error.requestId) ??
+        (topHeaders ? readHeaderValue(topHeaders, "x-request-id") : undefined) ??
+        (responseHeaders ? readHeaderValue(responseHeaders, "x-request-id") : undefined);
+    const retryAfterSeconds =
+        parseRetryAfterSeconds(topHeaders ? readHeaderValue(topHeaders, "retry-after") : undefined) ??
+        parseRetryAfterSeconds(responseHeaders ? readHeaderValue(responseHeaders, "retry-after") : undefined);
+
+    return {
+        errorName: asString(error.name),
+        errorMessage: asString(error.message),
+        errorCode: asString(error.code) ?? (errorPayload ? asString(errorPayload.code) : undefined),
+        errorType: asString(error.type) ?? (errorPayload ? asString(errorPayload.type) : undefined),
+        apiStatusCode: statusCode,
+        requestId,
+        retryAfterSeconds,
+        isAbortError:
+            asString(error.name) === "AbortError" ||
+            asString(error.code) === "ABORT_ERR" ||
+            asString(error.code) === "ERR_CANCELED",
+    };
+}
 
 /**
  * Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances.
@@ -247,6 +336,9 @@ export interface LangGraphAgentConfig {
      * Defaults to `contextWindowSize * 0.6`.
      */
     compactionTriggerTokens?: number | undefined;
+
+    /** Optional logger for assistant API failures. Defaults to a no-op logger when omitted. */
+    logger?: AgentLogger | undefined;
 }
 
 /**
@@ -264,6 +356,7 @@ export class LangGraphAgent implements IAgentProvider {
     private readonly triageApiKey: string | undefined;
     private readonly modelName: string;
     private readonly contextWindowSize: number;
+    private readonly logger: AgentLogger;
 
     /** @inheritdoc */
     readonly externalCompaction = false;
@@ -297,6 +390,7 @@ export class LangGraphAgent implements IAgentProvider {
         this.contextWindowSize = config.contextWindowSize ?? 200_000;
         this.triageModelName = config.triageModelName;
         this.triageApiKey = config.apiKey;
+        this.logger = config.logger ?? NOOP_AGENT_LOGGER;
 
         const serverTools: ServerTool[] = [];
         if (config.enableCodeExecution) {
@@ -328,85 +422,123 @@ export class LangGraphAgent implements IAgentProvider {
         this.runnableModel = serverTools.length > 0 ? this.model.bindTools(serverTools) : this.model;
     }
 
+    private createOperationLogger(
+        operation: "run" | "stream" | "shouldRespond",
+        fields: Record<string, unknown>,
+    ): AgentLogger {
+        return this.logger.child({ vendor: PROVIDER_ID, model: this.modelName, operation, ...fields });
+    }
+
+    private logAssistantApiError(logger: AgentLogger, error: unknown, fields: Record<string, unknown>): void {
+        logger.error(
+            {
+                ...fields,
+                ...extractAssistantApiErrorDetails(error),
+            },
+            "Assistant API call failed",
+        );
+    }
+
     /** Run the agent and return a single complete assistant message. */
-    async run(
-        messages: AgentMessage[],
-        _threadId: string,
-        _userId: string,
-        signal?: AbortSignal,
-    ): Promise<AgentMessage> {
+    async run(messages: AgentMessage[], threadId: string, userId: string, signal?: AbortSignal): Promise<AgentMessage> {
+        const logger = this.createOperationLogger("run", { threadId, userId });
         const trimmed = trimBeforeCompaction(messages);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
-        const response = (await this.runnableModel.invoke(agentMessagesToBaseMessages(trimmed), opts)) as {
-            content: string | Record<string, unknown>[];
-        };
-        const text = extractTextFromContent(response.content);
-        const citations = deduplicateCitations(extractCitations(response.content));
-        const opaqueBlocks = extractCompactionBlocks(response.content);
-        return {
-            role: "ai",
-            content: text,
-            ...(citations.length > 0 ? { citations } : {}),
-            ...(opaqueBlocks.length > 0 ? { opaqueBlocks } : {}),
-        };
+        try {
+            const response = (await this.runnableModel.invoke(agentMessagesToBaseMessages(trimmed), opts)) as {
+                content: string | Record<string, unknown>[];
+            };
+            const text = extractTextFromContent(response.content);
+            const citations = deduplicateCitations(extractCitations(response.content));
+            const opaqueBlocks = extractCompactionBlocks(response.content);
+            return {
+                role: "ai",
+                content: text,
+                ...(citations.length > 0 ? { citations } : {}),
+                ...(opaqueBlocks.length > 0 ? { opaqueBlocks } : {}),
+            };
+        } catch (error) {
+            this.logAssistantApiError(logger, error, { phase: "invoke" });
+            throw error;
+        }
     }
 
     /** Run the agent and return a stream of incremental response chunks. */
     async stream(
         messages: AgentMessage[],
-        _threadId: string,
-        _userId: string,
+        threadId: string,
+        userId: string,
         signal?: AbortSignal,
     ): Promise<AsyncIterable<AgentStreamChunk>> {
+        const logger = this.createOperationLogger("stream", { threadId, userId });
         const trimmed = trimBeforeCompaction(messages);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
-        const langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(trimmed), opts);
+        let langchainStream: AsyncIterable<unknown>;
+        try {
+            langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(trimmed), opts);
+        } catch (error) {
+            this.logAssistantApiError(logger, error, { phase: "stream_init" });
+            throw error;
+        }
         const modelName = this.modelName;
         return {
             async *[Symbol.asyncIterator]() {
                 const allCitations: RawCitation[] = [];
                 const allOpaqueBlocks: OpaqueContentBlock[] = [];
                 let usage: AgentUsage | undefined;
-                for await (const chunk of langchainStream) {
-                    const rawChunk = chunk as Record<string, unknown>;
-                    const rawContent = rawChunk.content as string | Record<string, unknown>[];
-                    const text = extractTextFromContent(rawContent);
-                    const toolStatus = detectToolStatus(rawChunk);
-                    allCitations.push(...extractCitations(rawContent));
-                    allOpaqueBlocks.push(...extractCompactionBlocks(rawContent));
+                try {
+                    for await (const chunk of langchainStream) {
+                        const rawChunk = chunk as Record<string, unknown>;
+                        const rawContent = rawChunk.content as string | Record<string, unknown>[];
+                        const text = extractTextFromContent(rawContent);
+                        const toolStatus = detectToolStatus(rawChunk);
+                        allCitations.push(...extractCitations(rawContent));
+                        allOpaqueBlocks.push(...extractCompactionBlocks(rawContent));
 
-                    // Capture token usage from the final chunk's usage_metadata.
-                    // Multiple chunks may carry usage_metadata; keep the one with
-                    // the highest input_tokens (the real totals, not partial zeros).
-                    const usageMeta = rawChunk.usage_metadata as
-                        | {
-                              input_tokens?: number;
-                              output_tokens?: number;
-                              input_token_details?: { cache_creation?: number; cache_read?: number };
-                          }
-                        | undefined;
-                    if (
-                        usageMeta &&
-                        typeof usageMeta.input_tokens === "number" &&
-                        usageMeta.input_tokens > (usage?.inputTokens ?? 0)
-                    ) {
-                        const details = usageMeta.input_token_details;
-                        usage = {
-                            vendor: "anthropic",
-                            model: modelName,
-                            inputTokens: usageMeta.input_tokens,
-                            outputTokens: usageMeta.output_tokens ?? 0,
-                            ...(details?.cache_creation ? { cacheCreationInputTokens: details.cache_creation } : {}),
-                            ...(details?.cache_read ? { cacheReadInputTokens: details.cache_read } : {}),
-                        };
-                    }
+                        // Capture token usage from the final chunk's usage_metadata.
+                        // Multiple chunks may carry usage_metadata; keep the one with
+                        // the highest input_tokens (the real totals, not partial zeros).
+                        const usageMeta = rawChunk.usage_metadata as
+                            | {
+                                  input_tokens?: number;
+                                  output_tokens?: number;
+                                  input_token_details?: { cache_creation?: number; cache_read?: number };
+                              }
+                            | undefined;
+                        if (
+                            usageMeta &&
+                            typeof usageMeta.input_tokens === "number" &&
+                            usageMeta.input_tokens > (usage?.inputTokens ?? 0)
+                        ) {
+                            const details = usageMeta.input_token_details;
+                            usage = {
+                                vendor: "anthropic",
+                                model: modelName,
+                                inputTokens: usageMeta.input_tokens,
+                                outputTokens: usageMeta.output_tokens ?? 0,
+                                ...(details?.cache_creation
+                                    ? { cacheCreationInputTokens: details.cache_creation }
+                                    : {}),
+                                ...(details?.cache_read ? { cacheReadInputTokens: details.cache_read } : {}),
+                            };
+                        }
 
-                    if (text || toolStatus) {
-                        yield {
-                            content: text,
-                            ...(toolStatus ? { status: toolStatus.code, statusText: toolStatus.text } : {}),
-                        };
+                        if (text || toolStatus) {
+                            yield {
+                                content: text,
+                                ...(toolStatus ? { status: toolStatus.code, statusText: toolStatus.text } : {}),
+                            };
+                        }
                     }
+                } catch (error) {
+                    logger.error(
+                        {
+                            phase: "stream_iterate",
+                            ...extractAssistantApiErrorDetails(error),
+                        },
+                        "Assistant API stream failed",
+                    );
+                    throw error;
                 }
                 // Yield final chunk with citations, usage, and/or opaque blocks.
                 const citations = deduplicateCitations(allCitations);
@@ -434,11 +566,8 @@ export class LangGraphAgent implements IAgentProvider {
      * is configured the agent always responds.  Otherwise a lightweight
      * classifier model decides based on the recent conversation context.
      */
-    async shouldRespond(
-        messages: AgentMessage[],
-        _threadId: string,
-        _memberCount: number,
-    ): Promise<ShouldRespondResult> {
+    async shouldRespond(messages: AgentMessage[], threadId: string, memberCount: number): Promise<ShouldRespondResult> {
+        const logger = this.createOperationLogger("shouldRespond", { threadId, memberCount });
         if (!this.triageModelName) {
             return { shouldRespond: true };
         }
@@ -479,7 +608,8 @@ export class LangGraphAgent implements IAgentProvider {
             const text = typeof response.content === "string" ? response.content.trim().toUpperCase() : "";
             const shouldRespond = !text.startsWith("NO");
             return { shouldRespond, reason: text };
-        } catch {
+        } catch (error) {
+            this.logAssistantApiError(logger, error, { phase: "triage" });
             // If triage fails, default to responding.
             return { shouldRespond: true, reason: "triage error — defaulting to respond" };
         }

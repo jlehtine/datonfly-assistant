@@ -9,10 +9,11 @@ import { ServeStaticModule } from "@nestjs/serve-static";
 import cookieParser from "cookie-parser";
 import { config } from "dotenv";
 import { Logger } from "nestjs-pino";
+import pino from "pino";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
 import { ChatModule } from "@datonfly-assistant/chat-server";
-import type { MemberSearchStrategy } from "@datonfly-assistant/core";
+import type { AgentLogger, MemberSearchStrategy } from "@datonfly-assistant/core";
 import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
 
 import { AppModule } from "./app.module.js";
@@ -107,6 +108,17 @@ async function bootstrap(): Promise<void> {
         throw new Error("ANTHROPIC_MODEL environment variable is required");
     }
 
+    const agentLogger: AgentLogger = pino({
+        level: process.env.LOG_LEVEL ?? "info",
+        ...(process.env.LOG_FORMAT === "json"
+            ? {}
+            : { transport: { target: "pino-pretty", options: { singleLine: true } } }),
+        redact: {
+            paths: ["email", "name", "content", "text", "*.email", "*.name", "*.content", "*.text"],
+            censor: "[REDACTED]",
+        },
+    }).child({ component: "assistant-api" });
+
     const agent = new LangGraphAgent({
         modelName: model,
         apiKey: process.env.ANTHROPIC_API_KEY,
@@ -114,6 +126,7 @@ async function bootstrap(): Promise<void> {
         enableCodeExecution: process.env.ENABLE_CODE_EXECUTION !== "false",
         enableWebSearch: process.env.ENABLE_WEB_SEARCH !== "false",
         enableWebFetch: process.env.ENABLE_WEB_FETCH !== "false",
+        logger: agentLogger,
     });
 
     // Optional: separate (cheaper) model for automatic thread title generation.

@@ -189,7 +189,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         // tag optimistic inserts and distinguish own messages.
         const user = (socket.data as { user?: User | undefined }).user;
         if (user) {
-            socket.emit("welcome", { event: "welcome", userId: user.id });
+            socket.emit("welcome", {
+                event: "welcome",
+                userId: user.id,
+                features: { search: this.searchProvider !== null },
+            });
             // Join per-user room for multi-tab broadcasts (archive / read sync).
             void socket.join(`user:${user.id}`);
             this.roomManager.joinActiveRooms(socket);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { WelcomeEvent } from "@datonfly-assistant/core";
+import type { ServerFeatures, WelcomeEvent } from "@datonfly-assistant/core";
 
 import { ChatClient } from "../client.js";
 
@@ -27,10 +27,12 @@ export function useChatConnection(config: UseChatConnectionConfig): {
     client: ChatClient;
     connected: boolean;
     userId: string | null;
+    features: ServerFeatures;
 } {
     const clientRef = useRef<ChatClient | null>(null);
     const [connected, setConnected] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
+    const [features, setFeatures] = useState<ServerFeatures>({});
 
     clientRef.current ??= new ChatClient({
         url: config.url,
@@ -45,9 +47,11 @@ export function useChatConnection(config: UseChatConnectionConfig): {
         const onDisconnect = (): void => {
             setConnected(false);
             setUserId(null);
+            setFeatures({});
         };
         const onWelcome = (event: WelcomeEvent): void => {
             setUserId(event.userId);
+            setFeatures(event.features ?? {});
         };
 
         client.connect();
@@ -63,5 +67,5 @@ export function useChatConnection(config: UseChatConnectionConfig): {
         };
     }, [client]);
 
-    return { client, connected, userId };
+    return { client, connected, userId, features };
 }

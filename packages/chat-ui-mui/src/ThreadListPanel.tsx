@@ -1,5 +1,7 @@
 import AddIcon from "@mui/icons-material/Add";
 import ArchiveIcon from "@mui/icons-material/Archive";
+import ClearIcon from "@mui/icons-material/Clear";
+import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import Badge from "@mui/material/Badge";
@@ -7,18 +9,21 @@ import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import LinearProgress from "@mui/material/LinearProgress";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Popover from "@mui/material/Popover";
 import Select from "@mui/material/Select";
+import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Thread } from "@datonfly-assistant/core";
+import type { Thread, ThreadSearchResultWire } from "@datonfly-assistant/core";
 
 import { ChatUserSettings } from "./ChatUserSettings.js";
 import { formatTimestamp, type FormatTimestampLabels } from "./formatTimestamp.js";
@@ -40,6 +45,16 @@ export interface ThreadListPanelProps {
     hasMore?: boolean | undefined;
     /** Called when the user scrolls near the bottom of the list. */
     onLoadMore?: (() => void) | undefined;
+    /** Current search query text. When non-empty, the panel enters search mode. */
+    searchQuery?: string | undefined;
+    /** Called when the user changes the search input. */
+    onSearchQueryChange?: ((query: string) => void) | undefined;
+    /** Search results to display when in search mode. */
+    searchResults?: ThreadSearchResultWire[] | undefined;
+    /** `true` while a search request is in-flight. */
+    isSearching?: boolean | undefined;
+    /** Called to clear the search and return to the thread list. */
+    onClearSearch?: (() => void) | undefined;
 }
 
 type ThreadFilter = "active" | "archived";
@@ -59,11 +74,48 @@ export function ThreadListPanel({
     loading = false,
     hasMore = false,
     onLoadMore,
+    searchQuery = "",
+    onSearchQueryChange,
+    searchResults,
+    isSearching = false,
+    onClearSearch,
 }: ThreadListPanelProps): ReactElement {
     const { t, i18n } = useTranslation();
     const [filter, setFilter] = useState<ThreadFilter>("active");
     const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    const inSearchMode = searchOpen || searchQuery.length > 0;
+
+    const handleSelectSearchResult = useCallback(
+        (threadId: string) => {
+            setSearchOpen(false);
+            onSelectThread(threadId);
+        },
+        [onSelectThread],
+    );
+
+    const handleOpenSearch = useCallback(() => {
+        setSearchOpen(true);
+        // Focus after render
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+    }, []);
+
+    const handleCloseSearch = useCallback(() => {
+        setSearchOpen(false);
+        onClearSearch?.();
+    }, [onClearSearch]);
+
+    const handleSearchKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === "Escape") {
+                handleCloseSearch();
+            }
+        },
+        [handleCloseSearch],
+    );
 
     const filtered = threads.filter((t) => (filter === "archived" ? !!t.archivedAt : !t.archivedAt));
 
@@ -108,55 +160,127 @@ export function ThreadListPanel({
                 bgcolor: "background.default",
             }}
         >
-            <Box sx={{ px: 1.5, pt: 1.5, pb: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                {onNewThread && (
-                    <Tooltip title={t("newConversation")}>
-                        <IconButton size="small" onClick={onNewThread} aria-label={t("newConversation")}>
-                            <AddIcon fontSize="small" />
+            <Box sx={{ px: 1.5, pt: 1.5, pb: 1, display: "flex", flexDirection: "column", gap: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    {onNewThread && (
+                        <Tooltip title={t("newConversation")}>
+                            <IconButton size="small" onClick={onNewThread} aria-label={t("newConversation")}>
+                                <AddIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    {!inSearchMode && (
+                        <Select
+                            value={filter}
+                            onChange={(e) => {
+                                setFilter(e.target.value as ThreadFilter);
+                            }}
+                            size="small"
+                            variant="outlined"
+                            sx={{ flex: 1, fontSize: "0.8125rem" }}
+                        >
+                            <MenuItem value="active">{t("active")}</MenuItem>
+                            <MenuItem value="archived">{t("archived")}</MenuItem>
+                        </Select>
+                    )}
+                    {inSearchMode && <Box sx={{ flex: 1 }} />}
+                    {onSearchQueryChange && (
+                        <Tooltip title={t("searchThreads")}>
+                            <IconButton
+                                size="small"
+                                onClick={inSearchMode ? handleCloseSearch : handleOpenSearch}
+                                aria-label={t("searchThreads")}
+                                color={inSearchMode ? "primary" : "default"}
+                            >
+                                {inSearchMode ? <ClearIcon fontSize="small" /> : <SearchIcon fontSize="small" />}
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    <Tooltip title={t("settings")}>
+                        <IconButton
+                            size="small"
+                            onClick={(e) => {
+                                setSettingsAnchor(e.currentTarget);
+                            }}
+                            aria-label={t("settings")}
+                        >
+                            <SettingsIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
-                )}
-                <Select
-                    value={filter}
-                    onChange={(e) => {
-                        setFilter(e.target.value as ThreadFilter);
-                    }}
-                    size="small"
-                    variant="outlined"
-                    sx={{ flex: 1, fontSize: "0.8125rem" }}
-                >
-                    <MenuItem value="active">{t("active")}</MenuItem>
-                    <MenuItem value="archived">{t("archived")}</MenuItem>
-                </Select>
-                <Tooltip title={t("settings")}>
-                    <IconButton
-                        size="small"
-                        onClick={(e) => {
-                            setSettingsAnchor(e.currentTarget);
-                        }}
-                        aria-label={t("settings")}
-                    >
-                        <SettingsIcon fontSize="small" />
-                    </IconButton>
-                </Tooltip>
-                <Popover
-                    open={Boolean(settingsAnchor)}
-                    anchorEl={settingsAnchor}
-                    onClose={() => {
-                        setSettingsAnchor(null);
-                    }}
-                    anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-                >
-                    <ChatUserSettings
-                        onSaved={() => {
+                    <Popover
+                        open={Boolean(settingsAnchor)}
+                        anchorEl={settingsAnchor}
+                        onClose={() => {
                             setSettingsAnchor(null);
                         }}
+                        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                    >
+                        <ChatUserSettings
+                            onSaved={() => {
+                                setSettingsAnchor(null);
+                            }}
+                        />
+                    </Popover>
+                </Box>
+                {inSearchMode && (
+                    <TextField
+                        inputRef={searchInputRef}
+                        value={searchQuery}
+                        onChange={(e) => onSearchQueryChange?.(e.target.value)}
+                        onKeyDown={handleSearchKeyDown}
+                        placeholder={t("searchThreads")}
+                        size="small"
+                        fullWidth
+                        autoFocus
+                        slotProps={{
+                            input: {
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon fontSize="small" color="action" />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: searchQuery ? (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            size="small"
+                                            onClick={handleCloseSearch}
+                                            aria-label={t("clearSearch")}
+                                            edge="end"
+                                        >
+                                            <ClearIcon fontSize="small" />
+                                        </IconButton>
+                                    </InputAdornment>
+                                ) : undefined,
+                            },
+                        }}
                     />
-                </Popover>
+                )}
             </Box>
             <Divider />
             <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto" }}>
-                {loading && threads.length === 0 ? (
+                {inSearchMode ? (
+                    <>
+                        {isSearching && <LinearProgress />}
+                        {!isSearching && searchQuery.length >= 2 && searchResults?.length === 0 && (
+                            <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: "center" }}>
+                                {t("noSearchResults")}
+                            </Typography>
+                        )}
+                        {searchResults && searchResults.length > 0 && (
+                            <List dense disablePadding>
+                                {searchResults.map((result) => (
+                                    <SearchResultItem
+                                        key={result.threadId}
+                                        result={result}
+                                        onSelect={handleSelectSearchResult}
+                                        locale={i18n.language}
+                                        tsLabels={{ justNow: t("justNow"), yesterday: t("yesterday") }}
+                                    />
+                                ))}
+                            </List>
+                        )}
+                    </>
+                ) : loading && threads.length === 0 ? (
                     <Box sx={{ display: "flex", justifyContent: "center", pt: 3 }}>
                         <CircularProgress size={24} />
                     </Box>
@@ -255,6 +379,59 @@ function ThreadListItem({
                     {isArchived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
                 </IconButton>
             </Tooltip>
+        </ListItemButton>
+    );
+}
+
+interface SearchResultItemProps {
+    result: ThreadSearchResultWire;
+    onSelect: (threadId: string) => void;
+    locale: string | undefined;
+    tsLabels: FormatTimestampLabels;
+}
+
+function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultItemProps): ReactElement {
+    const relativeTime = formatTimestamp(result.updatedAt, undefined, locale, tsLabels);
+    const snippet = result.snippet.length > 80 ? `${result.snippet.slice(0, 80)}…` : result.snippet;
+
+    return (
+        <ListItemButton
+            onClick={() => {
+                onSelect(result.threadId);
+            }}
+            sx={{ pr: 1 }}
+        >
+            <ListItemText
+                primary={result.title}
+                secondary={
+                    <>
+                        {snippet && (
+                            <Typography
+                                component="span"
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                    display: "block",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                }}
+                            >
+                                {snippet}
+                            </Typography>
+                        )}
+                        <Typography component="span" variant="caption" color="text.disabled">
+                            {relativeTime}
+                        </Typography>
+                    </>
+                }
+                slotProps={{
+                    primary: {
+                        noWrap: true,
+                        variant: "body2",
+                    },
+                }}
+            />
         </ListItemButton>
     );
 }

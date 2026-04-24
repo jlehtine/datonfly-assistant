@@ -12,6 +12,7 @@ import {
     useChatClient,
     useChatConnection,
     useThreadList,
+    useThreadSearch,
 } from "@datonfly-assistant/chat-client/react";
 import { THREADS_PATH, threadWireSchema, type ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
@@ -67,20 +68,20 @@ export interface ChatHistoryEmbedProps {
  */
 export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElement {
     const { url, basePath } = config;
-    const { client, userId } = useChatConnection({ url, basePath });
+    const { client, userId, features } = useChatConnection({ url, basePath });
 
     return (
         <AssistantI18nProvider locale={config.locale}>
             <ChatClientContext.Provider value={client}>
                 <CurrentUserIdContext.Provider value={userId}>
-                    <ChatHistoryInner config={config} />
+                    <ChatHistoryInner config={config} searchEnabled={features.search === true} />
                 </CurrentUserIdContext.Provider>
             </ChatClientContext.Provider>
         </AssistantI18nProvider>
     );
 }
 
-function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
+function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { searchEnabled: boolean }): ReactElement {
     const { url, basePath, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
     const { t } = useTranslation();
 
@@ -112,6 +113,14 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
             includeArchived: true,
             activelyViewingThreadId,
         });
+
+    const {
+        query: searchQuery,
+        setQuery: setSearchQuery,
+        results: searchResults,
+        isSearching,
+        clearSearch,
+    } = useThreadSearch();
 
     // Mark the thread as read when selected + tab visible.
     useEffect(() => {
@@ -159,10 +168,14 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
         [setArchived, selectedThreadId],
     );
 
-    const handleSelectThread = useCallback((threadId: string) => {
-        setSelectedThreadId(threadId);
-        pendingCreateRef.current = null;
-    }, []);
+    const handleSelectThread = useCallback(
+        (threadId: string) => {
+            setSelectedThreadId(threadId);
+            pendingCreateRef.current = null;
+            clearSearch();
+        },
+        [clearSearch],
+    );
 
     const handleNewThread = useCallback(() => {
         setSelectedThreadId(null);
@@ -218,6 +231,15 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
                     loading={loading}
                     hasMore={hasMore}
                     onLoadMore={loadMore}
+                    {...(searchEnabled
+                        ? {
+                              searchQuery,
+                              onSearchQueryChange: setSearchQuery,
+                              searchResults,
+                              isSearching,
+                              onClearSearch: clearSearch,
+                          }
+                        : {})}
                 />
             )}
             {isNarrow && (
@@ -239,6 +261,15 @@ function ChatHistoryInner({ config }: ChatHistoryEmbedProps): ReactElement {
                         loading={loading}
                         hasMore={hasMore}
                         onLoadMore={loadMore}
+                        {...(searchEnabled
+                            ? {
+                                  searchQuery,
+                                  onSearchQueryChange: setSearchQuery,
+                                  searchResults,
+                                  isSearching,
+                                  onClearSearch: clearSearch,
+                              }
+                            : {})}
                     />
                 </Drawer>
             )}

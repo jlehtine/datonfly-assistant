@@ -211,11 +211,19 @@ export interface ErrorEvent {
     code: ErrorCode;
 }
 
+/** Server-advertised feature flags sent with the welcome event. */
+export interface ServerFeatures {
+    /** Whether semantic thread search is available. */
+    search?: boolean | undefined;
+}
+
 /** Emitted to a client immediately after successful WebSocket authentication. */
 export interface WelcomeEvent {
     event: "welcome";
     /** The resolved database user ID for the authenticated connection. */
     userId: string;
+    /** Optional feature flags advertised by the server. */
+    features?: ServerFeatures | undefined;
 }
 
 /** Discriminated union of all events the server can send to the client. */

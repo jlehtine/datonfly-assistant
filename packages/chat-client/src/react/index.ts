@@ -17,3 +17,5 @@ export { useMembers } from "./useMembers.js";
 export type { UseMembersResult } from "./useMembers.js";
 export { useUserSearch } from "./useUserSearch.js";
 export type { UseUserSearchResult } from "./useUserSearch.js";
+export { useThreadSearch } from "./useThreadSearch.js";
+export type { UseThreadSearchResult } from "./useThreadSearch.js";

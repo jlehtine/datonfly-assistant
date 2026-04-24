@@ -40,6 +40,9 @@ const fi: FlatKeys<typeof en> = {
     unarchive: "Palauta arkistosta",
     noArchivedConversations: "Ei arkistoituja keskusteluja.",
     noConversationsYet: "Ei vielä keskusteluja.",
+    searchThreads: "Hae keskusteluja",
+    noSearchResults: "Ei tuloksia.",
+    clearSearch: "Tyhjennä haku",
 
     // ── EditableTitle ──
     editTitle: "Muokkaa otsikkoa",

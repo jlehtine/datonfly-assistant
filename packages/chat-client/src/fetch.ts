@@ -28,6 +28,8 @@ export interface TypedFetchOptions {
     body?: unknown;
     /** Additional query parameters appended to the URL. */
     query?: Record<string, string> | undefined;
+    /** Abort signal for request cancellation. */
+    signal?: AbortSignal | undefined;
 }
 
 /**
@@ -66,7 +68,7 @@ export async function typedFetch<T>(
     schema: z.ZodType<T> | null,
     options: TypedFetchOptions = {},
 ): Promise<T | null> {
-    const { method = "GET", body, query } = options;
+    const { method = "GET", body, query, signal } = options;
 
     let url = client.basePath + path;
     if (query) {
@@ -84,6 +86,7 @@ export async function typedFetch<T>(
         headers,
         credentials: "include",
         ...(body !== undefined && { body: JSON.stringify(body) }),
+        ...(signal ? { signal } : {}),
     });
 
     if (!res.ok) {

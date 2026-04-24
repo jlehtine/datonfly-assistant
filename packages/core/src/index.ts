@@ -74,6 +74,7 @@ export type {
     ThreadUpdatedEvent,
     ThreadCreatedEvent,
     ErrorEvent,
+    ServerFeatures,
     WelcomeEvent,
     ServerToClientEvent,
 } from "./events/index.js";

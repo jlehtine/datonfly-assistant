@@ -34,6 +34,9 @@ const en = {
     unarchive: "Unarchive",
     noArchivedConversations: "No archived conversations.",
     noConversationsYet: "No conversations yet.",
+    searchThreads: "Search threads",
+    noSearchResults: "No results found.",
+    clearSearch: "Clear search",
 
     // ── EditableTitle ──
     editTitle: "Edit title",

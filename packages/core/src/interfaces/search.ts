@@ -19,13 +19,21 @@ export interface IndexDocumentOptions {
 }
 
 /** Options for performing a semantic search query. */
+export interface SemanticSearchFilter {
+    /** Restrict results to specific thread IDs. */
+    threadIds?: string[] | undefined;
+    /** Restrict results to threads where this user is a member. */
+    memberUserId?: string | undefined;
+}
+
+/** Options for performing a semantic search query. */
 export interface SemanticSearchOptions {
     /** Natural-language search query. */
     query: string;
     /** Maximum number of results to return. */
     limit?: number | undefined;
     /** Metadata filter applied before ranking. */
-    filter?: Record<string, unknown> | undefined;
+    filter?: SemanticSearchFilter | undefined;
 }
 
 /** Result of a batch indexing operation. */
@@ -69,6 +77,11 @@ export interface ISearchProvider {
      * any configuration changes (e.g. stemmer language).
      */
     dropIndex(collection: string): Promise<void>;
+
+    /**
+     * Update per-thread access metadata used for query-time ACL filtering.
+     */
+    updateThreadMembers(collection: string, threadId: string, memberIds: string[]): Promise<void>;
 
     /**
      * Delete a document from the index.

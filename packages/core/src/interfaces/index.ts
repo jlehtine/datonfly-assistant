@@ -22,6 +22,7 @@ export type {
     SearchDocument,
     IndexDocumentOptions,
     IndexBatchResult,
+    SemanticSearchFilter,
     SemanticSearchOptions,
 } from "./search.js";
 export type { IEmbeddingsProvider } from "./embeddings.js";

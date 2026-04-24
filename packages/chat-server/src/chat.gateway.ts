@@ -723,6 +723,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
         await this.persistence.addMember(threadId, invitedUser.id, "member");
         await this.roomManager.addMember(threadId, invitedUser.id);
+        this.syncThreadSearchAcl(threadId);
         this.auditLogger.audit("info", "member.invite", {
             userId: user.id,
             threadId,
@@ -809,6 +810,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
 
         await this.persistence.removeMember(threadId, targetUserId);
+        this.syncThreadSearchAcl(threadId);
         this.auditLogger.audit("info", isSelf ? "member.leave" : "member.remove", {
             userId: user.id,
             threadId,
@@ -1022,22 +1024,42 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         role: string,
         authorId: string | null,
     ): void {
-        if (!this.searchProvider) return;
+        const searchProvider = this.searchProvider;
+        if (!searchProvider) return;
         const text = extractText(content);
         if (!text) return;
 
-        void this.searchProvider
-            .index("messages", {
+        void (async () => {
+            const members = await this.persistence.listMembers(threadId);
+            const memberIds = members.map((member) => member.userId);
+
+            await searchProvider.index("messages", {
                 id: messageId,
                 content: text,
-                metadata: { threadId, role, authorId, createdAt: new Date().toISOString() },
-            })
-            .catch((error: unknown) => {
-                this.auditLogger.audit("error", "search.index.failed", {
-                    messageId,
-                    threadId,
-                    error: error instanceof Error ? error.message : String(error),
-                });
+                metadata: { threadId, role, authorId, createdAt: new Date().toISOString(), memberIds },
             });
+        })().catch((error: unknown) => {
+            this.auditLogger.audit("error", "search.index.failed", {
+                messageId,
+                threadId,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        });
+    }
+
+    private syncThreadSearchAcl(threadId: string): void {
+        const searchProvider = this.searchProvider;
+        if (!searchProvider) return;
+
+        void (async () => {
+            const members = await this.persistence.listMembers(threadId);
+            const memberIds = members.map((member) => member.userId);
+            await searchProvider.updateThreadMembers("messages", threadId, memberIds);
+        })().catch((error: unknown) => {
+            this.auditLogger.audit("error", "search.acl-sync.failed", {
+                threadId,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        });
     }
 }

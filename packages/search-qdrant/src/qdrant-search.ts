@@ -99,6 +99,11 @@ export class QdrantSearchProvider implements ISearchProvider {
                 wait: true,
             }),
             this.client.createPayloadIndex(name, {
+                field_name: "memberIds",
+                field_schema: "keyword",
+                wait: true,
+            }),
+            this.client.createPayloadIndex(name, {
                 field_name: "createdAt",
                 field_schema: "datetime",
                 wait: true,
@@ -138,18 +143,22 @@ export class QdrantSearchProvider implements ISearchProvider {
         const queryVector = await this.embeddings.embedQuery(options.query.slice(0, MAX_EMBED_CHARS));
 
         // Build membership filter from the caller-supplied filter.
-        const threadIds = (options.filter?.threadIds as string[] | undefined) ?? [];
-        const membershipFilter =
-            threadIds.length > 0
-                ? {
-                      must: [
-                          {
-                              key: "threadId",
-                              match: { any: threadIds },
-                          },
-                      ],
-                  }
-                : undefined;
+        const threadIds = options.filter?.threadIds ?? [];
+        const memberUserId = options.filter?.memberUserId;
+        const mustFilters: Record<string, unknown>[] = [];
+        if (threadIds.length > 0) {
+            mustFilters.push({
+                key: "threadId",
+                match: { any: threadIds },
+            });
+        }
+        if (memberUserId) {
+            mustFilters.push({
+                key: "memberIds",
+                match: { any: [memberUserId] },
+            });
+        }
+        const membershipFilter = mustFilters.length > 0 ? { must: mustFilters } : undefined;
 
         // Hybrid query: semantic + keyword-boosted, fused via RRF, grouped by threadId.
         const result = await this.client.queryGroups(name, {
@@ -197,6 +206,24 @@ export class QdrantSearchProvider implements ISearchProvider {
 
         // Re-create with current schema.
         await this.ensureCollection(collection);
+    }
+
+    async updateThreadMembers(collection: string, threadId: string, memberIds: string[]): Promise<void> {
+        await this.ensureCollection(collection);
+        const name = this.fullName(collection);
+
+        await this.client.setPayload(name, {
+            payload: { memberIds },
+            filter: {
+                must: [
+                    {
+                        key: "threadId",
+                        match: { value: threadId },
+                    },
+                ],
+            },
+            wait: false,
+        });
     }
 
     async indexBatch(

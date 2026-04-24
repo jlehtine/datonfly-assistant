@@ -91,10 +91,20 @@ export class AdminController {
         content: string;
         metadata: Record<string, unknown>;
     }> {
+        const threadMemberCache = new Map<string, string[]>();
+
         for await (const batch of this.persistence.loadAllMessages({ batchSize: 100 })) {
             for (const msg of batch) {
                 const text = extractText(msg.content);
                 if (!text) continue;
+
+                let memberIds = threadMemberCache.get(msg.threadId);
+                if (!memberIds) {
+                    const members = await this.persistence.listMembers(msg.threadId);
+                    memberIds = members.map((member) => member.userId);
+                    threadMemberCache.set(msg.threadId, memberIds);
+                }
+
                 yield {
                     id: msg.id,
                     content: text,
@@ -103,6 +113,7 @@ export class AdminController {
                         role: msg.role,
                         authorId: msg.authorId,
                         createdAt: msg.createdAt.toISOString(),
+                        memberIds,
                     },
                 };
             }

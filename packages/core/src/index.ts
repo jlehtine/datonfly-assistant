@@ -43,6 +43,7 @@ export type {
     SearchDocument,
     IndexDocumentOptions,
     IndexBatchResult,
+    SemanticSearchFilter,
     SemanticSearchOptions,
     IEmbeddingsProvider,
     ITool,

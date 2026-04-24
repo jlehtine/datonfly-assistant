@@ -94,16 +94,11 @@ export class ThreadController {
             return { results: [] };
         }
 
-        const threadIds = await this.persistence.listThreadIds(user.id);
-        if (threadIds.length === 0) {
-            return { results: [] };
-        }
-
         const limit = query.limit ?? 50;
         const docs = await this.searchProvider.semanticSearch("messages", {
             query: query.q,
             limit: limit * 3,
-            filter: { threadIds },
+            filter: { memberUserId: user.id },
         });
 
         // Apply recency decay: finalScore = score * exp(-λ * days)
@@ -129,18 +124,23 @@ export class ThreadController {
         }
 
         // Enrich with thread titles
-        const results = await Promise.all(
-            topResults.map(async (item) => {
-                const thread = await this.persistence.getThread(item.threadId);
-                return {
-                    threadId: item.threadId,
-                    title: thread?.title ?? "Untitled",
-                    snippet: item.snippet,
-                    score: Math.round(item.score * 1000) / 1000,
-                    updatedAt: thread?.updatedAt.toISOString() ?? new Date().toISOString(),
-                };
-            }),
-        );
+        const results: { threadId: string; title: string; snippet: string; score: number; updatedAt: string }[] = [];
+        for (const item of topResults) {
+            // Safety net: enforce membership at read time in case index ACL metadata is stale.
+            const isMember = await this.persistence.isMember(item.threadId, user.id);
+            if (!isMember) continue;
+
+            const thread = await this.persistence.getThread(item.threadId);
+            results.push({
+                threadId: item.threadId,
+                title: thread?.title ?? "Untitled",
+                snippet: item.snippet,
+                score: Math.round(item.score * 1000) / 1000,
+                updatedAt: thread?.updatedAt.toISOString() ?? new Date().toISOString(),
+            });
+
+            if (results.length >= limit) break;
+        }
 
         return { results };
     }

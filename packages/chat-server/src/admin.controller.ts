@@ -4,11 +4,13 @@ import type { Response } from "express";
 import type { IPersistenceProvider, ISearchProvider } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
+import { Public } from "./decorators/public.decorator.js";
 import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER } from "./constants.js";
 import { AdminGuard } from "./guards/admin.guard.js";
 import { extractText } from "./messages.js";
 
 @Controller("datonfly-assistant/admin")
+@Public()
 @UseGuards(AdminGuard)
 export class AdminController {
     constructor(

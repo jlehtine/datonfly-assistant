@@ -99,7 +99,7 @@ export class ThreadController {
             return { results: [] };
         }
 
-        const limit = query.limit ?? 10;
+        const limit = query.limit ?? 50;
         const docs = await this.searchProvider.semanticSearch("messages", {
             query: query.q,
             limit: limit * 3,

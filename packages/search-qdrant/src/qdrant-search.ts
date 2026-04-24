@@ -133,7 +133,7 @@ export class QdrantSearchProvider implements ISearchProvider {
     async semanticSearch(collection: string, options: SemanticSearchOptions): Promise<SearchDocument[]> {
         await this.ensureCollection(collection);
         const name = this.fullName(collection);
-        const limit = options.limit ?? 10;
+        const limit = options.limit ?? 50;
 
         const queryVector = await this.embeddings.embedQuery(options.query.slice(0, MAX_EMBED_CHARS));
 

@@ -29,6 +29,24 @@ for (const candidate of [".env", "../../.env"]) {
     }
 }
 
+function parseTrustedReverseProxy(value: string | undefined): boolean | number | string | string[] | undefined {
+    const raw = value?.trim();
+    if (!raw) {
+        return undefined;
+    }
+
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    if (/^\d+$/.test(raw)) return Number(raw);
+
+    const addresses = raw
+        .split(/[\s,]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    return addresses.length > 1 ? addresses : raw;
+}
+
 async function bootstrap(): Promise<void> {
     const authMode = process.env.AUTH_MODE ?? "fake";
     if (authMode !== "fake" && authMode !== "oidc") {
@@ -169,6 +187,7 @@ async function bootstrap(): Promise<void> {
         cors: { origin: frontendUrl, credentials: true },
         memberSearchStrategy,
         search: searchProvider,
+        trustedReverseProxy: parseTrustedReverseProxy(process.env.TRUSTED_REVERSE_PROXY),
         adminSecret: process.env.ADMIN_SECRET ?? undefined,
         adminIps: process.env.ADMIN_IPS ?? undefined,
     });

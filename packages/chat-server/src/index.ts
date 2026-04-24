@@ -19,9 +19,11 @@ export {
     SEARCH_PROVIDER,
     ADMIN_SECRET,
     ADMIN_IPS,
+    TRUSTED_REVERSE_PROXY,
 } from "./constants.js";
 
 export type { ValidateTokenFn } from "./chat.gateway.js";
 export { ThreadTitleGenerator } from "./title-generator.js";
 export type { GenerateTitleFn, OnTitleUpdatedFn, ThreadTitleGeneratorConfig } from "./title-generator.js";
 export { threadMessagesToAgentMessages, extractText } from "./messages.js";
+export type { TrustedReverseProxy } from "./trusted-proxy.service.js";

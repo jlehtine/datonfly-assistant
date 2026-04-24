@@ -21,10 +21,12 @@ import {
     MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
+    TRUSTED_REVERSE_PROXY,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
 import { AdminGuard } from "./guards/admin.guard.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
+import { TrustedProxyService, type TrustedReverseProxy } from "./trusted-proxy.service.js";
 import type { GenerateTitleFn } from "./title-generator.js";
 import { ThreadController } from "./thread.controller.js";
 import { UserController } from "./user.controller.js";
@@ -55,6 +57,13 @@ export interface ChatModuleConfig {
     adminSecret?: string | undefined;
     /** Allowed IP addresses or CIDR ranges for admin endpoints (whitespace/comma-delimited). */
     adminIps?: string | undefined;
+    /**
+     * Trusted reverse-proxy setting forwarded to Express `trust proxy`.
+     *
+     * Use this when chat-server is behind ingress/reverse proxies so `req.ip`
+     * resolves to the actual client IP from forwarded headers.
+     */
+    trustedReverseProxy?: TrustedReverseProxy | undefined;
 }
 
 @Module({})
@@ -106,6 +115,7 @@ export class ChatModule {
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },
                 { provide: SEARCH_PROVIDER, useValue: config.search ?? null },
+                { provide: TRUSTED_REVERSE_PROXY, useValue: config.trustedReverseProxy ?? null },
                 { provide: ADMIN_SECRET, useValue: config.adminSecret ?? null },
                 {
                     provide: ADMIN_IPS,
@@ -119,6 +129,7 @@ export class ChatModule {
                 RequireUserGuard,
                 AdminGuard,
                 AuditLogger,
+                TrustedProxyService,
                 ChatGateway,
             ],
             exports: [PERSISTENCE_PROVIDER, AGENT_PROVIDER, AuditLogger],

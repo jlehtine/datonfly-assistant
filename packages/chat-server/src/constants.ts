@@ -7,3 +7,4 @@ export const MEMBER_SEARCH_STRATEGY = Symbol("MEMBER_SEARCH_STRATEGY");
 export const SEARCH_PROVIDER = Symbol("SEARCH_PROVIDER");
 export const ADMIN_SECRET = Symbol("ADMIN_SECRET");
 export const ADMIN_IPS = Symbol("ADMIN_IPS");
+export const TRUSTED_REVERSE_PROXY = Symbol("TRUSTED_REVERSE_PROXY");

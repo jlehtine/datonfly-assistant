@@ -133,6 +133,15 @@ export interface IPersistenceProvider {
     /** Return the IDs of all threads the given user is a member of. */
     listThreadIds(userId: string): Promise<string[]>;
 
+    // Bulk operations
+    /**
+     * Stream all messages across all threads in `created_at` order.
+     *
+     * Returns an async iterable of batches. Each batch contains up to
+     * `batchSize` messages (default 100). Used for full reindexing.
+     */
+    loadAllMessages(options?: { batchSize?: number | undefined }): AsyncIterable<ThreadMessage[]>;
+
     // Search
     /** Search users by name or email (case-insensitive substring match). */
     searchUsers(query: string, limit?: number): Promise<User[]>;

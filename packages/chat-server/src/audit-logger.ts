@@ -17,6 +17,9 @@ export interface AuditData {
     eventName?: string | undefined;
     assistantTextLength?: number | undefined;
     assistantVisibleLength?: number | undefined;
+    indexed?: number | undefined;
+    skipped?: number | undefined;
+    elapsedMs?: number | undefined;
 }
 
 /**

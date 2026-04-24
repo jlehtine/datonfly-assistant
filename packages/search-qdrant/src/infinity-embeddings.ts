@@ -48,12 +48,13 @@ export class InfinityEmbeddingsProvider implements IEmbeddingsProvider {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ model: this.model, input }),
+            signal: AbortSignal.timeout(120_000),
         });
 
         if (!response.ok) {
             const body = await response.text().catch(() => "");
             const message = `infinity-emb returned ${String(response.status)}: ${body}`;
-            this.logger.error({ status: response.status, body }, message);
+            this.logger.error({ status: response.status, body, inputCount: input.length }, message);
             throw new Error(message);
         }
 

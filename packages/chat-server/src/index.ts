@@ -2,6 +2,7 @@ export { AuditLogger } from "./audit-logger.js";
 export type { AuditData } from "./audit-logger.js";
 export { ChatModule } from "./chat.module.js";
 export type { ChatModuleConfig } from "./chat.module.js";
+export { AdminController } from "./admin.controller.js";
 export { ChatGateway } from "./chat.gateway.js";
 export { ThreadController } from "./thread.controller.js";
 export { UserController } from "./user.controller.js";
@@ -16,6 +17,8 @@ export {
     CHAT_CORS_OPTIONS,
     MEMBER_SEARCH_STRATEGY,
     SEARCH_PROVIDER,
+    ADMIN_SECRET,
+    ADMIN_IPS,
 } from "./constants.js";
 
 export type { ValidateTokenFn } from "./chat.gateway.js";

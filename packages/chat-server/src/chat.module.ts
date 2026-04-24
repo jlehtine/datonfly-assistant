@@ -11,7 +11,10 @@ import type {
 
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
+import { AdminController } from "./admin.controller.js";
 import {
+    ADMIN_IPS,
+    ADMIN_SECRET,
     AGENT_PROVIDER,
     CHAT_CORS_OPTIONS,
     GENERATE_TITLE_FN,
@@ -20,6 +23,7 @@ import {
     SEARCH_PROVIDER,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
+import { AdminGuard } from "./guards/admin.guard.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import type { GenerateTitleFn } from "./title-generator.js";
 import { ThreadController } from "./thread.controller.js";
@@ -47,6 +51,10 @@ export interface ChatModuleConfig {
     memberSearchStrategy?: MemberSearchStrategy | undefined;
     /** Optional semantic search provider for thread search and message indexing. */
     search?: ISearchProvider | undefined;
+    /** Shared secret for admin endpoints. Both `adminSecret` and `adminIps` must be set. */
+    adminSecret?: string | undefined;
+    /** Allowed IP addresses or CIDR ranges for admin endpoints (whitespace/comma-delimited). */
+    adminIps?: string | undefined;
 }
 
 @Module({})
@@ -89,7 +97,7 @@ export class ChatModule {
                     },
                 }),
             ],
-            controllers: [ThreadController, UserController],
+            controllers: [ThreadController, UserController, AdminController],
             providers: [
                 { provide: AGENT_PROVIDER, useValue: config.agent },
                 { provide: PERSISTENCE_PROVIDER, useValue: config.persistence },
@@ -98,7 +106,18 @@ export class ChatModule {
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },
                 { provide: SEARCH_PROVIDER, useValue: config.search ?? null },
+                { provide: ADMIN_SECRET, useValue: config.adminSecret ?? null },
+                {
+                    provide: ADMIN_IPS,
+                    useValue: config.adminIps
+                        ? config.adminIps
+                              .split(/[\s,]+/)
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                        : null,
+                },
                 RequireUserGuard,
+                AdminGuard,
                 AuditLogger,
                 ChatGateway,
             ],

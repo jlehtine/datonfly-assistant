@@ -5,3 +5,5 @@ export const GENERATE_TITLE_FN = Symbol("GENERATE_TITLE_FN");
 export const CHAT_CORS_OPTIONS = Symbol("CHAT_CORS_OPTIONS");
 export const MEMBER_SEARCH_STRATEGY = Symbol("MEMBER_SEARCH_STRATEGY");
 export const SEARCH_PROVIDER = Symbol("SEARCH_PROVIDER");
+export const ADMIN_SECRET = Symbol("ADMIN_SECRET");
+export const ADMIN_IPS = Symbol("ADMIN_IPS");

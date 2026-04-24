@@ -427,6 +427,52 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
     // ─── Search ───
 
+    async *loadAllMessages(options?: { batchSize?: number | undefined }): AsyncIterable<ThreadMessage[]> {
+        const batchSize = options?.batchSize ?? 100;
+        let offset = 0;
+
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        while (true) {
+            const rows = await this.qb
+                .selectFrom("message")
+                .leftJoin("user", "user.id", "message.author_id")
+                .select([
+                    "message.id",
+                    "message.thread_id",
+                    "message.role",
+                    "message.content",
+                    "message.author_id",
+                    "message.created_at",
+                    "message.content_at",
+                    "message.metadata",
+                    "user.name as author_name",
+                    "user.avatar_url as author_avatar_url",
+                ])
+                .orderBy("message.created_at", "asc")
+                .limit(batchSize)
+                .offset(offset)
+                .execute();
+
+            if (rows.length === 0) break;
+
+            yield rows.map((row) => ({
+                id: row.id,
+                threadId: row.thread_id,
+                role: row.role,
+                content: row.content as ContentPart[],
+                authorId: row.author_id,
+                authorName: row.author_name ?? null,
+                authorAvatarUrl: row.author_avatar_url ?? null,
+                createdAt: row.created_at,
+                contentAt: row.content_at,
+                metadata: row.metadata ?? undefined,
+            }));
+
+            offset += rows.length;
+            if (rows.length < batchSize) break;
+        }
+    }
+
     async listThreadIds(userId: string): Promise<string[]> {
         const rows = await this.qb
             .selectFrom("thread_member")

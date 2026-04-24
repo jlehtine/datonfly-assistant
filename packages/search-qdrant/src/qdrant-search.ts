@@ -3,12 +3,24 @@ import { QdrantClient } from "@qdrant/js-client-rest";
 import {
     NOOP_PROVIDER_LOGGER,
     type IEmbeddingsProvider,
+    type IndexBatchResult,
     type IndexDocumentOptions,
     type ISearchProvider,
     type ProviderLogger,
     type SearchDocument,
     type SemanticSearchOptions,
 } from "@datonfly-assistant/core";
+
+/**
+ * Maximum character length for text sent to the embedding model.
+ *
+ * BGE-M3 has an 8 192-token context window (~32 K chars). Texts longer
+ * than this are truncated before embedding.
+ */
+const MAX_EMBED_CHARS = 10_000;
+
+/** Number of documents per embedding + upsert batch. */
+const BATCH_SIZE = 8;
 
 /** Configuration for {@link QdrantSearchProvider}. */
 export interface QdrantSearchConfig {
@@ -101,7 +113,7 @@ export class QdrantSearchProvider implements ISearchProvider {
         await this.ensureCollection(collection);
         const name = this.fullName(collection);
 
-        const vector = await this.embeddings.embedQuery(options.content);
+        const vector = await this.embeddings.embedQuery(options.content.slice(0, MAX_EMBED_CHARS));
 
         await this.client.upsert(name, {
             wait: false,
@@ -123,7 +135,7 @@ export class QdrantSearchProvider implements ISearchProvider {
         const name = this.fullName(collection);
         const limit = options.limit ?? 10;
 
-        const queryVector = await this.embeddings.embedQuery(options.query);
+        const queryVector = await this.embeddings.embedQuery(options.query.slice(0, MAX_EMBED_CHARS));
 
         // Build membership filter from the caller-supplied filter.
         const threadIds = (options.filter?.threadIds as string[] | undefined) ?? [];
@@ -171,5 +183,86 @@ export class QdrantSearchProvider implements ISearchProvider {
     async delete(collection: string, id: string): Promise<void> {
         const name = this.fullName(collection);
         await this.client.delete(name, { wait: false, points: [id] });
+    }
+
+    async dropIndex(collection: string): Promise<void> {
+        const name = this.fullName(collection);
+        this.readyCollections.delete(name);
+
+        const { collections } = await this.client.getCollections();
+        if (collections.some((c) => c.name === name)) {
+            await this.client.deleteCollection(name);
+            this.logger.info({ collection: name }, "Dropped Qdrant collection");
+        }
+
+        // Re-create with current schema.
+        await this.ensureCollection(collection);
+    }
+
+    async indexBatch(
+        collection: string,
+        documents: AsyncIterable<IndexDocumentOptions>,
+        onProgress?: (indexed: number, skipped: number) => void,
+    ): Promise<IndexBatchResult> {
+        await this.ensureCollection(collection);
+        const name = this.fullName(collection);
+
+        let indexed = 0;
+        let skipped = 0;
+        let chunk: IndexDocumentOptions[] = [];
+
+        const flushChunk = async (): Promise<void> => {
+            if (chunk.length === 0) return;
+
+            // Embed documents individually to avoid padding-induced memory spikes
+            // when batch texts vary widely in length. Failed documents are
+            // skipped so one bad document does not abort the entire reindex.
+            const points: { id: string; vector: number[]; payload: Record<string, unknown> }[] = [];
+            let chunkSkipped = 0;
+            for (const doc of chunk) {
+                try {
+                    const vector = await this.embeddings.embedQuery(doc.content.slice(0, MAX_EMBED_CHARS));
+                    points.push({
+                        id: doc.id,
+                        vector,
+                        payload: { content: doc.content, ...doc.metadata },
+                    });
+                } catch (error) {
+                    this.logger.warn(
+                        {
+                            documentId: doc.id,
+                            contentLength: doc.content.length,
+                            error: error instanceof Error ? error.message : String(error),
+                        },
+                        "Embedding failed for document, skipping",
+                    );
+                    chunkSkipped++;
+                }
+            }
+
+            if (points.length > 0) {
+                await this.client.upsert(name, { wait: true, points });
+            }
+
+            indexed += points.length;
+            skipped += chunkSkipped;
+            chunk = [];
+            onProgress?.(indexed, skipped);
+        };
+
+        for await (const doc of documents) {
+            if (!doc.content.trim()) {
+                skipped++;
+                continue;
+            }
+            chunk.push(doc);
+            if (chunk.length >= BATCH_SIZE) {
+                await flushChunk();
+            }
+        }
+        // Flush remaining.
+        await flushChunk();
+
+        return { indexed, skipped };
     }
 }

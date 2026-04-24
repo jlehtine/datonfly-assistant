@@ -28,6 +28,14 @@ export interface SemanticSearchOptions {
     filter?: Record<string, unknown> | undefined;
 }
 
+/** Result of a batch indexing operation. */
+export interface IndexBatchResult {
+    /** Number of documents successfully indexed. */
+    indexed: number;
+    /** Number of documents skipped (e.g. empty content). */
+    skipped: number;
+}
+
 /** Provider for vector-based semantic search over indexed documents. */
 export interface ISearchProvider {
     /**
@@ -36,9 +44,31 @@ export interface ISearchProvider {
     index(collection: string, options: IndexDocumentOptions): Promise<void>;
 
     /**
+     * Index a stream of documents in batches.
+     *
+     * The provider pulls documents from the async iterable, chunks them
+     * internally (e.g. 32 at a time), batch-embeds and upserts. The
+     * optional `onProgress` callback is invoked after each chunk with
+     * running totals.
+     */
+    indexBatch(
+        collection: string,
+        documents: AsyncIterable<IndexDocumentOptions>,
+        onProgress?: (indexed: number, skipped: number) => void,
+    ): Promise<IndexBatchResult>;
+
+    /**
      * Perform a semantic search over indexed documents.
      */
     semanticSearch(collection: string, options: SemanticSearchOptions): Promise<SearchDocument[]>;
+
+    /**
+     * Drop and re-create a collection, applying current schema settings.
+     *
+     * Used for full reindexing — provides a clean slate and picks up
+     * any configuration changes (e.g. stemmer language).
+     */
+    dropIndex(collection: string): Promise<void>;
 
     /**
      * Delete a document from the index.

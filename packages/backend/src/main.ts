@@ -169,6 +169,8 @@ async function bootstrap(): Promise<void> {
         cors: { origin: frontendUrl, credentials: true },
         memberSearchStrategy,
         search: searchProvider,
+        adminSecret: process.env.ADMIN_SECRET ?? undefined,
+        adminIps: process.env.ADMIN_IPS ?? undefined,
     });
 
     const extraModules = [chatModule];

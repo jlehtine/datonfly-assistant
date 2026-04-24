@@ -209,6 +209,12 @@ async function bootstrap(): Promise<void> {
     app.useLogger(app.get(Logger));
     app.use(cookieParser());
 
+    const trustedReverseProxy = parseTrustedReverseProxy(process.env.TRUSTED_REVERSE_PROXY);
+    const httpApp = app.getHttpAdapter().getInstance() as {
+        set?: ((name: string, value: unknown) => void) | undefined;
+    };
+    httpApp.set?.("trust proxy", trustedReverseProxy ?? false);
+
     app.enableCors({
         origin: frontendUrl,
         credentials: true,

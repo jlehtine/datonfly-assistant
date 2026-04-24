@@ -96,8 +96,13 @@ export class ChatModule {
                             censor: "[REDACTED]",
                         },
                         serializers: {
-                            req(req: { method: string; url: string; remoteAddress: string }) {
-                                return { method: req.method, url: req.url, ip: req.remoteAddress };
+                            req(req: {
+                                method: string;
+                                url: string;
+                                ip?: string | undefined;
+                                ips?: string[] | undefined;
+                            }) {
+                                return { method: req.method, url: req.url, ip: req.ip ?? req.ips?.[0] ?? "" };
                             },
                             res(res: { statusCode: number }) {
                                 return { statusCode: res.statusCode };

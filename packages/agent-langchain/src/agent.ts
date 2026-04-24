@@ -3,29 +3,21 @@ import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langc
 import type { Runnable } from "@langchain/core/runnables";
 import type { ServerTool } from "@langchain/core/tools";
 
-import type {
-    AgentLogger,
-    AgentMessage,
-    AgentStreamChunk,
-    AgentUsage,
-    Citation,
-    IAgentProvider,
-    OpaqueContentBlock,
-    ShouldRespondResult,
-    StatusCode,
+import {
+    NOOP_PROVIDER_LOGGER,
+    type AgentMessage,
+    type AgentStreamChunk,
+    type AgentUsage,
+    type Citation,
+    type IAgentProvider,
+    type OpaqueContentBlock,
+    type ProviderLogger,
+    type ShouldRespondResult,
+    type StatusCode,
 } from "@datonfly-assistant/core";
 
 /** The opaque block provider identifier used by this agent. */
 const PROVIDER_ID = "anthropic";
-
-const NOOP_AGENT_LOGGER: AgentLogger = {
-    error() {
-        // Intentionally empty.
-    },
-    child() {
-        return NOOP_AGENT_LOGGER;
-    },
-};
 
 interface AssistantApiErrorDetails {
     errorName?: string | undefined;
@@ -338,7 +330,7 @@ export interface LangGraphAgentConfig {
     compactionTriggerTokens?: number | undefined;
 
     /** Optional logger for assistant API failures. Defaults to a no-op logger when omitted. */
-    logger?: AgentLogger | undefined;
+    logger?: ProviderLogger | undefined;
 }
 
 /**
@@ -356,7 +348,7 @@ export class LangGraphAgent implements IAgentProvider {
     private readonly triageApiKey: string | undefined;
     private readonly modelName: string;
     private readonly contextWindowSize: number;
-    private readonly logger: AgentLogger;
+    private readonly logger: ProviderLogger;
 
     /** @inheritdoc */
     readonly externalCompaction = false;
@@ -390,7 +382,7 @@ export class LangGraphAgent implements IAgentProvider {
         this.contextWindowSize = config.contextWindowSize ?? 200_000;
         this.triageModelName = config.triageModelName;
         this.triageApiKey = config.apiKey;
-        this.logger = config.logger ?? NOOP_AGENT_LOGGER;
+        this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
 
         const serverTools: ServerTool[] = [];
         if (config.enableCodeExecution) {
@@ -425,11 +417,11 @@ export class LangGraphAgent implements IAgentProvider {
     private createOperationLogger(
         operation: "run" | "stream" | "shouldRespond",
         fields: Record<string, unknown>,
-    ): AgentLogger {
+    ): ProviderLogger {
         return this.logger.child({ vendor: PROVIDER_ID, model: this.modelName, operation, ...fields });
     }
 
-    private logAssistantApiError(logger: AgentLogger, error: unknown, fields: Record<string, unknown>): void {
+    private logAssistantApiError(logger: ProviderLogger, error: unknown, fields: Record<string, unknown>): void {
         logger.error(
             {
                 ...fields,

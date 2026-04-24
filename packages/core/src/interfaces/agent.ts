@@ -72,15 +72,6 @@ export interface ShouldRespondResult {
     reason?: string | undefined;
 }
 
-/** Structured logger contract used by agent providers. */
-export interface AgentLogger {
-    /** Log an error event with structured fields. */
-    error(fields: Record<string, unknown>, message?: string): void;
-
-    /** Create a child logger with additional contextual fields. */
-    child(fields: Record<string, unknown>): AgentLogger;
-}
-
 /**
  * Agent service provider that processes messages and produces responses.
  *

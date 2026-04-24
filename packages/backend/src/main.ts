@@ -13,7 +13,7 @@ import pino from "pino";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
 import { ChatModule } from "@datonfly-assistant/chat-server";
-import type { AgentLogger, MemberSearchStrategy } from "@datonfly-assistant/core";
+import type { MemberSearchStrategy, ProviderLogger } from "@datonfly-assistant/core";
 import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
 
 import { AppModule } from "./app.module.js";
@@ -108,7 +108,7 @@ async function bootstrap(): Promise<void> {
         throw new Error("ANTHROPIC_MODEL environment variable is required");
     }
 
-    const agentLogger: AgentLogger = pino({
+    const agentLogger: ProviderLogger = pino({
         level: process.env.LOG_LEVEL ?? "info",
         ...(process.env.LOG_FORMAT === "json"
             ? {}

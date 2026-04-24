@@ -1,6 +1,7 @@
+export type { ProviderLogger } from "./logger.js";
+export { NOOP_PROVIDER_LOGGER } from "./logger.js";
 export type {
     IAgentProvider,
-    AgentLogger,
     AgentMessage,
     AgentMessageRole,
     AgentStreamChunk,

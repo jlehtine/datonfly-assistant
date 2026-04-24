@@ -32,6 +32,31 @@ import { ThreadController } from "./thread.controller.js";
 import { UserController } from "./user.controller.js";
 import type { ValidateTokenFn } from "./chat.gateway.js";
 
+interface RequestLogSource {
+    method: string;
+    url: string;
+    ip?: string | undefined;
+    ips?: string[] | undefined;
+    socket?: { remoteAddress?: string | undefined } | undefined;
+    raw?: {
+        ip?: string | undefined;
+        ips?: string[] | undefined;
+        socket?: { remoteAddress?: string | undefined } | undefined;
+    };
+}
+
+function resolveRequestIp(req: RequestLogSource): string {
+    return (
+        req.ip ??
+        req.raw?.ip ??
+        req.ips?.[0] ??
+        req.raw?.ips?.[0] ??
+        req.socket?.remoteAddress ??
+        req.raw?.socket?.remoteAddress ??
+        ""
+    );
+}
+
 /** Configuration for {@link ChatModule.forRoot}. */
 export interface ChatModuleConfig {
     /** Chat agent that processes incoming messages and streams responses. */
@@ -96,13 +121,8 @@ export class ChatModule {
                             censor: "[REDACTED]",
                         },
                         serializers: {
-                            req(req: {
-                                method: string;
-                                url: string;
-                                ip?: string | undefined;
-                                ips?: string[] | undefined;
-                            }) {
-                                return { method: req.method, url: req.url, ip: req.ip ?? req.ips?.[0] ?? "" };
+                            req(req: RequestLogSource) {
+                                return { method: req.method, url: req.url, ip: resolveRequestIp(req) };
                             },
                             res(res: { statusCode: number }) {
                                 return { statusCode: res.statusCode };

@@ -4,6 +4,8 @@ export interface SearchDocument {
     pageContent: string;
     /** Metadata associated with the document. */
     metadata: Record<string, unknown>;
+    /** Relevance score assigned by the search provider (higher is more relevant). */
+    score?: number | undefined;
 }
 
 /** Options for indexing a document for semantic search. */

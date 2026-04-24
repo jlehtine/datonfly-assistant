@@ -2,7 +2,12 @@ import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
 import { LoggerModule } from "nestjs-pino";
 
-import type { IAgentProvider, IPersistenceProvider, MemberSearchStrategy } from "@datonfly-assistant/core";
+import type {
+    IAgentProvider,
+    IPersistenceProvider,
+    ISearchProvider,
+    MemberSearchStrategy,
+} from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
@@ -12,6 +17,7 @@ import {
     GENERATE_TITLE_FN,
     MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
+    SEARCH_PROVIDER,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
@@ -39,6 +45,8 @@ export interface ChatModuleConfig {
      * - `"limited-visibility"` – search only returns users who already share a thread with the searcher.
      */
     memberSearchStrategy?: MemberSearchStrategy | undefined;
+    /** Optional semantic search provider for thread search and message indexing. */
+    search?: ISearchProvider | undefined;
 }
 
 @Module({})
@@ -89,6 +97,7 @@ export class ChatModule {
                 { provide: GENERATE_TITLE_FN, useValue: config.generateTitle ?? null },
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },
+                { provide: SEARCH_PROVIDER, useValue: config.search ?? null },
                 RequireUserGuard,
                 AuditLogger,
                 ChatGateway,

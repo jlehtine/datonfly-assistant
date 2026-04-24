@@ -27,6 +27,9 @@ export function threadUserStatePath(threadId: string): string {
     return `${THREADS_PATH}/${threadId}/my-state`;
 }
 
+/** Path for thread search (semantic + keyword hybrid). */
+export const THREAD_SEARCH_PATH = `${THREADS_PATH}/search`;
+
 /** Path for the user search endpoint. */
 export const USERS_SEARCH_PATH = `${API_PREFIX}/users/search`;
 

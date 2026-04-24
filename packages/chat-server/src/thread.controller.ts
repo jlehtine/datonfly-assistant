@@ -7,6 +7,7 @@ import {
     HttpCode,
     Inject,
     NotFoundException,
+    Optional,
     Param,
     Patch,
     Post,
@@ -19,14 +20,17 @@ import {
     ERROR_CODES,
     createThreadRequestSchema,
     paginationQuerySchema,
+    threadSearchQuerySchema,
     updateThreadRequestSchema,
     updateThreadUserStateRequestSchema,
     type CreateThreadRequest,
     type IPersistenceProvider,
+    type ISearchProvider,
     type PaginationQuery,
     type Thread,
     type ThreadMemberInfo,
     type ThreadMessage,
+    type ThreadSearchQuery,
     type UpdateThreadRequest,
     type UpdateThreadUserStateRequest,
     type User,
@@ -34,16 +38,22 @@ import {
 
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
-import { PERSISTENCE_PROVIDER } from "./constants.js";
+import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
+
+/** Half-life for recency decay scoring (days). */
+const RECENCY_HALF_LIFE_DAYS = 30;
+/** Decay constant derived from half-life: λ = ln(2) / halfLife. */
+const DECAY_LAMBDA = Math.LN2 / RECENCY_HALF_LIFE_DAYS;
 
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
 export class ThreadController {
     constructor(
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
+        @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
         private readonly gateway: ChatGateway,
         private readonly auditLogger: AuditLogger,
     ) {}
@@ -73,6 +83,66 @@ export class ThreadController {
         const limit = limitStr !== undefined ? Math.min(Math.max(parseInt(limitStr, 10) || 20, 1), 100) : undefined;
         const offset = offsetStr !== undefined ? Math.max(parseInt(offsetStr, 10) || 0, 0) : undefined;
         return this.persistence.listThreads({ userId: user.id, includeArchived, limit, offset });
+    }
+
+    @Get("search")
+    async search(
+        @ResolvedUser() user: User,
+        @Query(new ZodValidationPipe(threadSearchQuerySchema)) query: ThreadSearchQuery,
+    ): Promise<{ results: { threadId: string; title: string; snippet: string; score: number; updatedAt: string }[] }> {
+        if (!this.searchProvider) {
+            return { results: [] };
+        }
+
+        const threadIds = await this.persistence.listThreadIds(user.id);
+        if (threadIds.length === 0) {
+            return { results: [] };
+        }
+
+        const limit = query.limit ?? 10;
+        const docs = await this.searchProvider.semanticSearch("messages", {
+            query: query.q,
+            limit: limit * 3,
+            filter: { threadIds },
+        });
+
+        // Apply recency decay: finalScore = score * exp(-λ * days)
+        const now = Date.now();
+        const scored = docs.map((doc) => {
+            const threadId = doc.metadata.threadId as string;
+            const createdAt = doc.metadata.createdAt as string | undefined;
+            const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
+            const rawScore = doc.score ?? 0;
+            const finalScore = rawScore * Math.exp(-DECAY_LAMBDA * daysSince);
+            return { threadId, snippet: doc.pageContent.slice(0, 200), score: finalScore, createdAt };
+        });
+
+        // Sort by final score descending, take top `limit`, deduplicate by threadId
+        scored.sort((a, b) => b.score - a.score);
+        const seen = new Set<string>();
+        const topResults: typeof scored = [];
+        for (const item of scored) {
+            if (seen.has(item.threadId)) continue;
+            seen.add(item.threadId);
+            topResults.push(item);
+            if (topResults.length >= limit) break;
+        }
+
+        // Enrich with thread titles
+        const results = await Promise.all(
+            topResults.map(async (item) => {
+                const thread = await this.persistence.getThread(item.threadId);
+                return {
+                    threadId: item.threadId,
+                    title: thread?.title ?? "Untitled",
+                    snippet: item.snippet,
+                    score: Math.round(item.score * 1000) / 1000,
+                    updatedAt: thread?.updatedAt.toISOString() ?? new Date().toISOString(),
+                };
+            }),
+        );
+
+        return { results };
     }
 
     @Get(":id/messages")

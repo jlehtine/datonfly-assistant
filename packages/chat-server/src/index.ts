@@ -15,6 +15,7 @@ export {
     GENERATE_TITLE_FN,
     CHAT_CORS_OPTIONS,
     MEMBER_SEARCH_STRATEGY,
+    SEARCH_PROVIDER,
 } from "./constants.js";
 
 export type { ValidateTokenFn } from "./chat.gateway.js";

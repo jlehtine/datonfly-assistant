@@ -174,3 +174,14 @@ export const updateUserRequestSchema = z.object({
 
 /** Validated request body for updating user profile. */
 export type UpdateUserRequest = z.infer<typeof updateUserRequestSchema>;
+
+// ─── Thread Search ───
+
+/** Zod schema for thread search query parameters (GET endpoint). */
+export const threadSearchQuerySchema = z.object({
+    q: z.string().min(1).max(1000),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+/** Validated thread search query parameters. */
+export type ThreadSearchQuery = z.infer<typeof threadSearchQuerySchema>;

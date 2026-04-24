@@ -427,6 +427,15 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
     // ─── Search ───
 
+    async listThreadIds(userId: string): Promise<string[]> {
+        const rows = await this.qb
+            .selectFrom("thread_member")
+            .select("thread_id")
+            .where("user_id", "=", userId)
+            .execute();
+        return rows.map((row) => row.thread_id);
+    }
+
     async searchUsers(query: string, limit = 20): Promise<User[]> {
         // Escape LIKE special characters to prevent wildcard injection
         const escaped = query.replace(/[%_\\]/g, "\\$&");

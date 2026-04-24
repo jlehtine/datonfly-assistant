@@ -14,6 +14,7 @@ import type {
     ContentPart,
     IAgentProvider,
     IPersistenceProvider,
+    ISearchProvider,
     InviteMemberEvent,
     MemberJoinedEvent,
     MemberLeftEvent,
@@ -44,8 +45,14 @@ import {
 
 import { AuditLogger } from "./audit-logger.js";
 import { CompactionService } from "./compaction.js";
-import { AGENT_PROVIDER, GENERATE_TITLE_FN, PERSISTENCE_PROVIDER, VALIDATE_TOKEN_FN } from "./constants.js";
-import { buildAuthorAliases, threadMessagesToAgentMessages } from "./messages.js";
+import {
+    AGENT_PROVIDER,
+    GENERATE_TITLE_FN,
+    PERSISTENCE_PROVIDER,
+    SEARCH_PROVIDER,
+    VALIDATE_TOKEN_FN,
+} from "./constants.js";
+import { buildAuthorAliases, extractText, threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
 
@@ -102,6 +109,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
         @Optional() @Inject(GENERATE_TITLE_FN) private readonly generateTitleFn: GenerateTitleFn | null,
+        @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
         private readonly auditLogger: AuditLogger,
     ) {}
 
@@ -328,6 +336,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             return null;
         }
         this.auditLogger.audit("info", "message.send", { userId, threadId, messageId });
+
+        // Fire-and-forget: index the user message for search.
+        this.indexMessage(persistedMsg.id, threadId, content, "human", user?.id ?? null);
 
         // Broadcast new-message to all members except the sender
         const newMsgEvent: NewMessageEvent = {
@@ -570,6 +581,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     assistantVisibleLength,
                 });
 
+                // Fire-and-forget: index the AI message for search.
+                this.indexMessage(messageId, threadId, contentParts, "ai", null);
+
                 // Auto-unarchive for all members who have this thread archived.
                 void this.persistence.autoUnarchiveThread(threadId).then(() => {
                     void this.emitToThreadMembers(threadId, "thread-updated", {
@@ -647,6 +661,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 interrupted: true,
             };
             void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
+
+            // Fire-and-forget: index the interrupted AI message for search.
+            this.indexMessage(active.messageId, threadId, [{ type: "text", text: active.fullText }], "ai", null);
         }
     }
 
@@ -986,5 +1003,37 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 error: error instanceof Error ? error.message : String(error),
             });
         }
+    }
+
+    /**
+     * Fire-and-forget: index a message for semantic search.
+     *
+     * Failures are logged but never propagated — search indexing must not
+     * break messaging.
+     */
+    private indexMessage(
+        messageId: string,
+        threadId: string,
+        content: ContentPart[],
+        role: string,
+        authorId: string | null,
+    ): void {
+        if (!this.searchProvider) return;
+        const text = extractText(content);
+        if (!text) return;
+
+        void this.searchProvider
+            .index("messages", {
+                id: messageId,
+                content: text,
+                metadata: { threadId, role, authorId, createdAt: new Date().toISOString() },
+            })
+            .catch((error: unknown) => {
+                this.auditLogger.audit("error", "search.index.failed", {
+                    messageId,
+                    threadId,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            });
     }
 }

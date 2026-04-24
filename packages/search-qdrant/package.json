@@ -1,0 +1,28 @@
+{
+    "name": "@datonfly-assistant/search-qdrant",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "clean": "rm -rf dist",
+        "build": "tsc --project tsconfig.json",
+        "dev": "tsc --watch --project tsconfig.json",
+        "lint": "eslint src/",
+        "lint:fix": "eslint src/ --fix"
+    },
+    "dependencies": {
+        "@datonfly-assistant/core": "workspace:*",
+        "@qdrant/js-client-rest": "^1.14.0"
+    },
+    "devDependencies": {
+        "typescript": "^6.0.2"
+    }
+}

@@ -13,8 +13,9 @@ import pino from "pino";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
 import { ChatModule } from "@datonfly-assistant/chat-server";
-import type { MemberSearchStrategy, ProviderLogger } from "@datonfly-assistant/core";
+import type { ISearchProvider, MemberSearchStrategy, ProviderLogger } from "@datonfly-assistant/core";
 import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
+import { createQdrantSearch } from "@datonfly-assistant/search-qdrant";
 
 import { AppModule } from "./app.module.js";
 import { AuthModule, AuthService, type AuthConfig } from "./auth/index.js";
@@ -144,6 +145,22 @@ async function bootstrap(): Promise<void> {
     }
     const memberSearchStrategy: MemberSearchStrategy = rawStrategy;
 
+    // Optional: semantic search backed by Qdrant + infinity-emb.
+    let searchProvider: ISearchProvider | undefined;
+    const qdrantUrl = process.env.QDRANT_URL;
+    if (qdrantUrl) {
+        const infinityUrl = process.env.INFINITY_URL ?? "http://localhost:8080";
+        const stemmerLanguage = process.env.SEARCH_STEMMER_LANGUAGE ?? undefined;
+        const searchLogger = agentLogger.child({ component: "search" });
+        const { searchProvider: sp } = createQdrantSearch({
+            qdrantUrl,
+            infinityUrl,
+            stemmerLanguage,
+            logger: searchLogger,
+        });
+        searchProvider = sp;
+    }
+
     const chatModule = ChatModule.forRoot({
         agent,
         persistence,
@@ -151,6 +168,7 @@ async function bootstrap(): Promise<void> {
         generateTitle,
         cors: { origin: frontendUrl, credentials: true },
         memberSearchStrategy,
+        search: searchProvider,
     });
 
     const extraModules = [chatModule];

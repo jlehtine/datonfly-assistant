@@ -85,6 +85,9 @@ importers:
       '@datonfly-assistant/persistence-pg':
         specifier: workspace:*
         version: link:../persistence-pg
+      '@datonfly-assistant/search-qdrant':
+        specifier: workspace:*
+        version: link:../search-qdrant
       '@nestjs/common':
         specifier: ^11.1.0
         version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -386,6 +389,19 @@ importers:
       '@types/pg':
         specifier: ^8.15.4
         version: 8.20.0
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
+  packages/search-qdrant:
+    dependencies:
+      '@datonfly-assistant/core':
+        specifier: workspace:*
+        version: link:../core
+      '@qdrant/js-client-rest':
+        specifier: ^1.14.0
+        version: 1.17.0(typescript@6.0.2)
+    devDependencies:
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -999,6 +1015,16 @@ packages:
 
   '@popperjs/core@2.11.8':
     resolution: {integrity: sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==}
+
+  '@qdrant/js-client-rest@1.17.0':
+    resolution: {integrity: sha512-aZFQeirWVqWAa1a8vJ957LMzcXkFHGbsoRhzc8AkGfg6V0jtK8PlG8/eyyc2xhYsR961FDDx1Tx6nyE0K7lS+A==}
+    engines: {node: '>=18.17.0', pnpm: '>=8'}
+    peerDependencies:
+      typescript: '>=4.7'
+
+  '@qdrant/openapi-typescript-fetch@1.2.6':
+    resolution: {integrity: sha512-oQG/FejNpItrxRHoyctYvT3rwGZOnK4jr3JdppO/c78ktDvkWiPXPHNsrDf33K9sZdRb6PR7gi4noIapu5q4HA==}
+    engines: {node: '>=18.0.0', pnpm: '>=8'}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.13':
     resolution: {integrity: sha512-5ZiiecKH2DXAVJTNN13gNMUcCDg4Jy8ZjbXEsPnqa248wgOVeYRX0iqXXD5Jz4bI9BFHgKsI2qmyJynstbmr+g==}
@@ -3535,6 +3561,10 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
+  undici@6.25.0:
+    resolution: {integrity: sha512-ZgpWDC5gmNiuY9CnLVXEH8rl50xhRCuLNA97fAUnKi8RRuV4E6KG31pDTsLVUKnohJE0I3XDrTeEydAXRw47xg==}
+    engines: {node: '>=18.17'}
+
   unified@11.0.5:
     resolution: {integrity: sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA==}
 
@@ -4320,6 +4350,14 @@ snapshots:
       playwright: 1.59.1
 
   '@popperjs/core@2.11.8': {}
+
+  '@qdrant/js-client-rest@1.17.0(typescript@6.0.2)':
+    dependencies:
+      '@qdrant/openapi-typescript-fetch': 1.2.6
+      typescript: 6.0.2
+      undici: 6.25.0
+
+  '@qdrant/openapi-typescript-fetch@1.2.6': {}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.13':
     optional: true
@@ -7489,6 +7527,8 @@ snapshots:
       which-boxed-primitive: 1.1.1
 
   undici-types@7.18.2: {}
+
+  undici@6.25.0: {}
 
   unified@11.0.5:
     dependencies:

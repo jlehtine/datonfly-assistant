@@ -18,6 +18,7 @@
         "@datonfly-assistant/chat-server": "workspace:*",
         "@datonfly-assistant/core": "workspace:*",
         "@datonfly-assistant/persistence-pg": "workspace:*",
+        "@datonfly-assistant/search-qdrant": "workspace:*",
         "@nestjs/common": "^11.1.0",
         "@nestjs/config": "^4.0.0",
         "@nestjs/core": "^11.1.0",

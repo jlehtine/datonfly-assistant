@@ -92,3 +92,25 @@ export const userProfileWireSchema = z.object({
 
 /** An authenticated user's profile parsed from its JSON wire representation. */
 export type UserProfileWire = z.infer<typeof userProfileWireSchema>;
+
+// ─── Thread Search (wire format) ───
+
+/** Zod schema for a single thread search result as serialized over JSON. */
+export const threadSearchResultWireSchema = z.object({
+    threadId: z.string(),
+    title: z.string(),
+    snippet: z.string(),
+    score: z.number(),
+    updatedAt: z.string().transform((s) => new Date(s)),
+});
+
+/** A thread search result parsed from its JSON wire representation. */
+export type ThreadSearchResultWire = z.infer<typeof threadSearchResultWireSchema>;
+
+/** Zod schema for the thread search response. */
+export const threadSearchResponseWireSchema = z.object({
+    results: z.array(threadSearchResultWireSchema),
+});
+
+/** Thread search response parsed from JSON. */
+export type ThreadSearchResponseWire = z.infer<typeof threadSearchResponseWireSchema>;

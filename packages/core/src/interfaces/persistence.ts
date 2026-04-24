@@ -129,6 +129,10 @@ export interface IPersistenceProvider {
     /** Permanently delete a message by ID. */
     deleteMessage(messageId: string): Promise<void>;
 
+    // Thread IDs
+    /** Return the IDs of all threads the given user is a member of. */
+    listThreadIds(userId: string): Promise<string[]>;
+
     // Search
     /** Search users by name or email (case-insensitive substring match). */
     searchUsers(query: string, limit?: number): Promise<User[]>;

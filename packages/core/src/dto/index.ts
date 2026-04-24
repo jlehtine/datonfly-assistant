@@ -25,6 +25,8 @@ export {
     userSearchResultListWireSchema,
     // User profile
     updateUserRequestSchema,
+    // Thread search
+    threadSearchQuerySchema,
 } from "./schemas.js";
 
 export type {
@@ -41,4 +43,5 @@ export type {
     UserSearchQuery,
     UserSearchResultWire,
     UpdateUserRequest,
+    ThreadSearchQuery,
 } from "./schemas.js";

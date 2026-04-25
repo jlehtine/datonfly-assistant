@@ -169,11 +169,14 @@ async function bootstrap(): Promise<void> {
     if (qdrantUrl) {
         const infinityUrl = process.env.INFINITY_URL ?? "http://localhost:8080";
         const stemmerLanguage = process.env.SEARCH_STEMMER_LANGUAGE ?? undefined;
+        const rawEmbeddingsTimeout = process.env.EMBEDDINGS_TIMEOUT_MS;
+        const embeddingsTimeoutMs = rawEmbeddingsTimeout !== undefined ? Number(rawEmbeddingsTimeout) : undefined;
         const searchLogger = agentLogger.child({ component: "search" });
         const { searchProvider: sp } = createQdrantSearch({
             qdrantUrl,
             infinityUrl,
             stemmerLanguage,
+            embeddingsTimeoutMs,
             logger: searchLogger,
         });
         searchProvider = sp;

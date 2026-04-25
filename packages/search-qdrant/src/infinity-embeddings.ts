@@ -13,6 +13,8 @@ export interface InfinityEmbeddingsConfig {
     url: string;
     /** Model identifier sent in the request body. */
     model?: string | undefined;
+    /** Request timeout in milliseconds. Defaults to `120_000` (2 minutes). */
+    timeoutMs?: number | undefined;
     /** Logger for error reporting. */
     logger?: ProviderLogger | undefined;
 }
@@ -25,11 +27,13 @@ export interface InfinityEmbeddingsConfig {
 export class InfinityEmbeddingsProvider implements IEmbeddingsProvider {
     private readonly url: string;
     private readonly model: string;
+    private readonly timeoutMs: number;
     private readonly logger: ProviderLogger;
 
     constructor(config: InfinityEmbeddingsConfig) {
         this.url = config.url.replace(/\/+$/, "");
         this.model = config.model ?? "BAAI/bge-m3";
+        this.timeoutMs = config.timeoutMs ?? 120_000;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
     }
 
@@ -48,7 +52,7 @@ export class InfinityEmbeddingsProvider implements IEmbeddingsProvider {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ model: this.model, input }),
-            signal: AbortSignal.timeout(120_000),
+            signal: AbortSignal.timeout(this.timeoutMs),
         });
 
         if (!response.ok) {

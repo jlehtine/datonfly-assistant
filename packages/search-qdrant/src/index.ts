@@ -17,6 +17,8 @@ export interface QdrantSearchOptions {
     stemmerLanguage?: string | undefined;
     /** Logger for error/info reporting. Defaults to a no-op logger. */
     logger?: ProviderLogger | undefined;
+    /** Embeddings request timeout in milliseconds. Defaults to `120_000` (2 minutes). */
+    embeddingsTimeoutMs?: number | undefined;
 }
 
 /** Result of {@link createQdrantSearch}. */
@@ -36,6 +38,7 @@ export function createQdrantSearch(options: QdrantSearchOptions): QdrantSearchRe
     const embeddingsProvider = new InfinityEmbeddingsProvider({
         url: options.infinityUrl,
         model: options.model,
+        timeoutMs: options.embeddingsTimeoutMs,
         logger: options.logger,
     });
 

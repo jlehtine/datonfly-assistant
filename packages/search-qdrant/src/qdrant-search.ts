@@ -1,6 +1,7 @@
 import { QdrantClient } from "@qdrant/js-client-rest";
 
 import {
+    formatLoggedError,
     NOOP_PROVIDER_LOGGER,
     type IEmbeddingsProvider,
     type IndexBatchResult,
@@ -259,7 +260,7 @@ export class QdrantSearchProvider implements ISearchProvider {
                         {
                             documentId: doc.id,
                             contentLength: doc.content.length,
-                            error: error instanceof Error ? error.message : String(error),
+                            error: formatLoggedError(error),
                         },
                         "Embedding failed for document, skipping",
                     );

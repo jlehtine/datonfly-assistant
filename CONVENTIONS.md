@@ -39,6 +39,19 @@ the monorepo root.
 
 Run `pnpm lint` to lint all packages, or `pnpm lint:fix` to auto-fix.
 
+## Logging
+
+- When logging a caught error, do not inline `error.message`, `String(error)`,
+  or similar conversions at the call site.
+- Use the shared `formatLoggedError()` helper from `@datonfly-assistant/core` to
+  produce the logged error string.
+- `formatLoggedError()` walks the `Error.cause` chain for as long as each cause
+  is an `Error`, so logs include the full nested failure context instead of only
+  the top-level message.
+- Keep user-facing error messages separate from log formatting. Use the full
+  formatted chain for logs and audit entries, but only expose end-user text when
+  that is the intended behavior of the API or UI surface.
+
 ## Commit Messages
 
 - **Sentence case**, ending with a **period**.

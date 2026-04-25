@@ -2,6 +2,8 @@ import { Controller, Get, HttpCode, Post, Query, Req, Res, UnauthorizedException
 import type { Request, Response } from "express";
 import { PinoLogger } from "nestjs-pino";
 
+import { formatLoggedError } from "@datonfly-assistant/core";
+
 import { Public } from "../guards/jwt-auth.guard.js";
 
 import { AuthService, SESSION_COOKIE_NAME } from "./auth.service.js";
@@ -44,7 +46,7 @@ export class AuthController {
             res.redirect(redirectUrl);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Authentication failed";
-            this.logger.error({ audit: true, op: "auth.callback.failed", error: message });
+            this.logger.error({ audit: true, op: "auth.callback.failed", error: formatLoggedError(error) });
             throw new UnauthorizedException(message);
         }
     }

@@ -18,6 +18,56 @@ export interface ProviderLogger {
     child(fields: Record<string, unknown>): ProviderLogger;
 }
 
+function formatSingleError(error: Error): string {
+    const name = error.name.trim();
+    const message = error.message.trim();
+
+    if (name && message) {
+        return `${name}: ${message}`;
+    }
+
+    if (message) {
+        return message;
+    }
+
+    if (name) {
+        return name;
+    }
+
+    return "Error";
+}
+
+/**
+ * Convert a caught value into a loggable error string.
+ *
+ * When the value is an {@link Error}, this follows the `.cause` chain for as
+ * long as each cause is also an {@link Error}, composing the chain into a
+ * single string. Cycles are detected and truncated defensively.
+ */
+export function formatLoggedError(error: unknown): string {
+    if (!(error instanceof Error)) {
+        return String(error);
+    }
+
+    const segments: string[] = [];
+    const seen = new Set<Error>();
+    let current: Error | undefined = error;
+
+    while (current && !seen.has(current)) {
+        seen.add(current);
+        segments.push(formatSingleError(current));
+
+        const cause: unknown = current.cause;
+        current = cause instanceof Error ? cause : undefined;
+    }
+
+    if (current) {
+        segments.push("[Circular error cause]");
+    }
+
+    return segments.join(" <- ");
+}
+
 /** No-op {@link ProviderLogger} that silently discards all log calls. */
 export const NOOP_PROVIDER_LOGGER: ProviderLogger = {
     debug() {

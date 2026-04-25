@@ -23,7 +23,7 @@ export type {
 export { STATUS_CODES, ERROR_CODES } from "./types/index.js";
 
 // Interfaces
-export { NOOP_PROVIDER_LOGGER } from "./interfaces/index.js";
+export { formatLoggedError, NOOP_PROVIDER_LOGGER } from "./interfaces/index.js";
 export type {
     IAgentProvider,
     ProviderLogger,

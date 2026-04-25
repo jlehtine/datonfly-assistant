@@ -1,7 +1,7 @@
 import { Controller, Inject, Optional, Post, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 
-import type { IPersistenceProvider, ISearchProvider } from "@datonfly-assistant/core";
+import { formatLoggedError, type IPersistenceProvider, type ISearchProvider } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
 import { Public } from "./decorators/public.decorator.js";
@@ -80,7 +80,7 @@ export class AdminController {
                 clearInterval(timer);
             }
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = formatLoggedError(error);
             write(`Error: ${message}`);
             this.auditLogger.audit("error", "admin.reindex.failed", { error: message });
         }

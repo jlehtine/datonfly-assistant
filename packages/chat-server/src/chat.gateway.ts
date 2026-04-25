@@ -38,6 +38,7 @@ import {
     ERROR_CODES,
     WS_PATH,
     chatRequestSchema,
+    formatLoggedError,
     inviteMemberRequestSchema,
     removeMemberRequestSchema,
     updateMemberRoleRequestSchema,
@@ -619,12 +620,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
             this.activeStreams.delete(threadId);
             const message = error instanceof Error ? error.message : "Unknown error";
+            const loggedError = formatLoggedError(error);
             socket.emit("error", {
                 event: "error",
                 message,
                 code: ERROR_CODES.unspecified,
             });
-            this.auditLogger.audit("error", "agent.error", { userId, threadId, messageId, error: message });
+            this.auditLogger.audit("error", "agent.error", { userId, threadId, messageId, error: loggedError });
         }
     }
 
@@ -1006,7 +1008,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             this.auditLogger.audit("error", "ws.emit.failed", {
                 threadId,
                 eventName,
-                error: error instanceof Error ? error.message : String(error),
+                error: formatLoggedError(error),
             });
         }
     }
@@ -1042,7 +1044,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             this.auditLogger.audit("error", "search.index.failed", {
                 messageId,
                 threadId,
-                error: error instanceof Error ? error.message : String(error),
+                error: formatLoggedError(error),
             });
         });
     }
@@ -1058,7 +1060,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         })().catch((error: unknown) => {
             this.auditLogger.audit("error", "search.acl-sync.failed", {
                 threadId,
-                error: error instanceof Error ? error.message : String(error),
+                error: formatLoggedError(error),
             });
         });
     }

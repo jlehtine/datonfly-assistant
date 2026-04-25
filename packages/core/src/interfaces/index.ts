@@ -1,5 +1,5 @@
 export type { ProviderLogger } from "./logger.js";
-export { NOOP_PROVIDER_LOGGER } from "./logger.js";
+export { formatLoggedError, NOOP_PROVIDER_LOGGER } from "./logger.js";
 export type {
     IAgentProvider,
     AgentMessage,

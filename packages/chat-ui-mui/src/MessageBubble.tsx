@@ -77,6 +77,7 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                         color: "text.primary",
                         borderRadius: 2,
                         "& p": { m: 0 },
+                        "& p + p": { mt: "1em" },
                         "& h1": { fontSize: "1.15rem", fontWeight: 700, mt: 1.5, mb: 0.5 },
                         "& h2": { fontSize: "1.05rem", fontWeight: 700, mt: 1.5, mb: 0.5 },
                         "& h3": { fontSize: "0.95rem", fontWeight: 600, mt: 1, mb: 0.5 },

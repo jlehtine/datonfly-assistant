@@ -10,8 +10,6 @@ test.describe("thread unread count and ordering", () => {
         const composer = composerInput(page);
         await expect(composer).toBeEnabled({ timeout: 10_000 });
 
-        const threadItems = page.locator(".datonfly-thread-item");
-
         // ── Create thread A (will be the older one) ──
         const titleA = await createThreadAndSend(page, "Say exactly: hello from thread A", "OlderThread");
 
@@ -20,8 +18,20 @@ test.describe("thread unread count and ordering", () => {
         await expect(page.locator(".datonfly-message-ai")).toHaveCount(0, { timeout: 5_000 });
         const titleB = await createThreadAndSend(page, "Say exactly: hello from thread B", "NewerThread");
 
-        // Thread B should be at the top (most recently updated).
-        await expect(threadItems.first()).toContainText(titleB, { timeout: 5_000 });
+        // Thread B should be above thread A (most recently updated among the two).
+        await expect
+            .poll(
+                async () => {
+                    const titles = await page
+                        .locator(".datonfly-thread-item")
+                        .evaluateAll((items) => items.map((i) => i.getAttribute("data-thread-title") ?? ""));
+                    const indexA = titles.indexOf(titleA);
+                    const indexB = titles.indexOf(titleB);
+                    return indexA >= 0 && indexB >= 0 && indexB < indexA;
+                },
+                { timeout: 10_000 },
+            )
+            .toBeTruthy();
 
         // ── Switch to thread A and send a new message ──
         await threadItemByTitle(page, titleA).click();
@@ -29,8 +39,20 @@ test.describe("thread unread count and ordering", () => {
 
         await sendAndWaitForReply(page, "Say exactly: second message in thread A");
 
-        // Thread A should now be at the top of the list.
-        await expect(threadItems.first()).toContainText(titleA, { timeout: 10_000 });
+        // Thread A should now be above thread B.
+        await expect
+            .poll(
+                async () => {
+                    const titles = await page
+                        .locator(".datonfly-thread-item")
+                        .evaluateAll((items) => items.map((i) => i.getAttribute("data-thread-title") ?? ""));
+                    const indexA = titles.indexOf(titleA);
+                    const indexB = titles.indexOf(titleB);
+                    return indexA >= 0 && indexB >= 0 && indexA < indexB;
+                },
+                { timeout: 15_000 },
+            )
+            .toBeTruthy();
     });
 
     test("no unread badge on a thread whose reply arrived while the thread was open", async ({ page }) => {

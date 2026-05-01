@@ -142,6 +142,7 @@ async function bootstrap(): Promise<void> {
         modelName: model,
         apiKey: process.env.ANTHROPIC_API_KEY,
         triageModelName: process.env.ANTHROPIC_TRIAGE_MODEL,
+        enableCompaction: process.env.ENABLE_COMPACTION !== "false",
         enableCodeExecution: process.env.ENABLE_CODE_EXECUTION !== "false",
         enableWebSearch: process.env.ENABLE_WEB_SEARCH !== "false",
         enableWebFetch: process.env.ENABLE_WEB_FETCH !== "false",

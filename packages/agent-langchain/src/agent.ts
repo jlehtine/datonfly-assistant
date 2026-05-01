@@ -323,6 +323,8 @@ export interface LangGraphAgentConfig {
     triageModelName?: string | undefined;
     /** Context window size of the model in tokens. Defaults to `200000`. */
     contextWindowSize?: number | undefined;
+    /** Enable Anthropic provider-side context compaction. Defaults to `true`. */
+    enableCompaction?: boolean | undefined;
     /**
      * Input token threshold at which the Anthropic API triggers compaction.
      * Defaults to `contextWindowSize * 0.6`.
@@ -355,12 +357,15 @@ export class LangGraphAgent implements IAgentProvider {
 
     /** Create the agent with the given model configuration. */
     constructor(config: LangGraphAgentConfig) {
+        const enableCompaction = config.enableCompaction !== false;
         const options: ConstructorParameters<typeof ChatAnthropic>[0] = {
             model: config.modelName,
             temperature: config.temperature ?? 0.7,
             maxTokens: config.maxTokens ?? 4096,
             streamUsage: true,
-            contextManagement: {
+        };
+        if (enableCompaction) {
+            options.contextManagement = {
                 edits: [
                     {
                         type: "compact_20260112" as const,
@@ -372,8 +377,8 @@ export class LangGraphAgent implements IAgentProvider {
                         },
                     },
                 ],
-            },
-        };
+            };
+        }
         if (config.apiKey) {
             options.anthropicApiKey = config.apiKey;
         }

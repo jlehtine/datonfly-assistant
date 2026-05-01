@@ -4,6 +4,7 @@ import {
     composerInput,
     createSecondUser,
     createThreadAndSend,
+    ensureFakeUserExists,
     inviteMember,
     loginAsFakeUser,
     openThread,
@@ -19,6 +20,7 @@ test.describe("multi-user messaging", () => {
         const title = await createThreadAndSend(page, "Hello from Alice!", "invite-visible");
 
         // Invite Bob
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // User B (Bob, fakeid=2) should see the thread
@@ -35,6 +37,7 @@ test.describe("multi-user messaging", () => {
         const title = await createThreadAndSend(page, "Testing members drawer", "member-drawer");
 
         // Invite Bob
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // Close and reopen drawer to verify members
@@ -64,6 +67,7 @@ test.describe("multi-user messaging", () => {
         // Alice creates thread, invites Bob
         await loginAsFakeUser(page, 1);
         const title = await createThreadAndSend(page, "Initial message", "cross-msg");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // Close the member drawer
@@ -90,6 +94,7 @@ test.describe("multi-user messaging", () => {
         // Alice creates thread, invites Bob
         await loginAsFakeUser(page, 1);
         const title = await createThreadAndSend(page, "Setup message", "b-sends");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
         await page.getByRole("button", { name: "Close members" }).click();
 
@@ -117,6 +122,7 @@ test.describe("multi-user messaging", () => {
         // Alice creates thread, invites Bob
         await loginAsFakeUser(page, 1);
         const title = await createThreadAndSend(page, "Warm-up message", "both-ai");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
         await page.getByRole("button", { name: "Close members" }).click();
 

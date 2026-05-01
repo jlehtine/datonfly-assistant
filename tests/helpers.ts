@@ -62,6 +62,17 @@ export async function createSecondUser(browser: Browser, fakeid: number): Promis
 }
 
 /**
+ * Ensure a fake user exists in persistence by performing one login handshake.
+ *
+ * Invite-by-name lookups rely on persisted users, so tests that invite before
+ * opening a second user session should call this first.
+ */
+export async function ensureFakeUserExists(browser: Browser, fakeid: number): Promise<void> {
+    const page = await createSecondUser(browser, fakeid);
+    await page.context().close();
+}
+
+/**
  * Rename the currently selected thread via the inline editable title in the chat header.
  */
 export async function renameCurrentThread(page: Page, newTitle: string): Promise<void> {

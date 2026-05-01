@@ -4,6 +4,7 @@ import {
     composerInput,
     createSecondUser,
     createThreadAndSend,
+    ensureFakeUserExists,
     inviteMember,
     loginAsFakeUser,
     openMemberDrawer,
@@ -13,10 +14,11 @@ import {
 test.describe("member management", () => {
     test.setTimeout(180_000);
 
-    test("owner promotes member to owner and Owner chip appears", async ({ page }) => {
+    test("owner promotes member to owner and Owner chip appears", async ({ page, browser }) => {
         // Alice creates a thread, invites Bob
         await loginAsFakeUser(page, 1);
         await createThreadAndSend(page, "Promote test", "promote");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // Bob should be listed as a regular member (no Owner chip next to his name)
@@ -33,10 +35,11 @@ test.describe("member management", () => {
         await expect(bobItem.getByText("Owner")).toBeVisible({ timeout: 10_000 });
     });
 
-    test("owner demotes another owner to member and Owner chip disappears", async ({ page }) => {
+    test("owner demotes another owner to member and Owner chip disappears", async ({ page, browser }) => {
         // Alice creates a thread, invites Bob, then promotes Bob
         await loginAsFakeUser(page, 1);
         await createThreadAndSend(page, "Demote test", "demote");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // Promote Bob first
@@ -59,6 +62,7 @@ test.describe("member management", () => {
         // Alice creates a thread, invites Bob
         await loginAsFakeUser(page, 1);
         const title = await createThreadAndSend(page, "Remove test", "remove-member");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // Verify 2 members
@@ -92,6 +96,7 @@ test.describe("member management", () => {
         // Alice creates a thread, invites Bob
         await loginAsFakeUser(page, 1);
         const title = await createThreadAndSend(page, "Leave test", "leave-thread");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // Close Alice's drawer
@@ -124,10 +129,11 @@ test.describe("member management", () => {
         await pageB.context().close();
     });
 
-    test("owner has no action menu for themselves", async ({ page }) => {
+    test("owner has no action menu for themselves", async ({ page, browser }) => {
         // Alice creates a thread, invites Bob (so there's another member)
         await loginAsFakeUser(page, 1);
         await createThreadAndSend(page, "Self no-action test", "self-no-action");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
 
         // Alice should NOT have an action button next to her own name
@@ -140,6 +146,7 @@ test.describe("member management", () => {
         // Alice creates a thread, invites Bob
         await loginAsFakeUser(page, 1);
         const title = await createThreadAndSend(page, "No-action for non-owner", "non-owner-actions");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
         await page.getByRole("button", { name: "Close members" }).click();
 

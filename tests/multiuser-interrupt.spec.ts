@@ -4,6 +4,7 @@ import {
     composerInput,
     createSecondUser,
     createThreadAndSend,
+    ensureFakeUserExists,
     inviteMember,
     loginAsFakeUser,
     openThread,
@@ -16,6 +17,7 @@ test.describe("multi-user interrupt", () => {
         // Alice creates thread, invites Bob
         await loginAsFakeUser(page, 1);
         const title = await createThreadAndSend(page, "Warm-up message", "interrupt");
+        await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
         await page.getByRole("button", { name: "Close members" }).click();
 

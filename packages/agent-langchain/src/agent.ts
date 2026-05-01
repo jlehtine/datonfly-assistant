@@ -30,6 +30,10 @@ interface AssistantApiErrorDetails {
     isAbortError?: boolean | undefined;
 }
 
+function isDebugApiContentEnabled(): boolean {
+    return process.env.DEBUG_API_CONTENT === "true";
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
@@ -485,10 +489,34 @@ export class LangGraphAgent implements IAgentProvider {
                 const allCitations: RawCitation[] = [];
                 const allOpaqueBlocks: OpaqueContentBlock[] = [];
                 let usage: AgentUsage | undefined;
+                let chunkIndex = 0;
+                const debugApiContentEnabled = isDebugApiContentEnabled();
                 try {
+                    if (debugApiContentEnabled) {
+                        logger.info(
+                            {
+                                debugApiContent: debugApiContentEnabled,
+                            },
+                            "stream.debug-gates",
+                        );
+                    }
                     for await (const chunk of langchainStream) {
+                        chunkIndex += 1;
                         const rawChunk = chunk as Record<string, unknown>;
                         const rawContent = rawChunk.content as string | Record<string, unknown>[];
+
+                        if (debugApiContentEnabled) {
+                            logger.info(
+                                {
+                                    chunkIndex,
+                                    rawContent,
+                                    toolCallChunks: rawChunk.tool_call_chunks,
+                                    invalidToolCalls: rawChunk.invalid_tool_calls,
+                                },
+                                "stream.api-content",
+                            );
+                        }
+
                         const text = extractTextFromContent(rawContent);
                         const toolStatus = detectToolStatus(rawChunk);
                         allCitations.push(...extractCitations(rawContent));

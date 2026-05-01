@@ -288,7 +288,7 @@ export interface LangGraphAgentConfig {
     modelName: string;
     /** Anthropic API key. Falls back to the `ANTHROPIC_API_KEY` environment variable when omitted. */
     apiKey?: string | undefined;
-    /** Sampling temperature in `[0, 1]`. Defaults to `0.7`. */
+    /** Sampling temperature in `[0, 1]`. When omitted, the provider/model default is used. */
     temperature?: number | undefined;
     /** Maximum number of tokens in the generated response. Defaults to `4096`. */
     maxTokens?: number | undefined;
@@ -360,10 +360,12 @@ export class LangGraphAgent implements IAgentProvider {
         const enableCompaction = config.enableCompaction !== false;
         const options: ConstructorParameters<typeof ChatAnthropic>[0] = {
             model: config.modelName,
-            temperature: config.temperature ?? 0.7,
             maxTokens: config.maxTokens ?? 4096,
             streamUsage: true,
         };
+        if (typeof config.temperature === "number") {
+            options.temperature = config.temperature;
+        }
         if (enableCompaction) {
             options.contextManagement = {
                 edits: [

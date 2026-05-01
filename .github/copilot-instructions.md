@@ -5,6 +5,17 @@ conventions in [CONVENTIONS.md](../CONVENTIONS.md). This file contains only
 agent-specific workflow rules. General project conventions live in those files —
 do not duplicate them here.
 
+## Development Phase
+
+This software is in initial development and has not been released. Inter-package
+API compatibility does not need to be maintained. Prefer simplifications over
+backward-compatible changes when refactoring across packages.
+
+The one exception is **persisted data**: there are active test deployments of
+the standalone chat app, so database schema and stored data must be handled
+carefully. Always use data-preserving migrations; never drop or alter data in a
+destructive way.
+
 ## Decision Making
 
 Stick to the agreed plan. If during implementation you encounter unforeseen

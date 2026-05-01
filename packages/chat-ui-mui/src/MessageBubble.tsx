@@ -49,27 +49,40 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
     const { t } = useTranslation();
     const alignRight = isOwnMessage;
     const authorName = !isOwnMessage && message.role === "human" ? message.authorName : null;
-    const thinkingParts = useMemo(
-        () =>
-            message.parts.filter(
-                (part): part is Extract<ContentPart, { type: "thinking" }> => part.type === "thinking",
-            ),
-        [message.parts],
-    );
+    /** Each entry is one contiguous run of consecutive thinking parts, merged for display. */
+    const thinkingRuns = useMemo(() => {
+        const runs: { combinedText: string; runIndex: number }[] = [];
+        let currentRun: string[] | null = null;
+        for (const part of message.parts) {
+            if (part.type === "thinking") {
+                currentRun ??= [];
+                currentRun.push(part.text);
+            } else if (currentRun !== null) {
+                runs.push({ combinedText: currentRun.join("\n\n"), runIndex: runs.length });
+                currentRun = null;
+            }
+        }
+        if (currentRun !== null) {
+            runs.push({ combinedText: currentRun.join("\n\n"), runIndex: runs.length });
+        }
+        return runs;
+    }, [message.parts]);
+
     // Keep the initial default collapse mode stable for this message bubble:
     // - history-loaded messages start collapsed
     // - live-streamed messages start expanded
     const [defaultThinkingCollapsed] = useState(() => !message.streaming);
     const [collapsedOverrides, setCollapsedOverrides] = useState<Record<number, boolean>>({});
 
-    const toggleThinkingPart = (index: number): void => {
+    const toggleThinkingRun = (runIndex: number): void => {
         setCollapsedOverrides((prev) => ({
             ...prev,
-            [index]: !(prev[index] ?? defaultThinkingCollapsed),
+            [runIndex]: !(prev[runIndex] ?? defaultThinkingCollapsed),
         }));
     };
 
-    const isThinkingCollapsed = (index: number): boolean => collapsedOverrides[index] ?? defaultThinkingCollapsed;
+    const isThinkingRunCollapsed = (runIndex: number): boolean =>
+        collapsedOverrides[runIndex] ?? defaultThinkingCollapsed;
 
     const getPreviewLine = (text: string): string => {
         const firstNonEmpty = text
@@ -152,22 +165,22 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                     }}
                 >
                     {message.role === "ai" &&
-                        thinkingParts
-                            .filter((part) => part.text.trim().length > 0)
-                            .map((part, index) => {
-                                const collapsed = isThinkingCollapsed(index);
+                        thinkingRuns
+                            .filter((run) => run.combinedText.trim().length > 0)
+                            .map((run) => {
+                                const collapsed = isThinkingRunCollapsed(run.runIndex);
                                 return (
                                     <Box
-                                        key={`${message.id}-thinking-${String(index)}`}
+                                        key={`${message.id}-thinking-${String(run.runIndex)}`}
                                         role="button"
                                         tabIndex={0}
                                         onClick={() => {
-                                            toggleThinkingPart(index);
+                                            toggleThinkingRun(run.runIndex);
                                         }}
                                         onKeyDown={(event) => {
                                             if (event.key === "Enter" || event.key === " ") {
                                                 event.preventDefault();
-                                                toggleThinkingPart(index);
+                                                toggleThinkingRun(run.runIndex);
                                             }
                                         }}
                                         sx={{
@@ -198,7 +211,7 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                                                     textOverflow: "ellipsis",
                                                 }}
                                             >
-                                                {getPreviewLine(part.text)}
+                                                {getPreviewLine(run.combinedText)}
                                             </Typography>
                                         ) : (
                                             <Typography
@@ -210,7 +223,7 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                                                     lineHeight: 1.5,
                                                 }}
                                             >
-                                                {getExpandedThinkingText(part.text)}
+                                                {getExpandedThinkingText(run.combinedText)}
                                             </Typography>
                                         )}
                                     </Box>

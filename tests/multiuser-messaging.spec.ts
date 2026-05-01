@@ -2,12 +2,15 @@ import { expect, test } from "@playwright/test";
 
 import {
     composerInput,
+    composerSendButton,
     createSecondUser,
     createThreadAndSend,
     ensureFakeUserExists,
     inviteMember,
     loginAsFakeUser,
+    openMemberDrawer,
     openThread,
+    threadItemByTitle,
     waitForMessage,
 } from "./helpers";
 
@@ -25,9 +28,7 @@ test.describe("multi-user messaging", () => {
 
         // User B (Bob, fakeid=2) should see the thread
         const pageB = await createSecondUser(browser, 2);
-        await expect(pageB.locator(".datonfly-thread-item").filter({ hasText: title })).toBeVisible({
-            timeout: 15_000,
-        });
+        await expect(threadItemByTitle(pageB, title)).toBeVisible({ timeout: 15_000 });
 
         await pageB.context().close();
     });
@@ -41,14 +42,17 @@ test.describe("multi-user messaging", () => {
         await inviteMember(page, "Fake Bob");
 
         // Close and reopen drawer to verify members
-        await page.getByRole("button", { name: "Close members" }).click();
-        await page.getByRole("button", { name: "Invite member" }).click();
+        await page.locator(".datonfly-member-drawer-close").click();
+        await openMemberDrawer(page);
 
         // Both members should be listed
-        const memberList = page.locator('[role="presentation"]');
-        await expect(memberList.getByText("Fake Alice")).toBeVisible({ timeout: 5_000 });
-        await expect(memberList.getByText("Fake Bob")).toBeVisible({ timeout: 5_000 });
-        await expect(memberList.getByText("Members (2)")).toBeVisible();
+        await expect(page.locator(".datonfly-member-count")).toHaveAttribute("data-member-count", "2");
+        await expect(page.locator('.datonfly-member-item[data-member-email="fake.alice@dev.invalid"]')).toBeVisible({
+            timeout: 5_000,
+        });
+        await expect(page.locator('.datonfly-member-item[data-member-email="fake.bob@dev.invalid"]')).toBeVisible({
+            timeout: 5_000,
+        });
 
         // Verify User B sees the same thing
         const pageB = await createSecondUser(browser, 2);
@@ -56,9 +60,10 @@ test.describe("multi-user messaging", () => {
 
         // Wait for thread to load then open drawer
         await expect(composerInput(pageB)).toBeEnabled({ timeout: 10_000 });
-        await pageB.getByRole("button", { name: "Invite member" }).click();
-        const memberListB = pageB.locator('[role="presentation"]');
-        await expect(memberListB.getByText("Members (2)")).toBeVisible({ timeout: 10_000 });
+        await openMemberDrawer(pageB);
+        await expect(pageB.locator(".datonfly-member-count")).toHaveAttribute("data-member-count", "2", {
+            timeout: 10_000,
+        });
 
         await pageB.context().close();
     });
@@ -71,7 +76,7 @@ test.describe("multi-user messaging", () => {
         await inviteMember(page, "Fake Bob");
 
         // Close the member drawer
-        await page.getByRole("button", { name: "Close members" }).click();
+        await page.locator(".datonfly-member-drawer-close").click();
 
         // Bob opens the thread
         const pageB = await createSecondUser(browser, 2);
@@ -82,7 +87,7 @@ test.describe("multi-user messaging", () => {
         const aliceMsg = "Hello Bob, can you see this?";
         const composerA = composerInput(page);
         await composerA.fill(aliceMsg);
-        await page.getByRole("button", { name: "Send", exact: true }).click();
+        await composerSendButton(page).click();
 
         // Bob should see Alice's message in real time
         await waitForMessage(pageB, aliceMsg, "human");
@@ -96,7 +101,7 @@ test.describe("multi-user messaging", () => {
         const title = await createThreadAndSend(page, "Setup message", "b-sends");
         await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
-        await page.getByRole("button", { name: "Close members" }).click();
+        await page.locator(".datonfly-member-drawer-close").click();
 
         // Bob opens the thread and sends a message
         const pageB = await createSecondUser(browser, 2);
@@ -106,14 +111,15 @@ test.describe("multi-user messaging", () => {
         const bobMsg = "Hi Alice, this is Bob!";
         const composerB = composerInput(pageB);
         await composerB.fill(bobMsg);
-        await pageB.getByRole("button", { name: "Send", exact: true }).click();
+        await composerSendButton(pageB).click();
 
         // Alice should see Bob's message
         await waitForMessage(page, bobMsg, "human");
 
-        // Verify the message shows author name "Fake Bob" (left-aligned, other user's message)
-        const bobBubble = page.locator(".datonfly-message-human", { hasText: bobMsg });
-        await expect(bobBubble.getByText("Fake Bob")).toBeVisible({ timeout: 5_000 });
+        // Verify the message shows as another user's message from Bob
+        await expect(page.locator('.datonfly-message-human[data-message-author="Fake Bob"]')).toBeVisible({
+            timeout: 5_000,
+        });
 
         await pageB.context().close();
     });
@@ -124,7 +130,7 @@ test.describe("multi-user messaging", () => {
         const title = await createThreadAndSend(page, "Warm-up message", "both-ai");
         await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
-        await page.getByRole("button", { name: "Close members" }).click();
+        await page.locator(".datonfly-member-drawer-close").click();
 
         // Bob opens the thread
         const pageB = await createSecondUser(browser, 2);
@@ -143,15 +149,19 @@ test.describe("multi-user messaging", () => {
         // Bob sends a question
         const composerB = composerInput(pageB);
         await composerB.fill("What is 2 + 2?");
-        await pageB.getByRole("button", { name: "Send", exact: true }).click();
+        await composerSendButton(pageB).click();
 
         // Both should see a new AI response
         await expect(aiMsgsA).toHaveCount(countBeforeA + 1, { timeout: 30_000 });
         await expect(aiMsgsB).toHaveCount(countBeforeB + 1, { timeout: 30_000 });
 
         // Wait for streaming to finish on both sides
-        await expect(aiMsgsA.last().getByText("●")).toBeHidden({ timeout: 30_000 });
-        await expect(aiMsgsB.last().getByText("●")).toBeHidden({ timeout: 30_000 });
+        await expect(aiMsgsA.last().locator(".datonfly-message-streaming-indicator")).toHaveCount(0, {
+            timeout: 30_000,
+        });
+        await expect(aiMsgsB.last().locator(".datonfly-message-streaming-indicator")).toHaveCount(0, {
+            timeout: 30_000,
+        });
 
         // Both should have non-empty AI content
         const textA = await aiMsgsA.last().innerText();

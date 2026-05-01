@@ -164,7 +164,12 @@ export function ThreadListPanel({
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     {onNewThread && (
                         <Tooltip title={t("newConversation")}>
-                            <IconButton size="small" onClick={onNewThread} aria-label={t("newConversation")}>
+                            <IconButton
+                                size="small"
+                                onClick={onNewThread}
+                                aria-label={t("newConversation")}
+                                className="datonfly-new-conversation-button"
+                            >
                                 <AddIcon fontSize="small" />
                             </IconButton>
                         </Tooltip>
@@ -178,9 +183,22 @@ export function ThreadListPanel({
                             size="small"
                             variant="outlined"
                             sx={{ flex: 1, fontSize: "0.8125rem" }}
+                            className="datonfly-thread-filter-select"
                         >
-                            <MenuItem value="active">{t("active")}</MenuItem>
-                            <MenuItem value="archived">{t("archived")}</MenuItem>
+                            <MenuItem
+                                value="active"
+                                className="datonfly-thread-filter-option"
+                                data-thread-filter="active"
+                            >
+                                {t("active")}
+                            </MenuItem>
+                            <MenuItem
+                                value="archived"
+                                className="datonfly-thread-filter-option"
+                                data-thread-filter="archived"
+                            >
+                                {t("archived")}
+                            </MenuItem>
                         </Select>
                     )}
                     {inSearchMode && <Box sx={{ flex: 1 }} />}
@@ -203,6 +221,7 @@ export function ThreadListPanel({
                                 setSettingsAnchor(e.currentTarget);
                             }}
                             aria-label={t("settings")}
+                            className="datonfly-thread-settings-button"
                         >
                             <SettingsIcon fontSize="small" />
                         </IconButton>
@@ -338,6 +357,9 @@ function ThreadListItem({
     return (
         <ListItemButton
             className="datonfly-thread-item"
+            data-thread-id={thread.id}
+            data-thread-title={thread.title}
+            data-thread-archived={String(isArchived)}
             selected={selected}
             onClick={() => {
                 onSelect(thread.id);
@@ -368,6 +390,9 @@ function ThreadListItem({
             )}
             <Tooltip title={isArchived ? t("unarchive") : t("archive")}>
                 <IconButton
+                    className="datonfly-thread-archive-toggle"
+                    data-thread-id={thread.id}
+                    data-thread-action={isArchived ? "unarchive" : "archive"}
                     size="small"
                     onClick={(e) => {
                         e.stopPropagation();

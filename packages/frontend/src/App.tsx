@@ -99,7 +99,12 @@ export function App(): ReactElement {
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
                         {t("appTitle")}
                     </Typography>
-                    <IconButton color="inherit" onClick={handleMenuOpen} aria-label={t("userMenu")}>
+                    <IconButton
+                        className="datonfly-user-menu-button"
+                        color="inherit"
+                        onClick={handleMenuOpen}
+                        aria-label={t("userMenu")}
+                    >
                         <AccountCircle />
                     </IconButton>
                     <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
@@ -114,7 +119,7 @@ export function App(): ReactElement {
                                 <ListItemText primary={t("switchUser")} />
                             </MenuItem>
                         )}
-                        <MenuItem onClick={handleSettingsOpen}>
+                        <MenuItem className="datonfly-chat-settings-menuitem" onClick={handleSettingsOpen}>
                             <ListItemIcon>
                                 <SettingsIcon fontSize="small" />
                             </ListItemIcon>
@@ -140,7 +145,7 @@ export function App(): ReactElement {
                             ))}
                         </Menu>
                     )}
-                    <Dialog open={settingsOpen} onClose={handleSettingsClose}>
+                    <Dialog className="datonfly-chat-settings-dialog" open={settingsOpen} onClose={handleSettingsClose}>
                         <ChatUserSettingsEmbed
                             config={{ url: BACKEND_URL, locale: i18n.language }}
                             onSaved={handleSettingsClose}

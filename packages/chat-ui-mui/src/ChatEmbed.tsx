@@ -259,6 +259,7 @@ function ChatInner({
                             )}
                             <Tooltip title={t("inviteMember")}>
                                 <IconButton
+                                    className="datonfly-invite-member-button"
                                     size="small"
                                     aria-label={t("inviteMember")}
                                     onClick={handleOpenMemberDrawer}

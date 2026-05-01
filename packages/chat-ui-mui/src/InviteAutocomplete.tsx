@@ -101,7 +101,12 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
             noOptionsText={inputValue ? t("noUsersFound") : t("typeToSearch")}
             renderOption={(props, option) =>
                 option.kind === "email-invite" ? (
-                    <ListItem {...props} key={`email:${option.email}`}>
+                    <ListItem
+                        {...props}
+                        key={`email:${option.email}`}
+                        className="datonfly-invite-option"
+                        data-invite-email={option.email}
+                    >
                         <ListItemAvatar>
                             <Avatar sx={{ width: 32, height: 32 }}>
                                 <PersonAddIcon fontSize="small" />
@@ -113,7 +118,13 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
                         />
                     </ListItem>
                 ) : (
-                    <ListItem {...props} key={option.id}>
+                    <ListItem
+                        {...props}
+                        key={option.id}
+                        className="datonfly-invite-option"
+                        data-invite-user-id={option.id}
+                        data-invite-user-email={option.email}
+                    >
                         <ListItemAvatar>
                             <Avatar src={option.avatarUrl ?? undefined} sx={{ width: 32, height: 32 }}>
                                 {option.name.charAt(0).toUpperCase()}
@@ -131,7 +142,19 @@ export function InviteAutocomplete({ excludeUserIds, onInvite }: InviteAutocompl
                 )
             }
             renderInput={(params) => (
-                <TextField {...params} placeholder={t("searchUsersToInvite")} size="small" variant="outlined" />
+                <TextField
+                    {...params}
+                    placeholder={t("searchUsersToInvite")}
+                    size="small"
+                    variant="outlined"
+                    className="datonfly-invite-search"
+                    slotProps={{
+                        htmlInput: {
+                            ...params.inputProps,
+                            className: "datonfly-invite-search-input",
+                        },
+                    }}
+                />
             )}
             size="small"
             sx={{ mt: 1 }}

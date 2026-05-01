@@ -82,14 +82,21 @@ export function ChatUserSettings({ onSaved }: ChatUserSettingsProps): ReactEleme
                 </Tooltip>
             </Box>
             <TextField
+                className="datonfly-alias-input-wrapper"
                 size="small"
                 placeholder={t("unidentifiedUser")}
                 value={alias}
                 onChange={handleChange}
-                slotProps={{ htmlInput: { maxLength: 100 } }}
+                slotProps={{ htmlInput: { maxLength: 100, className: "datonfly-alias-input" } }}
                 fullWidth
             />
-            <Button variant="contained" size="small" disabled={!dirty || saving} onClick={() => void handleSave()}>
+            <Button
+                className="datonfly-alias-save-button"
+                variant="contained"
+                size="small"
+                disabled={!dirty || saving}
+                onClick={() => void handleSave()}
+            >
                 {saving ? t("saving") : t("save")}
             </Button>
         </Box>

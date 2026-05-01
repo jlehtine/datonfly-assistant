@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
     composerInput,
+    composerSendButton,
     createSecondUser,
     createThreadAndSend,
     ensureFakeUserExists,
@@ -19,7 +20,7 @@ test.describe("multi-user interrupt", () => {
         const title = await createThreadAndSend(page, "Warm-up message", "interrupt");
         await ensureFakeUserExists(browser, 2);
         await inviteMember(page, "Fake Bob");
-        await page.getByRole("button", { name: "Close members" }).click();
+        await page.locator(".datonfly-member-drawer-close").click();
 
         // Bob opens the thread
         const pageB = await createSecondUser(browser, 2);
@@ -38,12 +39,12 @@ test.describe("multi-user interrupt", () => {
                 "Cover both special and general relativity, the key experiments, " +
                 "the mathematical foundations, and the implications for modern physics.",
         );
-        await page.getByRole("button", { name: "Send", exact: true }).click();
+        await composerSendButton(page).click();
 
         // Wait for streaming to start: a new AI bubble appears AND the streaming indicator shows
         await expect(aiMsgsA).toHaveCount(countBefore + 1, { timeout: 20_000 });
         const streamingBubble = aiMsgsA.last();
-        await expect(streamingBubble.getByText("●")).toBeVisible({ timeout: 10_000 });
+        await expect(streamingBubble.locator(".datonfly-message-streaming-indicator")).toBeVisible({ timeout: 10_000 });
 
         // Also wait for some AI text content to appear (not just the indicator)
         await expect
@@ -60,7 +61,7 @@ test.describe("multi-user interrupt", () => {
         // Bob interrupts by sending a message mid-stream
         const composerB = composerInput(pageB);
         await composerB.fill("What is 1 + 1?");
-        await pageB.getByRole("button", { name: "Send", exact: true }).click();
+        await composerSendButton(pageB).click();
 
         // After interruption, a new (second) AI response should start for Bob's question
         // That means we should eventually have countBefore + 2 AI messages
@@ -70,12 +71,12 @@ test.describe("multi-user interrupt", () => {
         // Wait for the new AI response to finish streaming
         const newAiA = aiMsgsA.last();
         const newAiB = aiMsgsB.last();
-        await expect(newAiA.getByText("●")).toBeHidden({ timeout: 30_000 });
-        await expect(newAiB.getByText("●")).toBeHidden({ timeout: 30_000 });
+        await expect(newAiA.locator(".datonfly-message-streaming-indicator")).toHaveCount(0, { timeout: 30_000 });
+        await expect(newAiB.locator(".datonfly-message-streaming-indicator")).toHaveCount(0, { timeout: 30_000 });
 
         // Both users should see Bob's message
-        await expect(page.locator(".datonfly-message-human", { hasText: "What is 1 + 1?" })).toBeVisible();
-        await expect(pageB.locator(".datonfly-message-human", { hasText: "What is 1 + 1?" })).toBeVisible();
+        await expect(page.locator('.datonfly-message-human[data-message-author="Fake Bob"]')).toBeVisible();
+        await expect(pageB.locator(".datonfly-message-human").last()).toContainText("What is 1 + 1?");
 
         // The new AI response should have meaningful content
         const responseA = await newAiA.innerText();

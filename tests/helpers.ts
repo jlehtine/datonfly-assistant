@@ -5,6 +5,16 @@ export function composerInput(page: Page): Locator {
     return page.locator(".datonfly-composer-input textarea:not([aria-hidden])");
 }
 
+/** Locate the composer send button. */
+export function composerSendButton(page: Page): Locator {
+    return page.locator(".datonfly-send-button");
+}
+
+/** Locate a thread list item by its data-thread-title marker attribute. */
+export function threadItemByTitle(page: Page, title: string): Locator {
+    return page.locator(`.datonfly-thread-item[data-thread-title="${title.replaceAll('"', '\\"')}"]`);
+}
+
 /**
  * Send a message and wait for the assistant to finish responding.
  * Returns the text content of the last assistant message.
@@ -18,7 +28,7 @@ export async function sendAndWaitForReply(page: Page, text: string): Promise<str
     const countBefore = await assistantMsgs.count();
 
     await composer.fill(text);
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await composerSendButton(page).click();
 
     // Ensure our own message appears
     const userMsg = page.locator(".datonfly-message-human", { hasText: text });
@@ -27,9 +37,9 @@ export async function sendAndWaitForReply(page: Page, text: string): Promise<str
     // Wait for a new assistant bubble to appear
     await expect(assistantMsgs).toHaveCount(countBefore + 1, { timeout: 20_000 });
 
-    // Wait for streaming to finish (● indicator disappears from the last bubble)
+    // Wait for streaming to finish (indicator disappears from the last bubble)
     const lastAssistant = assistantMsgs.last();
-    await expect(lastAssistant.getByText("●")).toBeHidden({ timeout: 30_000 });
+    await expect(lastAssistant.locator(".datonfly-message-streaming-indicator")).toHaveCount(0, { timeout: 30_000 });
 
     return lastAssistant.innerText();
 }
@@ -76,8 +86,8 @@ export async function ensureFakeUserExists(browser: Browser, fakeid: number): Pr
  * Rename the currently selected thread via the inline editable title in the chat header.
  */
 export async function renameCurrentThread(page: Page, newTitle: string): Promise<void> {
-    await page.getByRole("button", { name: "Edit title" }).click();
-    const titleInput = page.locator("input[maxlength]");
+    await page.locator(".datonfly-edit-title-button").click();
+    const titleInput = page.locator(".datonfly-edit-title-input input[maxlength]");
     await expect(titleInput).toBeFocused({ timeout: 3_000 });
     await titleInput.fill(newTitle);
     await titleInput.press("Enter");
@@ -95,7 +105,7 @@ export async function createThreadAndSend(page: Page, text: string, label: strin
     await page.waitForTimeout(2_000);
     const title = uniqueTitle(label);
     await renameCurrentThread(page, title);
-    await expect(page.locator(".datonfly-thread-item").filter({ hasText: title })).toBeVisible({ timeout: 10_000 });
+    await expect(threadItemByTitle(page, title)).toBeVisible({ timeout: 10_000 });
     return title;
 }
 
@@ -105,33 +115,33 @@ export async function createThreadAndSend(page: Page, text: string, label: strin
  */
 export async function inviteMember(page: Page, name: string): Promise<void> {
     // Open member drawer via invite button
-    await page.getByRole("button", { name: "Invite member" }).click();
+    await page.locator(".datonfly-invite-member-button").click();
 
     // Wait for drawer to open and the invite autocomplete to be visible
-    const searchInput = page.getByPlaceholder("Search users to invite...");
+    const searchInput = page.locator(".datonfly-invite-search-input");
     await expect(searchInput).toBeVisible({ timeout: 5_000 });
 
     // Get current member count
-    const memberCountText = page.locator("text=Members (");
-    const countBefore = await memberCountText.innerText().then((t) => parseInt(/\d+/.exec(t)?.[0] ?? "0", 10));
+    const memberCount = page.locator(".datonfly-member-count");
+    const countBefore = parseInt((await memberCount.getAttribute("data-member-count")) ?? "0", 10);
 
     // Search and select user
     await searchInput.fill(name);
-    await page.getByRole("option", { name: new RegExp(name, "i") }).click();
+    await page.locator(".datonfly-invite-option").first().click();
 
     // Wait for member count to increase
-    await expect(memberCountText).toHaveText(`Members (${String(countBefore + 1)})`, { timeout: 10_000 });
+    await expect(memberCount).toHaveAttribute("data-member-count", String(countBefore + 1), { timeout: 10_000 });
 }
 
 /** Open the member drawer. If it's already open, this is a no-op. */
 export async function openMemberDrawer(page: Page): Promise<void> {
-    await page.getByRole("button", { name: "Invite member" }).click();
-    await expect(page.getByText("Members (")).toBeVisible({ timeout: 5_000 });
+    await page.locator(".datonfly-invite-member-button").click();
+    await expect(page.locator(".datonfly-member-count")).toBeVisible({ timeout: 5_000 });
 }
 
 /** Open a thread from the sidebar by matching its title text. */
 export async function openThread(page: Page, title: string): Promise<void> {
-    const threadItem = page.locator(".datonfly-thread-item").filter({ hasText: title });
+    const threadItem = threadItemByTitle(page, title);
     await expect(threadItem).toBeVisible({ timeout: 15_000 });
     await threadItem.click();
 }

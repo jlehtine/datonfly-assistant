@@ -105,10 +105,20 @@ export function MemberDrawer({
             }}
         >
             <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1.5 }}>
-                <Typography variant="subtitle1" sx={{ flex: 1, fontWeight: 600 }}>
+                <Typography
+                    className="datonfly-member-count"
+                    data-member-count={members.length}
+                    variant="subtitle1"
+                    sx={{ flex: 1, fontWeight: 600 }}
+                >
                     {t("membersCount", { count: members.length })}
                 </Typography>
-                <IconButton size="small" onClick={onClose} aria-label={t("closeMembers")}>
+                <IconButton
+                    className="datonfly-member-drawer-close"
+                    size="small"
+                    onClick={onClose}
+                    aria-label={t("closeMembers")}
+                >
                     <CloseIcon fontSize="small" />
                 </IconButton>
             </Box>
@@ -126,9 +136,16 @@ export function MemberDrawer({
                     return (
                         <ListItem
                             key={member.userId}
+                            className="datonfly-member-item"
+                            data-user-id={member.userId}
+                            data-member-role={member.role}
+                            data-member-email={member.email}
                             secondaryAction={
                                 hasActions ? (
                                     <IconButton
+                                        className="datonfly-member-actions-button"
+                                        data-user-id={member.userId}
+                                        data-member-email={member.email}
                                         size="small"
                                         aria-label={t("memberActions", { name: member.name })}
                                         onClick={(e) => {
@@ -150,7 +167,12 @@ export function MemberDrawer({
                                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                         <Typography variant="body2">{member.name}</Typography>
                                         {member.role === "owner" && (
-                                            <Chip label={t("owner")} size="small" variant="outlined" />
+                                            <Chip
+                                                className="datonfly-member-owner-chip"
+                                                label={t("owner")}
+                                                size="small"
+                                                variant="outlined"
+                                            />
                                         )}
                                     </Box>
                                 }
@@ -170,6 +192,7 @@ export function MemberDrawer({
                         menuMember.role === "member" ? (
                             <MenuItem
                                 key="promote"
+                                className="datonfly-member-action-promote"
                                 onClick={() => {
                                     onUpdateMemberRole(menuMember.userId, "owner");
                                     handleCloseMenu();
@@ -180,6 +203,7 @@ export function MemberDrawer({
                         ) : (
                             <MenuItem
                                 key="demote"
+                                className="datonfly-member-action-demote"
                                 onClick={() => {
                                     onUpdateMemberRole(menuMember.userId, "member");
                                     handleCloseMenu();
@@ -190,6 +214,7 @@ export function MemberDrawer({
                         ),
                         <MenuItem
                             key="remove"
+                            className="datonfly-member-action-remove"
                             onClick={() => {
                                 setConfirmAction({ type: "remove", member: menuMember });
                                 handleCloseMenu();
@@ -201,6 +226,7 @@ export function MemberDrawer({
                     ]}
                 {menuMember && currentUserRole === "member" && menuMember.userId === currentUserId && (
                     <MenuItem
+                        className="datonfly-member-action-leave"
                         onClick={() => {
                             setConfirmAction({ type: "leave", member: menuMember });
                             handleCloseMenu();
@@ -213,7 +239,12 @@ export function MemberDrawer({
             </Menu>
 
             {/* Confirmation dialog for destructive actions */}
-            <Dialog open={Boolean(confirmAction)} onClose={handleCancelConfirm}>
+            <Dialog
+                className="datonfly-member-confirm-dialog"
+                data-confirm-action={confirmAction?.type ?? "none"}
+                open={Boolean(confirmAction)}
+                onClose={handleCancelConfirm}
+            >
                 <DialogTitle>{confirmAction?.type === "leave" ? t("leaveThread") : t("removeMember")}</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
@@ -225,8 +256,15 @@ export function MemberDrawer({
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCancelConfirm}>{t("cancel")}</Button>
-                    <Button onClick={handleConfirmAction} color="error" variant="contained">
+                    <Button className="datonfly-member-confirm-cancel" onClick={handleCancelConfirm}>
+                        {t("cancel")}
+                    </Button>
+                    <Button
+                        className="datonfly-member-confirm-submit"
+                        onClick={handleConfirmAction}
+                        color="error"
+                        variant="contained"
+                    >
                         {confirmAction?.type === "leave" ? t("leave") : t("remove")}
                     </Button>
                 </DialogActions>
@@ -235,7 +273,12 @@ export function MemberDrawer({
     );
 
     return (
-        <Drawer anchor={isDesktop ? "right" : "bottom"} open={open} onClose={onClose}>
+        <Drawer
+            className="datonfly-member-drawer"
+            anchor={isDesktop ? "right" : "bottom"}
+            open={open}
+            onClose={onClose}
+        >
             {content}
         </Drawer>
     );

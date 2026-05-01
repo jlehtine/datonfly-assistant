@@ -87,7 +87,7 @@ test.describe("auto-scroll to bottom", () => {
         expect(isScrollable, "Expected message list to be scrollable").toBe(true);
 
         // Start a new conversation so the old thread is deselected
-        await page.click('[aria-label="New conversation"]');
+        await page.locator(".datonfly-new-conversation-button").click();
 
         // Wait for the message list to clear (no assistant messages in the new thread)
         await expect(page.locator(".datonfly-message-ai")).toHaveCount(0, { timeout: 5_000 });

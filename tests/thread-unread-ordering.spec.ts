@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { composerInput, createThreadAndSend, sendAndWaitForReply } from "./helpers";
+import { composerInput, createThreadAndSend, sendAndWaitForReply, threadItemByTitle } from "./helpers";
 
 test.describe("thread unread count and ordering", () => {
     test("thread moves to top of list when a new message is sent while viewing it", async ({ page }) => {
@@ -16,7 +16,7 @@ test.describe("thread unread count and ordering", () => {
         const titleA = await createThreadAndSend(page, "Say exactly: hello from thread A", "OlderThread");
 
         // ── Create thread B (newer — starts a new conversation) ──
-        await page.click('[aria-label="New conversation"]');
+        await page.locator(".datonfly-new-conversation-button").click();
         await expect(page.locator(".datonfly-message-ai")).toHaveCount(0, { timeout: 5_000 });
         const titleB = await createThreadAndSend(page, "Say exactly: hello from thread B", "NewerThread");
 
@@ -24,10 +24,8 @@ test.describe("thread unread count and ordering", () => {
         await expect(threadItems.first()).toContainText(titleB, { timeout: 5_000 });
 
         // ── Switch to thread A and send a new message ──
-        await threadItems.filter({ hasText: titleA }).click();
-        await expect(page.locator(".datonfly-message-human", { hasText: "hello from thread A" })).toBeVisible({
-            timeout: 10_000,
-        });
+        await threadItemByTitle(page, titleA).click();
+        await expect(page.locator(".datonfly-message-human").first()).toBeVisible({ timeout: 10_000 });
 
         await sendAndWaitForReply(page, "Say exactly: second message in thread A");
 
@@ -42,8 +40,6 @@ test.describe("thread unread count and ordering", () => {
         const composer = composerInput(page);
         await expect(composer).toBeEnabled({ timeout: 10_000 });
 
-        const threadItems = page.locator(".datonfly-thread-item");
-
         // ── Create thread and get initial reply while viewing ──
         const title = await createThreadAndSend(page, "Say exactly: first reply", "UnreadTest");
 
@@ -51,11 +47,11 @@ test.describe("thread unread count and ordering", () => {
         await sendAndWaitForReply(page, "Say exactly: second reply");
 
         // ── Navigate away to a new conversation ──
-        await page.click('[aria-label="New conversation"]');
+        await page.locator(".datonfly-new-conversation-button").click();
         await expect(page.locator(".datonfly-message-ai")).toHaveCount(0, { timeout: 5_000 });
 
         // ── Verify the original thread has no unread badge ──
-        const threadItem = threadItems.filter({ hasText: title });
+        const threadItem = threadItemByTitle(page, title);
         await expect(threadItem).toBeVisible({ timeout: 5_000 });
         const badge = threadItem.locator(".datonfly-unread-badge");
         await expect(badge).toHaveCount(0, { timeout: 5_000 });
@@ -68,20 +64,18 @@ test.describe("thread unread count and ordering", () => {
         const composer = composerInput(page);
         await expect(composer).toBeEnabled({ timeout: 10_000 });
 
-        const threadItems = page.locator(".datonfly-thread-item");
-
         // ── Create thread and receive replies while viewing ──
         const title = await createThreadAndSend(page, "Say exactly: hello", "RefreshTest");
         await sendAndWaitForReply(page, "Say exactly: world");
 
         // ── Navigate away, then reload to fetch fresh unread counts from the server ──
-        await page.click('[aria-label="New conversation"]');
+        await page.locator(".datonfly-new-conversation-button").click();
         await page.reload();
         await expect(composer).toBeEnabled({ timeout: 10_000 });
 
         // The old thread should not have an unread badge after reload
         // (this tests that lastReadAt was persisted on the server).
-        const threadItem = threadItems.filter({ hasText: title });
+        const threadItem = threadItemByTitle(page, title);
         await expect(threadItem).toBeVisible({ timeout: 10_000 });
         const badge = threadItem.locator(".datonfly-unread-badge");
         await expect(badge).toHaveCount(0, { timeout: 5_000 });

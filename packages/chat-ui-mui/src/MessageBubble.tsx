@@ -40,6 +40,7 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
         <Box
             sx={{ display: "flex", justifyContent: alignRight ? "flex-end" : "flex-start", mb: 1 }}
             className={message.role === "human" ? "datonfly-message-human" : "datonfly-message-ai"}
+            data-message-author={authorName ?? ""}
         >
             {authorName && (
                 <Avatar
@@ -51,7 +52,11 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
             )}
             <Box sx={{ maxWidth: { xs: "85%", sm: "70%" } }}>
                 {authorName && (
-                    <Typography variant="caption" sx={{ ml: 0.5, color: "text.secondary" }}>
+                    <Typography
+                        className="datonfly-message-author-name"
+                        variant="caption"
+                        sx={{ ml: 0.5, color: "text.secondary" }}
+                    >
                         {authorName}
                     </Typography>
                 )}
@@ -104,7 +109,11 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                         {message.text}
                     </Markdown>
                     {message.streaming && (
-                        <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                        <Typography
+                            className="datonfly-message-streaming-indicator"
+                            variant="caption"
+                            sx={{ opacity: 0.6 }}
+                        >
                             ●
                         </Typography>
                     )}

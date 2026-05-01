@@ -126,5 +126,8 @@ a member) into helper functions in `tests/helpers.ts`.
 - Add `datonfly-*` CSS marker classes to UI elements that E2E tests need to
   locate (e.g. `datonfly-thread-item`, `datonfly-unread-badge`). Never rely on
   MUI internal class names in tests.
+- Tests must not rely on localized human-readable UI text (e.g. labels, button
+  names, tooltips, visible copy) for element targeting, because text can change
+  by language and wording updates.
 - When an element needs a dynamic identifier (e.g. a specific thread or
   message), use `data-` attributes (e.g. `data-thread-id`).

@@ -69,6 +69,7 @@ export function EditableTitle({ title, onSave }: EditableTitleProps): ReactEleme
     if (editing) {
         return (
             <InputBase
+                className="datonfly-edit-title-input"
                 inputRef={inputRef}
                 value={draft}
                 onChange={(e) => {
@@ -105,7 +106,7 @@ export function EditableTitle({ title, onSave }: EditableTitleProps): ReactEleme
                 {title}
             </Typography>
             <IconButton
-                className="edit-icon"
+                className="edit-icon datonfly-edit-title-button"
                 size="small"
                 aria-label={t("editTitle")}
                 sx={{ opacity: 0, transition: "opacity 0.15s", p: 0.25 }}

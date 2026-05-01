@@ -244,6 +244,7 @@ export function Composer({
                 <ActiveInput {...inputProps} />
             </Box>
             <IconButton
+                className="datonfly-send-button"
                 onClick={submit}
                 disabled={isDisabled || !text.trim()}
                 color="primary"

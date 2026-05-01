@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { composerInput, renameCurrentThread, sendAndWaitForReply, uniqueTitle } from "./helpers";
+import { composerInput, renameCurrentThread, sendAndWaitForReply, threadItemByTitle, uniqueTitle } from "./helpers";
 
 test.describe("thread list management", () => {
     test("create chats, switch, archive, unarchive, and verify content", async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe("thread list management", () => {
         await expect(threadItems.filter({ hasText: chat1Title })).toBeVisible({ timeout: 10_000 });
 
         // ── Chat 2: start a new conversation and rename it too ──
-        await page.click('[aria-label="New conversation"]');
+        await page.locator(".datonfly-new-conversation-button").click();
         await expect(page.locator(".datonfly-message-ai")).toHaveCount(0, { timeout: 5_000 });
 
         const chat2Keyword = "Quantum entanglement";
@@ -51,10 +51,10 @@ test.describe("thread list management", () => {
         await page.waitForTimeout(2_000);
 
         await renameCurrentThread(page, chat2Title);
-        await expect(threadItems.filter({ hasText: chat2Title })).toBeVisible({ timeout: 10_000 });
+        await expect(threadItemByTitle(page, chat2Title)).toBeVisible({ timeout: 10_000 });
 
         // ── Switch back to chat 1 by matching its unique title ──
-        const chat1Item = threadItems.filter({ hasText: chat1Title });
+        const chat1Item = threadItemByTitle(page, chat1Title);
         await chat1Item.click();
 
         // Verify the original message content is displayed
@@ -62,40 +62,40 @@ test.describe("thread list management", () => {
         await expect(chat1UserMsg).toBeVisible({ timeout: 10_000 });
 
         // ── Archive chat 2 ──
-        const chat2Item = threadItems.filter({ hasText: chat2Title });
+        const chat2Item = threadItemByTitle(page, chat2Title);
         await expect(chat2Item).toBeVisible({ timeout: 5_000 });
 
         // Click archive button on chat 2
-        await chat2Item.getByRole("button", { name: "Archive conversation" }).click();
+        await chat2Item.locator('.datonfly-thread-archive-toggle[data-thread-action="archive"]').click();
 
         // Chat 2 should disappear from the active thread list
-        await expect(threadItems.filter({ hasText: chat2Title })).toHaveCount(0, { timeout: 5_000 });
+        await expect(threadItemByTitle(page, chat2Title)).toHaveCount(0, { timeout: 5_000 });
 
         // ── Switch to archived view ──
-        const filterSelect = page.getByRole("combobox");
+        const filterSelect = page.locator(".datonfly-thread-filter-select");
         await filterSelect.click();
-        await page.getByRole("option", { name: "Archived" }).click();
+        await page.locator('.datonfly-thread-filter-option[data-thread-filter="archived"]').click();
 
         // Chat 2 should appear in the archived list
-        const archivedChat2 = threadItems.filter({ hasText: chat2Title });
+        const archivedChat2 = threadItemByTitle(page, chat2Title);
         await expect(archivedChat2).toBeVisible({ timeout: 5_000 });
 
         // ── Unarchive chat 2 ──
-        await archivedChat2.getByRole("button", { name: "Unarchive conversation" }).click();
+        await archivedChat2.locator('.datonfly-thread-archive-toggle[data-thread-action="unarchive"]').click();
 
         // Chat 2 should disappear from the archived view
-        await expect(threadItems.filter({ hasText: chat2Title })).toHaveCount(0, { timeout: 5_000 });
+        await expect(threadItemByTitle(page, chat2Title)).toHaveCount(0, { timeout: 5_000 });
 
         // ── Switch back to active view ──
         await filterSelect.click();
-        await page.getByRole("option", { name: "Active" }).click();
+        await page.locator('.datonfly-thread-filter-option[data-thread-filter="active"]').click();
 
         // Both chats should be visible in the active list
-        await expect(threadItems.filter({ hasText: chat1Title })).toBeVisible({ timeout: 5_000 });
-        await expect(threadItems.filter({ hasText: chat2Title })).toBeVisible({ timeout: 5_000 });
+        await expect(threadItemByTitle(page, chat1Title)).toBeVisible({ timeout: 5_000 });
+        await expect(threadItemByTitle(page, chat2Title)).toBeVisible({ timeout: 5_000 });
 
         // ── Select chat 2 and verify its content loads ──
-        await threadItems.filter({ hasText: chat2Title }).click();
+        await threadItemByTitle(page, chat2Title).click();
         const chat2UserMsg = page.locator(".datonfly-message-human", { hasText: chat2Keyword });
         await expect(chat2UserMsg).toBeVisible({ timeout: 10_000 });
     });

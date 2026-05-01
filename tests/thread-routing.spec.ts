@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { composerInput, createThreadViaApi, loginAsFakeUser, uniqueTitle } from "./helpers";
+import { composerInput, createThreadViaApi, loginAsFakeUser, sendAndWaitForReply, uniqueTitle } from "./helpers";
 
 // A well-formed UUID v4 that will never exist in the database.
 const NONEXISTENT_THREAD_ID = "00000000-0000-4000-8000-000000000001";
@@ -51,6 +51,20 @@ test.describe("thread routing", () => {
         // URL should update once POST /threads completes (no need to wait for LLM).
         await expect(page).toHaveURL(/\/threads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/, {
             timeout: 10_000,
+        });
+    });
+
+    test("assistant response still renders after initial send navigates to thread URL", async ({ page }) => {
+        await loginAsFakeUser(page, 1);
+        await expect(page).toHaveURL("/");
+
+        await sendAndWaitForReply(page, "Say exactly: routing render check");
+
+        await expect(page).toHaveURL(/\/threads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/, {
+            timeout: 10_000,
+        });
+        await expect(page.locator(".datonfly-message-ai").last()).toContainText("routing render check", {
+            timeout: 20_000,
         });
     });
 

@@ -16,6 +16,7 @@ import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useCallback, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
+import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import { ChatHistoryEmbed, ChatUserSettingsEmbed } from "@datonfly-assistant/chat-ui-mui";
 import { emojiPickerTool } from "@datonfly-assistant/chat-ui-mui/emoji";
@@ -155,18 +156,60 @@ export function App(): ReactElement {
             </AppBar>
             <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "center" }}>
                 <Box sx={{ width: "100%", maxWidth: "80rem" }}>
-                    <ChatHistoryEmbed
-                        config={{
-                            url: BACKEND_URL,
-                            locale: i18n.language,
-                            inputComponent: RichInput,
-                            inputTools: [emojiPickerTool],
-                            maxRows,
-                            messageComponents: highlightComponents,
-                        }}
-                    />
+                    <Routes>
+                        <Route
+                            path="/"
+                            element={<ChatPage locale={i18n.language} maxRows={maxRows} selectedThreadId={null} />}
+                        />
+                        <Route
+                            path="/threads/:threadId"
+                            element={<ChatPageWithParam locale={i18n.language} maxRows={maxRows} />}
+                        />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
                 </Box>
             </Box>
         </Box>
     );
+}
+
+interface ChatPageProps {
+    locale: string;
+    maxRows: number;
+    selectedThreadId: string | null;
+}
+
+function ChatPage({ locale, maxRows, selectedThreadId }: ChatPageProps): ReactElement {
+    const navigate = useNavigate();
+
+    const handleThreadIdChange = useCallback(
+        (threadId: string | null) => {
+            if (threadId === null) {
+                void navigate("/");
+            } else {
+                void navigate(`/threads/${threadId}`);
+            }
+        },
+        [navigate],
+    );
+
+    return (
+        <ChatHistoryEmbed
+            config={{
+                url: BACKEND_URL,
+                locale,
+                inputComponent: RichInput,
+                inputTools: [emojiPickerTool],
+                maxRows,
+                messageComponents: highlightComponents,
+                selectedThreadId,
+                onSelectedThreadIdChange: handleThreadIdChange,
+            }}
+        />
+    );
+}
+
+function ChatPageWithParam({ locale, maxRows }: Omit<ChatPageProps, "selectedThreadId">): ReactElement {
+    const { threadId } = useParams<{ threadId: string }>();
+    return <ChatPage locale={locale} maxRows={maxRows} selectedThreadId={threadId ?? null} />;
 }

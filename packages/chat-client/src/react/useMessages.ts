@@ -14,7 +14,7 @@ import {
     type ThreadMessage,
 } from "@datonfly-assistant/core";
 
-import { typedFetch } from "../fetch.js";
+import { ChatError, typedFetch } from "../fetch.js";
 import { useChatClient, useCurrentUserId } from "./context.js";
 
 /** Structured error exposed by {@link useMessages}. */
@@ -198,7 +198,8 @@ export function useMessages(
                 oldestCreatedAtRef.current = result.messages[0]?.createdAt ?? null;
             } catch (e: unknown) {
                 console.error("[useMessages] Failed to load history:", e);
-                setError({ code: ERROR_CODES.client_error, message: "Failed to load history" });
+                const code = e instanceof ChatError && e.code ? e.code : ERROR_CODES.client_error;
+                setError({ code, message: e instanceof ChatError ? e.message : "Failed to load history" });
             } finally {
                 isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
@@ -236,7 +237,8 @@ export function useMessages(
             })
             .catch((e: unknown) => {
                 console.error("[useMessages] Failed to load more messages:", e);
-                setError({ code: ERROR_CODES.client_error, message: "Failed to load more messages" });
+                const code = e instanceof ChatError && e.code ? e.code : ERROR_CODES.client_error;
+                setError({ code, message: e instanceof ChatError ? e.message : "Failed to load more messages" });
                 isLoadingHistoryRef.current = false;
                 setIsLoadingHistory(false);
             });

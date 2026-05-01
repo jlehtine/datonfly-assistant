@@ -33,6 +33,28 @@ export interface ChatHistoryEmbedConfig {
     basePath?: string | undefined;
     /** BCP 47 language tag (e.g. `"en"`, `"fi"`). Falls back to `navigator.language`. */
     locale?: string | undefined;
+    /**
+     * Optional externally controlled selected thread ID.
+     *
+     * - `undefined`: component uses internal (uncontrolled) selection state.
+     * - `null`: no thread selected (new conversation state).
+     * - string: the selected thread ID.
+     */
+    selectedThreadId?: string | null | undefined;
+    /**
+     * Optional callback invoked whenever the selected thread changes.
+     *
+     * Emitted for all user-visible selection transitions:
+     * - user selects a thread from the list,
+     * - user starts a new conversation,
+     * - selected thread gets archived and is deselected,
+     * - current user leaves or is removed from the selected thread.
+     *
+     * The callback receives:
+     * - `null` when no thread should be selected,
+     * - a thread ID string when a thread is selected.
+     */
+    onSelectedThreadIdChange?: ((threadId: string | null) => void) | undefined;
     /** Override the default plain-text input with a custom component. */
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
     /** Optional input tools (e.g. emoji picker) to attach to the composer. */
@@ -82,12 +104,38 @@ export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElemen
 }
 
 function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { searchEnabled: boolean }): ReactElement {
-    const { url, basePath, inputComponent, inputTools, maxRows, messageComponents, onBeforeSend } = config;
+    const {
+        url,
+        basePath,
+        inputComponent,
+        inputTools,
+        maxRows,
+        messageComponents,
+        onBeforeSend,
+        onSelectedThreadIdChange,
+    } = config;
     const { t } = useTranslation();
 
     const client = useChatClient();
 
-    const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+    // Controlled vs uncontrolled selection.
+    // When config.selectedThreadId is not undefined the parent owns selection state.
+    const isControlled = config.selectedThreadId !== undefined;
+    const [internalSelectedThreadId, setInternalSelectedThreadId] = useState<string | null>(null);
+    const selectedThreadId = isControlled ? (config.selectedThreadId ?? null) : internalSelectedThreadId;
+
+    // Unified selection setter: syncs internal state (uncontrolled) and always
+    // fires the callback so controlled parents can update their own state.
+    const setSelectedThreadId = useCallback(
+        (id: string | null) => {
+            if (!isControlled) {
+                setInternalSelectedThreadId(id);
+            }
+            onSelectedThreadIdChange?.(id);
+        },
+        [isControlled, onSelectedThreadIdChange],
+    );
+
     const pendingCreateRef = useRef<Promise<string> | null>(null);
 
     // Track Page Visibility API so we only mark threads as read when the tab
@@ -154,7 +202,7 @@ function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { s
 
         pendingCreateRef.current = promise;
         return promise;
-    }, [selectedThreadId, client, t, refresh, markRead]);
+    }, [selectedThreadId, client, t, refresh, markRead, setSelectedThreadId]);
 
     const handleArchiveToggleFromPanel = useCallback(
         (threadId: string, archived: boolean) => {
@@ -165,7 +213,7 @@ function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { s
                 }
             });
         },
-        [setArchived, selectedThreadId],
+        [setArchived, selectedThreadId, setSelectedThreadId],
     );
 
     const handleSelectThread = useCallback(
@@ -174,13 +222,13 @@ function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { s
             pendingCreateRef.current = null;
             clearSearch();
         },
-        [clearSearch],
+        [clearSearch, setSelectedThreadId],
     );
 
     const handleNewThread = useCallback(() => {
         setSelectedThreadId(null);
         pendingCreateRef.current = null;
-    }, []);
+    }, [setSelectedThreadId]);
 
     const handleRenameThread = useCallback(
         (title: string) => {
@@ -206,7 +254,7 @@ function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { s
     const handleLeftThread = useCallback(() => {
         setSelectedThreadId(null);
         refresh();
-    }, [refresh]);
+    }, [refresh, setSelectedThreadId]);
 
     const isNarrow = useMediaQuery("(max-width:640px)");
     const [drawerOpen, setDrawerOpen] = useState(false);

@@ -277,7 +277,13 @@ function ChatInner({
                 </Typography>
             )}
             {error && (
-                <Alert severity="error" onClose={clearError} sx={{ mx: 2, mt: 1 }}>
+                <Alert
+                    severity="error"
+                    onClose={clearError}
+                    sx={{ mx: 2, mt: 1 }}
+                    className="datonfly-chat-error"
+                    data-error-code={error.code}
+                >
                     {t(`error.${error.code}`, { defaultValue: error.message })}
                 </Alert>
             )}

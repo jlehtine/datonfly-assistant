@@ -20,15 +20,32 @@ export function threadItemByTitle(page: Page, title: string): Locator {
  * Returns the text content of the last assistant message.
  */
 export async function sendAndWaitForReply(page: Page, text: string): Promise<string> {
-    const composer = composerInput(page);
-
     // Capture the assistant message count BEFORE sending so fast responses
     // don't cause a race where countBefore is already incremented.
     const assistantMsgs = page.locator(".datonfly-message-ai");
     const countBefore = await assistantMsgs.count();
 
-    await composer.fill(text);
-    await composerSendButton(page).click();
+    // Thread switches can transiently remount the composer. Fill + click with a
+    // small retry loop so we don't get stuck on a detached or temporarily disabled
+    // send button.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const composer = composerInput(page);
+        await expect(composer).toBeEnabled({ timeout: 10_000 });
+        await composer.fill(text);
+
+        const sendButton = composerSendButton(page);
+        await expect(sendButton).toBeVisible({ timeout: 10_000 });
+        await expect(sendButton).toBeEnabled({ timeout: 10_000 });
+
+        try {
+            await sendButton.click({ timeout: 10_000 });
+            break;
+        } catch (error) {
+            if (attempt === 1) {
+                throw error;
+            }
+        }
+    }
 
     // Ensure our own message appears
     const userMsg = page.locator(".datonfly-message-human", { hasText: text });
@@ -150,4 +167,23 @@ export async function openThread(page: Page, title: string): Promise<void> {
 export async function waitForMessage(page: Page, text: string, role: "human" | "ai"): Promise<void> {
     const selector = role === "human" ? ".datonfly-message-human" : ".datonfly-message-ai";
     await expect(page.locator(selector, { hasText: text })).toBeVisible({ timeout: 30_000 });
+}
+
+/**
+ * Create a new thread via the REST API from within the authenticated browser context.
+ * Returns the new thread's ID. Does not require an LLM response.
+ */
+export async function createThreadViaApi(page: Page, title: string): Promise<string> {
+    const threadId = await page.evaluate(async (t: string) => {
+        const res = await fetch("/datonfly-assistant/threads", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: t }),
+        });
+        if (!res.ok) throw new Error(`POST /threads failed: ${res.status.toString()}`);
+        const data = (await res.json()) as { id: string };
+        return data.id;
+    }, title);
+    return threadId;
 }

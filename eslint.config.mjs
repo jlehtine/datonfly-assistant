@@ -62,7 +62,7 @@ export default tseslint.config(
         files: ["**/*.tsx"],
         plugins: { "react-refresh": reactRefresh },
         rules: {
-            "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+            "react-refresh/only-export-components": ["error", { allowConstantExport: true }],
         },
     },
 );

@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 
 import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 
+// eslint-disable-next-line react-refresh/only-export-components -- private component used only within this module
 function EmojiPickerPanel({
     ctx,
     done,

@@ -3,6 +3,7 @@ export {
     textContentPartSchema,
     toolCallContentPartSchema,
     toolResultContentPartSchema,
+    opaqueContentPartSchema,
     contentPartSchema,
     // Thread
     createThreadRequestSchema,

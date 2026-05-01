@@ -2,12 +2,13 @@ import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { ChatMessage } from "@datonfly-assistant/chat-client/react";
+import type { ContentPart } from "@datonfly-assistant/core";
 
 /** Props for the {@link MessageBubble} component. */
 export interface MessageBubbleProps {
@@ -22,6 +23,19 @@ export interface MessageBubbleProps {
      * The components are only applied to completed (non-streaming) messages.
      */
     components?: Components | undefined;
+}
+
+/** Render a single content part. Unknown part types are silently skipped. */
+function renderPart(part: ContentPart, index: number, streaming: boolean, components?: Components): ReactNode {
+    if (part.type === "text") {
+        return (
+            <Markdown key={index} remarkPlugins={[remarkGfm]} components={streaming ? undefined : components}>
+                {part.text}
+            </Markdown>
+        );
+    }
+    // tool-call, tool-result, opaque: no renderer yet — render nothing
+    return null;
 }
 
 /**
@@ -106,9 +120,7 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                         },
                     }}
                 >
-                    <Markdown remarkPlugins={[remarkGfm]} components={message.streaming ? undefined : components}>
-                        {message.text}
-                    </Markdown>
+                    {message.parts.map((part, i) => renderPart(part, i, message.streaming, components))}
                     {message.streaming && (
                         <Typography
                             className="datonfly-message-streaming-indicator"

@@ -8,9 +8,9 @@ import {
     type MemberLeftEvent,
     type MemberRoleChangedEvent,
     type MessageCompleteEvent,
-    type MessageDeltaEvent,
     type MessageStatusEvent,
     type NewMessageEvent,
+    type PartDeltaEvent,
     type RemoveMemberEvent,
     type SendMessageEvent,
     type ThreadCreatedEvent,
@@ -21,8 +21,8 @@ import {
 
 /** Map of event names to their handler signatures for {@link ChatClient}. */
 export interface ChatClientEventMap {
-    /** Fired when the server streams a partial assistant response. */
-    "message-delta": (event: MessageDeltaEvent) => void;
+    /** Fired when the server streams a partial content part of an assistant response. */
+    "part-delta": (event: PartDeltaEvent) => void;
     /** Fired when the server finishes streaming an assistant response. */
     "message-complete": (event: MessageCompleteEvent) => void;
     /** Fired when the server sends a transient status update during streaming (e.g. "Running code…"). */

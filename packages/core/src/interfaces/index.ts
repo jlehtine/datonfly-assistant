@@ -5,9 +5,13 @@ export type {
     AgentMessage,
     AgentMessageRole,
     AgentStreamChunk,
+    TextDeltaChunk,
+    OpaquePartChunk,
+    StatusChunk,
+    CitationsChunk,
+    UsageChunk,
     AgentUsage,
     Citation,
-    OpaqueContentBlock,
     ShouldRespondResult,
 } from "./agent.js";
 export type {

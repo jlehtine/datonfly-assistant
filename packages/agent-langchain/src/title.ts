@@ -14,13 +14,17 @@ export interface TitleModelConfig {
 /** Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances. */
 function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
     return messages.map((msg) => {
+        const text = msg.content
+            .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+            .map((p) => p.text)
+            .join("\n");
         switch (msg.role) {
             case "human":
-                return new HumanMessage(msg.content);
+                return new HumanMessage(text);
             case "ai":
-                return new AIMessage(msg.content);
+                return new AIMessage(text);
             case "system":
-                return new SystemMessage(msg.content);
+                return new SystemMessage(text);
         }
     });
 }

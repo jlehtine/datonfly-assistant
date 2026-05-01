@@ -1,27 +1,15 @@
-import type { MessageRole } from "../types/message.js";
+import type { ContentPart, MessageRole, OpaqueContentPart } from "../types/message.js";
 import type { StatusCode } from "../types/status-code.js";
 
 /** The role of an agent message. Extends {@link MessageRole} with any agent-specific roles. */
 export type AgentMessageRole = MessageRole | "system";
 
-/** An opaque block of provider-specific data carried alongside agent messages. */
-export interface OpaqueContentBlock {
-    /** Identifier of the provider that produced this block (e.g. `"anthropic"`). */
-    provider: string;
-    /** Provider-specific payload. */
-    data: unknown;
-}
-
 /** A message in the format used by the agent service API. */
 export interface AgentMessage {
     /** The role of the message author. */
     role: AgentMessageRole;
-    /** The text content of the message. */
-    content: string;
-    /** Web-search citations collected during the response. */
-    citations?: Citation[] | undefined;
-    /** Opaque provider-specific blocks (e.g. compaction summaries). */
-    opaqueBlocks?: OpaqueContentBlock[] | undefined;
+    /** Ordered content parts of the message. */
+    content: ContentPart[];
 }
 
 /** A URL + title pair for a web-search citation. */
@@ -49,20 +37,46 @@ export interface AgentUsage {
 }
 
 /** A single chunk of streamed agent output. */
-export interface AgentStreamChunk {
-    /** The text content of this chunk. */
-    content: string;
-    /** Machine-readable status code for translation lookup. Not persisted. */
-    status?: StatusCode | undefined;
-    /** Human-readable English status label. Always included alongside {@link status} as a fallback. */
-    statusText?: string | undefined;
-    /** Web-search citations collected during the response. Sent with the final chunk. */
-    citations?: Citation[] | undefined;
-    /** Token usage statistics. Only present on the final chunk. */
-    usage?: AgentUsage | undefined;
-    /** Opaque provider-specific blocks emitted during the response. Sent with the final chunk. */
-    opaqueBlocks?: OpaqueContentBlock[] | undefined;
+export interface TextDeltaChunk {
+    type: "text-delta";
+    /** Index of the content part this delta belongs to. */
+    partIndex: number;
+    /** The new text fragment to append. */
+    delta: string;
 }
+
+/** A complete opaque content part emitted during the stream (e.g. a thinking block). */
+export interface OpaquePartChunk {
+    type: "opaque-part";
+    /** Index of this part in the final content array. */
+    partIndex: number;
+    /** The complete opaque part. */
+    part: OpaqueContentPart;
+}
+
+/** A transient status update during streaming (e.g. "Running code…"). Not persisted. */
+export interface StatusChunk {
+    type: "status";
+    /** Machine-readable status code for translation lookup. */
+    status: StatusCode;
+    /** Human-readable English status label. Always included as a fallback. */
+    statusText: string;
+}
+
+/** Web-search citations collected during the response. Sent with the final chunk. */
+export interface CitationsChunk {
+    type: "citations";
+    citations: Citation[];
+}
+
+/** Token usage statistics. Only present on the final chunk. */
+export interface UsageChunk {
+    type: "usage";
+    usage: AgentUsage;
+}
+
+/** Discriminated union of all streamed agent output chunk types. */
+export type AgentStreamChunk = TextDeltaChunk | OpaquePartChunk | StatusChunk | CitationsChunk | UsageChunk;
 
 /** Result of an agent's decision on whether to respond in a room thread. */
 export interface ShouldRespondResult {

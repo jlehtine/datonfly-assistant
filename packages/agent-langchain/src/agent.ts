@@ -9,11 +9,13 @@ import {
     type AgentStreamChunk,
     type AgentUsage,
     type Citation,
+    type ContentPart,
     type IAgentProvider,
-    type OpaqueContentBlock,
+    type OpaqueContentPart,
     type ProviderLogger,
     type ShouldRespondResult,
     type StatusCode,
+    type TextContentPart,
 } from "@datonfly-assistant/core";
 
 /** The opaque block provider identifier used by this agent. */
@@ -105,35 +107,40 @@ function extractAssistantApiErrorDetails(error: unknown): AssistantApiErrorDetai
 /**
  * Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances.
  *
- * When an AI message carries opaque blocks with Anthropic compaction data, the
+ * When an AI message carries opaque parts with Anthropic compaction data, the
  * compaction block is included in the content array so LangChain sends it back
  * to the API.
  */
 function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
     return messages.map((msg) => {
-        // Check for Anthropic compaction opaque blocks on AI messages.
-        if (msg.role === "ai" && msg.opaqueBlocks?.length) {
-            const contentBlocks: Record<string, unknown>[] = [];
-            for (const block of msg.opaqueBlocks) {
-                if (block.provider === PROVIDER_ID) {
-                    const data = block.data as Record<string, unknown>;
-                    if (data.type === "compaction" && typeof data.content === "string") {
-                        contentBlocks.push({ type: "compaction", content: data.content });
-                    }
-                }
-            }
-            if (msg.content) {
-                contentBlocks.push({ type: "text", text: msg.content });
-            }
-            return new AIMessage({ content: contentBlocks as AIMessage["content"] });
-        }
+        const textParts = msg.content.filter((p): p is TextContentPart => p.type === "text");
+        const text = textParts.map((p) => p.text).join("");
+
         switch (msg.role) {
             case "human":
-                return new HumanMessage(msg.content);
-            case "ai":
-                return new AIMessage(msg.content);
+                return new HumanMessage(text);
             case "system":
-                return new SystemMessage(msg.content);
+                return new SystemMessage(text);
+            case "ai": {
+                // Build LangChain content blocks from typed parts.
+                const contentBlocks: Record<string, unknown>[] = [];
+                for (const part of msg.content) {
+                    if (part.type === "opaque" && part.provider === PROVIDER_ID) {
+                        const data = part.data as Record<string, unknown>;
+                        if (data.type === "compaction" && typeof data.content === "string") {
+                            contentBlocks.push({ type: "compaction", content: data.content });
+                        }
+                    } else if (part.type === "text") {
+                        contentBlocks.push({ type: "text", text: part.text });
+                    }
+                    // tool-call, tool-result, unknown opaque: skip (not sent to Anthropic directly)
+                }
+                if (contentBlocks.length === 0) return new AIMessage("");
+                if (contentBlocks.length === 1 && contentBlocks[0]?.type === "text") {
+                    return new AIMessage(contentBlocks[0].text as string);
+                }
+                return new AIMessage({ content: contentBlocks as AIMessage["content"] });
+            }
         }
     });
 }
@@ -233,13 +240,17 @@ function extractCitations(content: string | Record<string, unknown>[]): RawCitat
     return citations;
 }
 
-/** Extract compaction blocks from content. */
-function extractCompactionBlocks(content: string | Record<string, unknown>[]): OpaqueContentBlock[] {
+/** Extract compaction blocks from content as {@link OpaqueContentPart} instances. */
+function extractCompactionBlocks(content: string | Record<string, unknown>[]): OpaqueContentPart[] {
     if (typeof content === "string") return [];
-    const blocks: OpaqueContentBlock[] = [];
+    const blocks: OpaqueContentPart[] = [];
     for (const block of content) {
         if (block.type === "compaction" && typeof block.content === "string") {
-            blocks.push({ provider: PROVIDER_ID, data: { type: "compaction", content: block.content } });
+            blocks.push({
+                type: "opaque",
+                provider: PROVIDER_ID,
+                data: { type: "compaction", content: block.content },
+            });
         }
     }
     return blocks;
@@ -259,8 +270,11 @@ function trimBeforeCompaction(messages: AgentMessage[]): AgentMessage[] {
         const msg = messages[i];
         if (
             msg?.role === "ai" &&
-            msg.opaqueBlocks?.some(
-                (b) => b.provider === PROVIDER_ID && (b.data as Record<string, unknown>).type === "compaction",
+            msg.content.some(
+                (p) =>
+                    p.type === "opaque" &&
+                    p.provider === PROVIDER_ID &&
+                    (p.data as Record<string, unknown>).type === "compaction",
             )
         ) {
             compactionIndex = i;
@@ -452,14 +466,9 @@ export class LangGraphAgent implements IAgentProvider {
                 content: string | Record<string, unknown>[];
             };
             const text = extractTextFromContent(response.content);
-            const citations = deduplicateCitations(extractCitations(response.content));
-            const opaqueBlocks = extractCompactionBlocks(response.content);
-            return {
-                role: "ai",
-                content: text,
-                ...(citations.length > 0 ? { citations } : {}),
-                ...(opaqueBlocks.length > 0 ? { opaqueBlocks } : {}),
-            };
+            const opaqueParts = extractCompactionBlocks(response.content);
+            const contentParts: ContentPart[] = [...opaqueParts, { type: "text", text }];
+            return { role: "ai", content: contentParts };
         } catch (error) {
             this.logAssistantApiError(logger, error, { phase: "invoke" });
             throw error;
@@ -487,7 +496,7 @@ export class LangGraphAgent implements IAgentProvider {
         return {
             async *[Symbol.asyncIterator]() {
                 const allCitations: RawCitation[] = [];
-                const allOpaqueBlocks: OpaqueContentBlock[] = [];
+                const allOpaqueParts: OpaqueContentPart[] = [];
                 let usage: AgentUsage | undefined;
                 let chunkIndex = 0;
                 const debugApiContentEnabled = isDebugApiContentEnabled();
@@ -520,7 +529,7 @@ export class LangGraphAgent implements IAgentProvider {
                         const text = extractTextFromContent(rawContent);
                         const toolStatus = detectToolStatus(rawChunk);
                         allCitations.push(...extractCitations(rawContent));
-                        allOpaqueBlocks.push(...extractCompactionBlocks(rawContent));
+                        allOpaqueParts.push(...extractCompactionBlocks(rawContent));
 
                         // Capture token usage from the final chunk's usage_metadata.
                         // Multiple chunks may carry usage_metadata; keep the one with
@@ -550,11 +559,12 @@ export class LangGraphAgent implements IAgentProvider {
                             };
                         }
 
-                        if (text || toolStatus) {
-                            yield {
-                                content: text,
-                                ...(toolStatus ? { status: toolStatus.code, statusText: toolStatus.text } : {}),
-                            };
+                        // Emit status chunk before text so the gateway can inject a separator.
+                        if (toolStatus) {
+                            yield { type: "status" as const, status: toolStatus.code, statusText: toolStatus.text };
+                        }
+                        if (text) {
+                            yield { type: "text-delta" as const, partIndex: 0, delta: text };
                         }
                     }
                 } catch (error) {
@@ -567,15 +577,19 @@ export class LangGraphAgent implements IAgentProvider {
                     );
                     throw error;
                 }
-                // Yield final chunk with citations, usage, and/or opaque blocks.
+                // Yield opaque parts, citations, and usage at end.
+                for (let i = 0; i < allOpaqueParts.length; i++) {
+                    const part = allOpaqueParts[i];
+                    if (part) {
+                        yield { type: "opaque-part" as const, partIndex: i, part };
+                    }
+                }
                 const citations = deduplicateCitations(allCitations);
-                if (citations.length > 0 || usage || allOpaqueBlocks.length > 0) {
-                    yield {
-                        content: "",
-                        ...(citations.length > 0 ? { citations } : {}),
-                        ...(usage ? { usage } : {}),
-                        ...(allOpaqueBlocks.length > 0 ? { opaqueBlocks: allOpaqueBlocks } : {}),
-                    };
+                if (citations.length > 0) {
+                    yield { type: "citations" as const, citations };
+                }
+                if (usage) {
+                    yield { type: "usage" as const, usage };
                 }
             },
         };

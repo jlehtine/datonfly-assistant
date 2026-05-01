@@ -1,11 +1,4 @@
-import type {
-    AgentMessage,
-    ContentPart,
-    OpaqueContentBlock,
-    OpaqueContentPart,
-    ThreadMemberInfo,
-    ThreadMessage,
-} from "@datonfly-assistant/core";
+import type { AgentMessage, ContentPart, ThreadMemberInfo, ThreadMessage } from "@datonfly-assistant/core";
 
 /** Default alias used when a member has not configured an agent alias. */
 const DEFAULT_ALIAS = "Unidentified user";
@@ -16,13 +9,6 @@ export function extractText(content: ContentPart[]): string {
         .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
         .map((part) => part.text)
         .join("\n");
-}
-
-/** Extract opaque content parts and map them to {@link OpaqueContentBlock} instances. */
-function extractOpaqueBlocks(content: ContentPart[]): OpaqueContentBlock[] {
-    return content
-        .filter((part): part is OpaqueContentPart => part.type === "opaque")
-        .map((part) => ({ provider: part.provider, data: part.data }));
 }
 
 function formatTimestamp(date: Date): string {
@@ -59,32 +45,42 @@ export function buildSystemPrompt(authorAliases: Map<string, string>): AgentMess
     if (authorAliases.size <= 1) {
         return {
             role: "system",
-            content:
-                "You are a personal AI assistant in a one-on-one conversation. Each of the user's " +
-                "messages includes a header line with their name and timestamp, for example:\n\n" +
-                "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
-                "How do I fix this bug?\n\n" +
-                "Use the timestamp to understand when messages were sent relative to each other.",
+            content: [
+                {
+                    type: "text",
+                    text:
+                        "You are a personal AI assistant in a one-on-one conversation. Each of the user's " +
+                        "messages includes a header line with their name and timestamp, for example:\n\n" +
+                        "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
+                        "How do I fix this bug?\n\n" +
+                        "Use the timestamp to understand when messages were sent relative to each other.",
+                },
+            ],
         };
     }
 
     const participantList = [...authorAliases.values()].join(", ");
     return {
         role: "system",
-        content:
-            "You are an AI assistant participating in a group conversation with multiple " +
-            "users. Each human message includes a header line with the sender's name and " +
-            "timestamp, for example:\n\n" +
-            "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
-            "Can you explain how this works?\n\n" +
-            `Current participants: ${participantList}\n\n` +
-            "Guidelines:\n" +
-            '- Respond when directly addressed by name or by a general reference to "the assistant" / "AI"\n' +
-            "- Respond when asked a question that no specific human is addressed to answer\n" +
-            "- Respond when you can add meaningful value (e.g. factual information, analysis, code help)\n" +
-            "- Do NOT respond when users are clearly talking to each other about personal/social matters\n" +
-            "- Do NOT respond to every message — only when your input is relevant\n" +
-            "- When responding, you may reference what specific users said by name",
+        content: [
+            {
+                type: "text",
+                text:
+                    "You are an AI assistant participating in a group conversation with multiple " +
+                    "users. Each human message includes a header line with the sender's name and " +
+                    "timestamp, for example:\n\n" +
+                    "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
+                    "Can you explain how this works?\n\n" +
+                    `Current participants: ${participantList}\n\n` +
+                    "Guidelines:\n" +
+                    '- Respond when directly addressed by name or by a general reference to "the assistant" / "AI"\n' +
+                    "- Respond when asked a question that no specific human is addressed to answer\n" +
+                    "- Respond when you can add meaningful value (e.g. factual information, analysis, code help)\n" +
+                    "- Do NOT respond when users are clearly talking to each other about personal/social matters\n" +
+                    "- Do NOT respond to every message — only when your input is relevant\n" +
+                    "- When responding, you may reference what specific users said by name",
+            },
+        ],
     };
 }
 
@@ -114,7 +110,10 @@ export function threadMessagesToAgentMessages(
         // them before preserved messages, right after the system prompt.
         if (msg.metadata?.compactionSummary === true) {
             const text = extractText(msg.content);
-            result.push({ role: "human", content: `[Summary of previous conversation]\n\n${text}` });
+            result.push({
+                role: "human",
+                content: [{ type: "text", text: `[Summary of previous conversation]\n\n${text}` }],
+            });
             continue;
         }
 
@@ -123,12 +122,11 @@ export function threadMessagesToAgentMessages(
             case "human": {
                 const alias = (msg.authorId && authorAliases.get(msg.authorId)) ?? DEFAULT_ALIAS;
                 const header = `[${alias}] @ ${formatTimestamp(msg.createdAt)}`;
-                result.push({ role: "human", content: `${header}\n\n${text}` });
+                result.push({ role: "human", content: [{ type: "text", text: `${header}\n\n${text}` }] });
                 break;
             }
             case "ai": {
-                const opaqueBlocks = extractOpaqueBlocks(msg.content);
-                let aiContent = text;
+                let parts: ContentPart[] = [...msg.content];
                 if (msg.metadata?.interrupted === true) {
                     const next = messages[i + 1];
                     const byAlias =
@@ -136,11 +134,26 @@ export function threadMessagesToAgentMessages(
                             ? (authorAliases.get(next.authorId) ?? DEFAULT_ALIAS)
                             : undefined;
                     const tag = byAlias ? `[interrupted by ${byAlias}]` : "[interrupted]";
-                    aiContent = `${text}\n\n${tag}`;
+                    // Append the interrupted tag to the last text part, or add a new text part.
+                    let lastTextIdx = -1;
+                    for (let j = parts.length - 1; j >= 0; j--) {
+                        if (parts[j]?.type === "text") {
+                            lastTextIdx = j;
+                            break;
+                        }
+                    }
+                    if (lastTextIdx >= 0) {
+                        const lastText = parts[lastTextIdx] as Extract<ContentPart, { type: "text" }>;
+                        parts = [
+                            ...parts.slice(0, lastTextIdx),
+                            { type: "text", text: `${lastText.text}\n\n${tag}` },
+                            ...parts.slice(lastTextIdx + 1),
+                        ];
+                    } else {
+                        parts = [...parts, { type: "text", text: tag }];
+                    }
                 }
-                const agentMsg: AgentMessage = { role: "ai", content: aiContent };
-                if (opaqueBlocks.length > 0) agentMsg.opaqueBlocks = opaqueBlocks;
-                result.push(agentMsg);
+                result.push({ role: "ai", content: parts });
                 break;
             }
         }

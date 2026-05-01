@@ -25,11 +25,19 @@ export const toolResultContentPartSchema = z.object({
     isError: z.boolean().optional(),
 });
 
+/** Zod schema for an opaque provider-specific content part. */
+export const opaqueContentPartSchema = z.object({
+    type: z.literal("opaque"),
+    provider: z.string().min(1).max(200),
+    data: z.unknown(),
+});
+
 /** Zod discriminated union schema covering all content part types. */
 export const contentPartSchema = z.discriminatedUnion("type", [
     textContentPartSchema,
     toolCallContentPartSchema,
     toolResultContentPartSchema,
+    opaqueContentPartSchema,
 ]);
 
 // ─── Thread ───

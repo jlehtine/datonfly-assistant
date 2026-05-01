@@ -225,9 +225,14 @@ export class CompactionService {
         // the conversation ends with a human message (required by Anthropic).
         agentMessages[0] = {
             role: "system",
-            content:
-                "You are a conversation summarizer. The user will provide a conversation " +
-                "history and ask you to summarize it.",
+            content: [
+                {
+                    type: "text",
+                    text:
+                        "You are a conversation summarizer. The user will provide a conversation " +
+                        "history and ask you to summarize it.",
+                },
+            ],
         };
 
         const inputChars = toCompact.reduce((sum, msg) => sum + estimateMessageChars(msg), 0);
@@ -235,19 +240,25 @@ export class CompactionService {
 
         agentMessages.push({
             role: "human",
-            content:
-                "Summarize the conversation above. Preserve:\n" +
-                "- Key topics discussed and conclusions reached\n" +
-                "- Decisions made and action items assigned\n" +
-                "- Who said what (reference participants by name where relevant)\n" +
-                "- Important context needed to continue the conversation\n\n" +
-                `Target length: approximately ${String(targetWords)} words ` +
-                `(~${String(Math.round(COMPACTION_FACTOR * 100))}% of the original conversation). ` +
-                "Be comprehensive but concise. Write in third person narrative form.\n\n" +
-                "Write the summary in the same language that is predominantly used in the conversation.",
+            content: [
+                {
+                    type: "text",
+                    text:
+                        "Summarize the conversation above. Preserve:\n" +
+                        "- Key topics discussed and conclusions reached\n" +
+                        "- Decisions made and action items assigned\n" +
+                        "- Who said what (reference participants by name where relevant)\n" +
+                        "- Important context needed to continue the conversation\n\n" +
+                        `Target length: approximately ${String(targetWords)} words ` +
+                        `(~${String(Math.round(COMPACTION_FACTOR * 100))}% of the original conversation). ` +
+                        "Be comprehensive but concise. Write in third person narrative form.\n\n" +
+                        "Write the summary in the same language that is predominantly used in the conversation.",
+                },
+            ],
         });
 
         const summary = await this.compactionAgent.run(agentMessages, threadId, "system");
+        const summaryText = extractText(summary.content);
 
         // Insert summary as a system message, positioned at the first compacted
         // message's timestamp so it sorts before the preserved messages.
@@ -257,7 +268,7 @@ export class CompactionService {
         await this.persistence.appendMessage({
             threadId,
             role: "system",
-            content: [{ type: "text", text: summary.content }],
+            content: [{ type: "text", text: summaryText }],
             authorId: null,
             contentAt: firstCompactedMsg.contentAt,
             metadata: {

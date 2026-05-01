@@ -20,10 +20,10 @@ import type {
     MemberLeftEvent,
     MemberRoleChangedEvent,
     MessageCompleteEvent,
-    MessageDeltaEvent,
     MessageStatusEvent,
     NewMessageEvent,
-    OpaqueContentBlock,
+    OpaqueContentPart,
+    PartDeltaEvent,
     RemoveMemberEvent,
     SendMessageEvent,
     Thread,
@@ -71,11 +71,11 @@ export type ValidateTokenFn = (token: string) => UserIdentity | null;
 /** State for a single active agent stream. */
 interface ActiveStream {
     controller: AbortController;
-    fullText: string;
     messageId: string;
+    currentText: string;
+    opaqueParts: OpaqueContentPart[];
     citations: Citation[];
     usage: AgentUsage | null;
-    opaqueBlocks: OpaqueContentBlock[];
     hasTextSinceToolBoundary: boolean;
     pendingToolBoundaryBreak: boolean;
 }
@@ -410,11 +410,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const controller = new AbortController();
         const streamState: ActiveStream = {
             controller,
-            fullText: "",
+            currentText: "",
             messageId: aiMessageId,
             citations: [],
             usage: null,
-            opaqueBlocks: [],
+            opaqueParts: [],
             hasTextSinceToolBoundary: false,
             pendingToolBoundaryBreak: false,
         };
@@ -448,30 +448,28 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     // If we were interrupted while waiting for the lock, bail out.
                     if (controller.signal.aborted) return;
 
-                    const delta = typeof chunk.content === "string" ? chunk.content : "";
-                    if (delta) {
-                        let normalizedDelta = delta;
+                    if (chunk.type === "text-delta") {
+                        let delta = chunk.delta;
                         if (streamState.pendingToolBoundaryBreak) {
-                            const separator = toolBoundarySeparator(streamState.fullText);
+                            const separator = toolBoundarySeparator(streamState.currentText);
                             if (separator) {
-                                normalizedDelta = `${separator}${normalizedDelta}`;
+                                delta = `${separator}${delta}`;
                             }
                             streamState.pendingToolBoundaryBreak = false;
                         }
 
-                        streamState.fullText += normalizedDelta;
+                        streamState.currentText += delta;
                         streamState.hasTextSinceToolBoundary = true;
-                        const deltaEvent: MessageDeltaEvent = {
-                            event: "message-delta",
+                        const deltaEvent: PartDeltaEvent = {
+                            event: "part-delta",
                             threadId,
                             messageId,
-                            delta: normalizedDelta,
+                            partIndex: 0,
+                            type: "text",
+                            delta,
                         };
-                        void this.emitToThreadMembers(threadId, "message-delta", deltaEvent);
-                    }
-
-                    // Emit transient status indicator (e.g. "Running code…") if present.
-                    if (chunk.status) {
+                        void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                    } else if (chunk.type === "status") {
                         if (streamState.hasTextSinceToolBoundary) {
                             streamState.pendingToolBoundaryBreak = true;
                             streamState.hasTextSinceToolBoundary = false;
@@ -482,24 +480,16 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             threadId,
                             messageId,
                             status: chunk.status,
-                            statusText: chunk.statusText ?? chunk.status,
+                            statusText: chunk.statusText,
                         };
                         void this.emitToThreadMembers(threadId, "message-status", statusEvent);
-                    }
-
-                    // Collect structured citations from the chunk.
-                    if (chunk.citations) {
+                    } else if (chunk.type === "opaque-part") {
+                        streamState.opaqueParts.push(chunk.part);
+                    } else if (chunk.type === "citations") {
                         streamState.citations.push(...chunk.citations);
-                    }
-
-                    // Capture token usage from the final chunk.
-                    if (chunk.usage) {
+                    } else {
+                        // usage chunk
                         streamState.usage = chunk.usage;
-                    }
-
-                    // Collect opaque blocks (e.g. compaction) from the chunk.
-                    if (chunk.opaqueBlocks) {
-                        streamState.opaqueBlocks.push(...chunk.opaqueBlocks);
                     }
                 } finally {
                     this.releaseThreadLock(threadId);
@@ -515,7 +505,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
                 this.activeStreams.delete(threadId);
 
-                const assistantVisibleLength = streamState.fullText.replace(/[\s\u200B-\u200D\uFEFF]/g, "").length;
+                const assistantVisibleLength = streamState.currentText.replace(/[\s\u200B-\u200D\uFEFF]/g, "").length;
 
                 if (assistantVisibleLength === 0) {
                     const message = "Assistant returned an empty response";
@@ -529,7 +519,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                         threadId,
                         messageId,
                         error: message,
-                        assistantTextLength: streamState.fullText.length,
+                        assistantTextLength: streamState.currentText.length,
                         assistantVisibleLength,
                     });
                     return;
@@ -552,12 +542,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     }
                 }
 
-                // Build content array: prepend opaque blocks (e.g. compaction) before text.
-                const contentParts: ContentPart[] = [];
-                for (const block of streamState.opaqueBlocks) {
-                    contentParts.push({ type: "opaque", provider: block.provider, data: block.data });
-                }
-                contentParts.push({ type: "text", text: streamState.fullText });
+                // Build content array: prepend opaque parts (e.g. compaction) before text.
+                const contentParts: ContentPart[] = [
+                    ...streamState.opaqueParts,
+                    { type: "text", text: streamState.currentText },
+                ];
 
                 await this.persistence.appendMessage({
                     threadId,
@@ -582,7 +571,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     userId,
                     threadId,
                     messageId,
-                    assistantTextLength: streamState.fullText.length,
+                    assistantTextLength: streamState.currentText.length,
                     assistantVisibleLength,
                 });
 
@@ -650,11 +639,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         this.activeStreams.delete(threadId);
 
         // Persist partial response (if any text was generated)
-        if (active.fullText) {
+        if (active.currentText) {
+            const partialContent: ContentPart[] = [...active.opaqueParts, { type: "text", text: active.currentText }];
             await this.persistence.appendMessage({
                 threadId,
                 role: "ai",
-                content: [{ type: "text", text: active.fullText }],
+                content: partialContent,
                 authorId: null,
                 metadata: { interrupted: true },
             });
@@ -663,13 +653,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 event: "message-complete",
                 threadId,
                 messageId: active.messageId,
-                content: [{ type: "text", text: active.fullText }],
+                content: [{ type: "text", text: active.currentText }],
                 interrupted: true,
             };
             void this.emitToThreadMembers(threadId, "message-complete", completeEvent);
 
             // Fire-and-forget: index the interrupted AI message for search.
-            this.indexMessage(active.messageId, threadId, [{ type: "text", text: active.fullText }], "ai", null);
+            this.indexMessage(active.messageId, threadId, partialContent, "ai", null);
         }
     }
 

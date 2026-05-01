@@ -4,12 +4,13 @@ import {
     ERROR_CODES,
     threadMessageListWireSchema,
     threadMessagesPath,
+    type ContentPart,
     type ErrorCode,
     type ErrorEvent,
     type MessageCompleteEvent,
-    type MessageDeltaEvent,
     type MessageStatusEvent,
     type NewMessageEvent,
+    type PartDeltaEvent,
     type StatusCode,
     type ThreadMessage,
 } from "@datonfly-assistant/core";
@@ -39,8 +40,8 @@ export interface ChatMessage {
     id: string;
     /** Whether the message was sent by the user or the assistant. */
     role: "human" | "ai";
-    /** Plain-text or Markdown message body. */
-    text: string;
+    /** Ordered content parts of the message. */
+    parts: ContentPart[];
     /** `true` while the assistant is still streaming this message. */
     streaming: boolean;
     /** Timestamp when the message was created (only set for history-loaded messages). */
@@ -83,23 +84,14 @@ export interface UseMessagesResult {
     loadMore: () => void;
 }
 
-/** Extract the plain-text body from a {@link ThreadMessage}. */
-function extractText(msg: ThreadMessage): string {
-    return msg.content
-        .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
-        .map((p) => p.text)
-        .join("\n");
-}
-
 /** Convert a {@link ThreadMessage} from the REST API to a {@link ChatMessage}. */
 function toChat(msg: ThreadMessage): ChatMessage | null {
     if (msg.role === "system") return null;
-    const text = extractText(msg);
     const interrupted = msg.metadata ? msg.metadata.interrupted === true : false;
     return {
         id: msg.id,
         role: msg.role,
-        text,
+        parts: msg.content,
         streaming: false,
         createdAt: msg.createdAt,
         authorId: msg.authorId,
@@ -245,7 +237,7 @@ export function useMessages(
     }, [fetchHistory]);
 
     useEffect(() => {
-        const handleDelta = (event: MessageDeltaEvent): void => {
+        const handleDelta = (event: PartDeltaEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
             pendingSendRef.current = false;
             // Clear tool-status indicator as soon as actual text arrives
@@ -258,14 +250,28 @@ export function useMessages(
                     {
                         id: event.messageId,
                         role: "ai",
-                        text: event.delta,
+                        parts: [{ type: "text", text: event.delta }],
                         streaming: true,
                         createdAt: new Date(),
                     },
                 ]);
             } else {
                 setMessages((prev) =>
-                    prev.map((m) => (m.id === event.messageId ? { ...m, text: m.text + event.delta } : m)),
+                    prev.map((m) => {
+                        if (m.id !== event.messageId) return m;
+                        // Append delta to the last text part, or start a new text part.
+                        const lastPart = m.parts[m.parts.length - 1];
+                        if (lastPart?.type === "text") {
+                            return {
+                                ...m,
+                                parts: [
+                                    ...m.parts.slice(0, -1),
+                                    { type: "text" as const, text: lastPart.text + event.delta },
+                                ],
+                            };
+                        }
+                        return { ...m, parts: [...m.parts, { type: "text" as const, text: event.delta }] };
+                    }),
                 );
             }
         };
@@ -273,17 +279,14 @@ export function useMessages(
         const handleComplete = (event: MessageCompleteEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
 
-            const fullText = event.content
-                .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
-                .map((p) => p.text)
-                .join("\n");
+            const parts = event.content;
 
             setMessages((prev) => {
                 const existingIndex = prev.findIndex((m) => m.id === event.messageId);
                 if (existingIndex >= 0) {
                     return prev.map((m) =>
                         m.id === event.messageId
-                            ? { ...m, text: fullText, streaming: false, interrupted: event.interrupted }
+                            ? { ...m, parts, streaming: false, interrupted: event.interrupted }
                             : m,
                     );
                 }
@@ -293,7 +296,7 @@ export function useMessages(
                     {
                         id: event.messageId,
                         role: "ai",
-                        text: fullText,
+                        parts,
                         streaming: false,
                         createdAt: new Date(),
                         interrupted: event.interrupted,
@@ -317,10 +320,6 @@ export function useMessages(
             if (event.role === "system") return;
 
             const role = event.role;
-            const text = event.content
-                .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
-                .map((p) => p.text)
-                .join("\n");
 
             setMessages((prev) => {
                 // Deduplicate: the sender's tab already has this message via optimistic insert.
@@ -330,7 +329,7 @@ export function useMessages(
                     {
                         id: event.messageId,
                         role,
-                        text,
+                        parts: event.content,
                         streaming: false,
                         createdAt: new Date(event.createdAt),
                         authorId: event.authorId,
@@ -349,14 +348,14 @@ export function useMessages(
             pendingSendRef.current = false;
         };
 
-        client.on("message-delta", handleDelta);
+        client.on("part-delta", handleDelta);
         client.on("message-complete", handleComplete);
         client.on("message-status", handleStatus);
         client.on("new-message", handleNewMessage);
         client.on("error", handleError);
 
         return () => {
-            client.off("message-delta", handleDelta);
+            client.off("part-delta", handleDelta);
             client.off("message-complete", handleComplete);
             client.off("message-status", handleStatus);
             client.off("new-message", handleNewMessage);
@@ -370,7 +369,7 @@ export function useMessages(
             const userMsg: ChatMessage = {
                 id: messageId,
                 role: "human",
-                text,
+                parts: [{ type: "text", text }],
                 streaming: false,
                 createdAt: new Date(),
                 authorId: currentUserId,

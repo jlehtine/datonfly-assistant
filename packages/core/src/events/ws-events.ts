@@ -84,12 +84,16 @@ export type ClientToServerEvent =
 
 // ─── Server → Client Events ───
 
-/** Incremental text chunk streamed while the assistant is generating a response. */
-export interface MessageDeltaEvent {
-    event: "message-delta";
+/** Incremental content-part chunk streamed while the assistant is generating a response. */
+export interface PartDeltaEvent {
+    event: "part-delta";
     threadId: string;
     /** Stable ID for the message being streamed. */
     messageId: string;
+    /** Zero-based index of the content part being updated. */
+    partIndex: number;
+    /** The type of the content part (only `"text"` is currently streamed incrementally). */
+    type: "text";
     /** The new text fragment to append. */
     delta: string;
 }
@@ -228,7 +232,7 @@ export interface WelcomeEvent {
 
 /** Discriminated union of all events the server can send to the client. */
 export type ServerToClientEvent =
-    | MessageDeltaEvent
+    | PartDeltaEvent
     | MessageStatusEvent
     | MessageCompleteEvent
     | NewMessageEvent

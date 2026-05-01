@@ -8,6 +8,13 @@ export interface TextContentPart {
     text: string;
 }
 
+/** A model reasoning/thinking content part. */
+export interface ThinkingContentPart {
+    type: "thinking";
+    /** The reasoning text body. */
+    text: string;
+}
+
 /** A content part representing a tool invocation by the assistant. */
 export interface ToolCallContentPart {
     type: "tool-call";
@@ -47,7 +54,12 @@ export interface OpaqueContentPart {
 }
 
 /** Discriminated union of all possible message content parts. */
-export type ContentPart = TextContentPart | ToolCallContentPart | ToolResultContentPart | OpaqueContentPart;
+export type ContentPart =
+    | TextContentPart
+    | ThinkingContentPart
+    | ToolCallContentPart
+    | ToolResultContentPart
+    | OpaqueContentPart;
 
 /** A single message within a thread. */
 export interface ThreadMessage {

@@ -2,7 +2,7 @@ import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
-import type { ReactElement, ReactNode } from "react";
+import { useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -34,7 +34,7 @@ function renderPart(part: ContentPart, index: number, streaming: boolean, compon
             </Markdown>
         );
     }
-    // tool-call, tool-result, opaque: no renderer yet — render nothing
+    // thinking, tool-call, tool-result, opaque: handled elsewhere or not rendered yet
     return null;
 }
 
@@ -49,6 +49,37 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
     const { t } = useTranslation();
     const alignRight = isOwnMessage;
     const authorName = !isOwnMessage && message.role === "human" ? message.authorName : null;
+    const thinkingParts = useMemo(
+        () =>
+            message.parts.filter(
+                (part): part is Extract<ContentPart, { type: "thinking" }> => part.type === "thinking",
+            ),
+        [message.parts],
+    );
+    // Keep the initial default collapse mode stable for this message bubble:
+    // - history-loaded messages start collapsed
+    // - live-streamed messages start expanded
+    const [defaultThinkingCollapsed] = useState(() => !message.streaming);
+    const [collapsedOverrides, setCollapsedOverrides] = useState<Record<number, boolean>>({});
+
+    const toggleThinkingPart = (index: number): void => {
+        setCollapsedOverrides((prev) => ({
+            ...prev,
+            [index]: !(prev[index] ?? defaultThinkingCollapsed),
+        }));
+    };
+
+    const isThinkingCollapsed = (index: number): boolean => collapsedOverrides[index] ?? defaultThinkingCollapsed;
+
+    const getPreviewLine = (text: string): string => {
+        const firstNonEmpty = text
+            .trimStart()
+            .split(/\r?\n/)
+            .find((line) => line.trim().length > 0);
+        return firstNonEmpty ?? text.trimStart();
+    };
+
+    const getExpandedThinkingText = (text: string): string => text.trimStart();
 
     return (
         <Box
@@ -120,6 +151,71 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                         },
                     }}
                 >
+                    {message.role === "ai" &&
+                        thinkingParts
+                            .filter((part) => part.text.trim().length > 0)
+                            .map((part, index) => {
+                                const collapsed = isThinkingCollapsed(index);
+                                return (
+                                    <Box
+                                        key={`${message.id}-thinking-${String(index)}`}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => {
+                                            toggleThinkingPart(index);
+                                        }}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault();
+                                                toggleThinkingPart(index);
+                                            }
+                                        }}
+                                        sx={{
+                                            mb: 1,
+                                            px: 1,
+                                            py: 0.75,
+                                            borderRadius: 1,
+                                            border: "1px solid",
+                                            borderColor: "divider",
+                                            bgcolor: (t) => (t.palette.mode === "dark" ? "grey.900" : "grey.100"),
+                                            cursor: "pointer",
+                                            transition: "background-color 120ms ease",
+                                            "&:hover": {
+                                                bgcolor: (t) =>
+                                                    t.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "grey.200",
+                                            },
+                                        }}
+                                    >
+                                        {collapsed ? (
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    color: "text.secondary",
+                                                    fontSize: "0.8rem",
+                                                    lineHeight: 1.5,
+                                                    whiteSpace: "nowrap",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                }}
+                                            >
+                                                {getPreviewLine(part.text)}
+                                            </Typography>
+                                        ) : (
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    whiteSpace: "pre-wrap",
+                                                    color: "text.secondary",
+                                                    fontSize: "0.8rem",
+                                                    lineHeight: 1.5,
+                                                }}
+                                            >
+                                                {getExpandedThinkingText(part.text)}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                );
+                            })}
                     {message.parts.map((part, i) => renderPart(part, i, message.streaming, components))}
                     {message.streaming && (
                         <Typography

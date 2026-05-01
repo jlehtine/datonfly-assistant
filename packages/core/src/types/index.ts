@@ -7,6 +7,7 @@ export type {
     MessageRole,
     ContentPart,
     TextContentPart,
+    ThinkingContentPart,
     ToolCallContentPart,
     ToolResultContentPart,
     OpaqueContentPart,

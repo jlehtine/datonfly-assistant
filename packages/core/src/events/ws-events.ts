@@ -92,8 +92,8 @@ export interface PartDeltaEvent {
     messageId: string;
     /** Zero-based index of the content part being updated. */
     partIndex: number;
-    /** The type of the content part (only `"text"` is currently streamed incrementally). */
-    type: "text";
+    /** The type of the content part being streamed incrementally. */
+    type: "text" | "thinking";
     /** The new text fragment to append. */
     delta: string;
 }

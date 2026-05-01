@@ -41,11 +41,22 @@ export interface TextDeltaChunk {
     type: "text-delta";
     /** Index of the content part this delta belongs to. */
     partIndex: number;
+    /** Type of the part receiving this delta. */
+    partType: "text" | "thinking";
     /** The new text fragment to append. */
     delta: string;
 }
 
-/** A complete opaque content part emitted during the stream (e.g. a thinking block). */
+/** A complete thinking content part emitted during the stream. */
+export interface ThinkingPartChunk {
+    type: "thinking-part";
+    /** Index of this part in the final content array. */
+    partIndex: number;
+    /** The complete thinking part. */
+    part: Extract<ContentPart, { type: "thinking" }>;
+}
+
+/** A complete opaque content part emitted during the stream (e.g. compaction). */
 export interface OpaquePartChunk {
     type: "opaque-part";
     /** Index of this part in the final content array. */
@@ -76,7 +87,13 @@ export interface UsageChunk {
 }
 
 /** Discriminated union of all streamed agent output chunk types. */
-export type AgentStreamChunk = TextDeltaChunk | OpaquePartChunk | StatusChunk | CitationsChunk | UsageChunk;
+export type AgentStreamChunk =
+    | TextDeltaChunk
+    | ThinkingPartChunk
+    | OpaquePartChunk
+    | StatusChunk
+    | CitationsChunk
+    | UsageChunk;
 
 /** Result of an agent's decision on whether to respond in a room thread. */
 export interface ShouldRespondResult {

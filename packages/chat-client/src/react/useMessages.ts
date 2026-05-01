@@ -243,14 +243,24 @@ export function useMessages(
             // Clear tool-status indicator as soon as actual text arrives
             setStreamingStatus(null);
 
+            const incomingPart: Extract<ContentPart, { type: "text" | "thinking" }> =
+                event.type === "thinking"
+                    ? { type: "thinking", text: event.delta }
+                    : { type: "text", text: event.delta };
+
             if (streamingIdRef.current !== event.messageId) {
                 streamingIdRef.current = event.messageId;
+                const initialParts: ContentPart[] = [];
+                for (let i = 0; i < event.partIndex; i++) {
+                    initialParts.push({ type: "thinking", text: "" });
+                }
+                initialParts.push(incomingPart);
                 setMessages((prev) => [
                     ...prev,
                     {
                         id: event.messageId,
                         role: "ai",
-                        parts: [{ type: "text", text: event.delta }],
+                        parts: initialParts,
                         streaming: true,
                         createdAt: new Date(),
                     },
@@ -259,18 +269,23 @@ export function useMessages(
                 setMessages((prev) =>
                     prev.map((m) => {
                         if (m.id !== event.messageId) return m;
-                        // Append delta to the last text part, or start a new text part.
-                        const lastPart = m.parts[m.parts.length - 1];
-                        if (lastPart?.type === "text") {
-                            return {
-                                ...m,
-                                parts: [
-                                    ...m.parts.slice(0, -1),
-                                    { type: "text" as const, text: lastPart.text + event.delta },
-                                ],
+
+                        const nextParts = [...m.parts];
+                        const existingPart = nextParts[event.partIndex];
+                        if (existingPart?.type === event.type) {
+                            nextParts[event.partIndex] = {
+                                ...existingPart,
+                                text: existingPart.text + event.delta,
                             };
+                            return { ...m, parts: nextParts };
                         }
-                        return { ...m, parts: [...m.parts, { type: "text" as const, text: event.delta }] };
+
+                        if (event.partIndex < nextParts.length) {
+                            nextParts[event.partIndex] = incomingPart;
+                        } else {
+                            nextParts.push(incomingPart);
+                        }
+                        return { ...m, parts: nextParts };
                     }),
                 );
             }

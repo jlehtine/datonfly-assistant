@@ -127,6 +127,35 @@ async function bootstrap(): Promise<void> {
         throw new Error("ANTHROPIC_MODEL environment variable is required");
     }
 
+    const rawThinkingType = process.env.ANTHROPIC_THINKING_TYPE;
+    if (rawThinkingType && rawThinkingType !== "adaptive" && rawThinkingType !== "enabled") {
+        throw new Error(`ANTHROPIC_THINKING_TYPE must be "adaptive" or "enabled", got "${rawThinkingType}"`);
+    }
+    const thinkingType = rawThinkingType as "adaptive" | "enabled" | undefined;
+
+    const rawThinkingDisplay = process.env.ANTHROPIC_THINKING_DISPLAY;
+    if (rawThinkingDisplay && rawThinkingDisplay !== "summarized" && rawThinkingDisplay !== "omitted") {
+        throw new Error(`ANTHROPIC_THINKING_DISPLAY must be "summarized" or "omitted", got "${rawThinkingDisplay}"`);
+    }
+    const thinkingDisplay = rawThinkingDisplay as "summarized" | "omitted" | undefined;
+
+    const rawThinkingBudget = process.env.ANTHROPIC_THINKING_BUDGET_TOKENS;
+    const thinkingBudgetTokens = rawThinkingBudget !== undefined ? Number(rawThinkingBudget) : undefined;
+    if (
+        rawThinkingBudget !== undefined &&
+        (!Number.isFinite(thinkingBudgetTokens) || (thinkingBudgetTokens ?? 0) <= 0)
+    ) {
+        throw new Error(`ANTHROPIC_THINKING_BUDGET_TOKENS must be a positive number, got "${rawThinkingBudget}"`);
+    }
+
+    const rawThinkingEffort = process.env.ANTHROPIC_THINKING_EFFORT;
+    if (rawThinkingEffort && !["low", "medium", "high", "xhigh", "max"].includes(rawThinkingEffort)) {
+        throw new Error(
+            `ANTHROPIC_THINKING_EFFORT must be one of low|medium|high|xhigh|max, got "${rawThinkingEffort}"`,
+        );
+    }
+    const thinkingEffort = rawThinkingEffort as "low" | "medium" | "high" | "xhigh" | "max" | undefined;
+
     const agentLogger: ProviderLogger = pino({
         level: process.env.LOG_LEVEL ?? "info",
         ...(process.env.LOG_FORMAT === "json"
@@ -146,6 +175,10 @@ async function bootstrap(): Promise<void> {
         enableCodeExecution: process.env.ENABLE_CODE_EXECUTION !== "false",
         enableWebSearch: process.env.ENABLE_WEB_SEARCH !== "false",
         enableWebFetch: process.env.ENABLE_WEB_FETCH !== "false",
+        thinkingType,
+        thinkingDisplay,
+        thinkingBudgetTokens,
+        thinkingEffort,
         logger: agentLogger,
     });
 

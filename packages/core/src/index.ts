@@ -11,6 +11,7 @@ export type {
     MessageRole,
     ContentPart,
     TextContentPart,
+    ThinkingContentPart,
     ToolCallContentPart,
     ToolResultContentPart,
     OpaqueContentPart,
@@ -31,6 +32,7 @@ export type {
     AgentMessageRole,
     AgentStreamChunk,
     TextDeltaChunk,
+    ThinkingPartChunk,
     OpaquePartChunk,
     StatusChunk,
     CitationsChunk,
@@ -88,6 +90,7 @@ export type {
 // DTOs (schemas are values, not just types)
 export {
     textContentPartSchema,
+    thinkingContentPartSchema,
     toolCallContentPartSchema,
     toolResultContentPartSchema,
     opaqueContentPartSchema,

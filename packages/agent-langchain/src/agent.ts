@@ -16,6 +16,7 @@ import {
     type ShouldRespondResult,
     type StatusCode,
     type TextContentPart,
+    type ThinkingContentPart,
 } from "@datonfly-assistant/core";
 
 /** The opaque block provider identifier used by this agent. */
@@ -123,6 +124,11 @@ function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
                 return new SystemMessage(text);
             case "ai": {
                 // Build LangChain content blocks from typed parts.
+                // NOTE: We intentionally do not replay persisted thinking blocks
+                // in request context. Anthropic requires thinking/redacted_thinking
+                // blocks in the latest assistant message to be byte-identical to
+                // the original response; reconstructed persisted parts can violate
+                // that constraint and cause 400 invalid_request_error.
                 const contentBlocks: Record<string, unknown>[] = [];
                 for (const part of msg.content) {
                     if (part.type === "opaque" && part.provider === PROVIDER_ID) {
@@ -161,6 +167,37 @@ function extractTextFromContent(content: string | Record<string, unknown>[]): st
         .filter((block) => block.type === "text" && typeof block.text === "string")
         .map((block) => block.text as string)
         .join("");
+}
+
+/** A streamed text segment annotated with its semantic part type. */
+interface StreamTextPart {
+    partType: "thinking" | "text";
+    text: string;
+    reasoningKey?: string | undefined;
+}
+
+/** Extract streamed text segments from a LangChain content value. */
+function extractTextPartsFromContent(
+    content: string | Record<string, unknown>[],
+    orderCounter: number,
+): StreamTextPart[] {
+    if (typeof content === "string") {
+        return content ? [{ partType: "text", text: content }] : [];
+    }
+    const parts: StreamTextPart[] = [];
+    for (const [i, block] of content.entries()) {
+        if (block.type === "text" && typeof block.text === "string" && block.text.length > 0) {
+            parts.push({ partType: "text", text: block.text });
+            continue;
+        }
+        if (block.type === "thinking" && typeof block.thinking === "string" && block.thinking.length > 0) {
+            const index = typeof block.index === "number" ? block.index : undefined;
+            const key =
+                index != null ? `thinking:${String(index)}` : `thinking:chunk:${String(orderCounter)}:${String(i)}`;
+            parts.push({ partType: "thinking", text: block.thinking, reasoningKey: key });
+        }
+    }
+    return parts;
 }
 
 /** Status info returned for a detected tool invocation. */
@@ -256,6 +293,63 @@ function extractCompactionBlocks(content: string | Record<string, unknown>[]): O
     return blocks;
 }
 
+interface AnthropicReasoningBlockState {
+    order: number;
+    index?: number | undefined;
+    thinking?: string | undefined;
+}
+
+/** Merge Anthropic reasoning blocks from a streamed content chunk into state. */
+function collectReasoningBlocks(
+    content: string | Record<string, unknown>[],
+    state: Map<string, AnthropicReasoningBlockState>,
+    orderCounter: { value: number },
+): void {
+    if (typeof content === "string") return;
+
+    for (const [i, block] of content.entries()) {
+        if (block.type !== "thinking") continue;
+        const index = typeof block.index === "number" ? block.index : undefined;
+        const key =
+            index != null ? `thinking:${String(index)}` : `thinking:chunk:${String(orderCounter.value)}:${String(i)}`;
+        const existing = state.get(key) ?? { order: orderCounter.value, ...(index != null ? { index } : {}) };
+
+        if (typeof block.thinking === "string" && block.thinking.length > 0) {
+            existing.thinking = `${existing.thinking ?? ""}${block.thinking}`;
+        }
+        state.set(key, existing);
+    }
+}
+
+/** Build persistent thinking parts from accumulated Anthropic reasoning state. */
+function materializeThinkingParts(state: Map<string, AnthropicReasoningBlockState>): ThinkingContentPart[] {
+    const entries = [...state.entries()].sort((a, b) => {
+        const ai = a[1].index;
+        const bi = b[1].index;
+        if (ai != null && bi != null) return ai - bi;
+        if (ai != null) return -1;
+        if (bi != null) return 1;
+        return a[1].order - b[1].order;
+    });
+
+    const parts: ThinkingContentPart[] = [];
+    for (const [, value] of entries) {
+        if (!value.thinking) continue;
+        parts.push({
+            type: "thinking",
+            text: value.thinking,
+        });
+    }
+    return parts;
+}
+
+/** Extract Anthropic thinking parts from a non-streamed content payload. */
+function extractThinkingParts(content: string | Record<string, unknown>[]): ThinkingContentPart[] {
+    const state = new Map<string, AnthropicReasoningBlockState>();
+    collectReasoningBlocks(content, state, { value: 0 });
+    return materializeThinkingParts(state);
+}
+
 /**
  * Trim messages before the latest compaction block.
  *
@@ -333,6 +427,14 @@ export interface LangGraphAgentConfig {
     webFetchMaxUses?: number | undefined;
     /** Maximum content length (in tokens) for fetched pages. Defaults to unlimited when omitted. */
     webFetchMaxContentTokens?: number | undefined;
+    /** Anthropic thinking mode (`adaptive` or `enabled`). When omitted, thinking stays disabled. */
+    thinkingType?: "adaptive" | "enabled" | undefined;
+    /** Anthropic thinking display mode. */
+    thinkingDisplay?: "summarized" | "omitted" | undefined;
+    /** Budget tokens for manual thinking mode (`enabled`). */
+    thinkingBudgetTokens?: number | undefined;
+    /** Optional output effort level used with adaptive thinking. */
+    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
     /**
      * Anthropic model used to decide whether the agent should respond in
      * multi-user threads (e.g. `"claude-haiku-4-5"`).  When omitted the
@@ -381,6 +483,21 @@ export class LangGraphAgent implements IAgentProvider {
             maxTokens: config.maxTokens ?? 4096,
             streamUsage: true,
         };
+        if (config.thinkingType) {
+            const thinking: Record<string, unknown> = { type: config.thinkingType };
+            if (config.thinkingDisplay) {
+                thinking.display = config.thinkingDisplay;
+            }
+            if (config.thinkingType === "enabled" && typeof config.thinkingBudgetTokens === "number") {
+                thinking.budget_tokens = config.thinkingBudgetTokens;
+            }
+            (options as { thinking?: unknown }).thinking = thinking;
+            if (config.thinkingEffort) {
+                (options as { outputConfig?: unknown }).outputConfig = {
+                    effort: config.thinkingEffort,
+                };
+            }
+        }
         if (typeof config.temperature === "number") {
             options.temperature = config.temperature;
         }
@@ -466,8 +583,9 @@ export class LangGraphAgent implements IAgentProvider {
                 content: string | Record<string, unknown>[];
             };
             const text = extractTextFromContent(response.content);
+            const thinkingParts = extractThinkingParts(response.content);
             const opaqueParts = extractCompactionBlocks(response.content);
-            const contentParts: ContentPart[] = [...opaqueParts, { type: "text", text }];
+            const contentParts: ContentPart[] = [...thinkingParts, ...opaqueParts, { type: "text", text }];
             return { role: "ai", content: contentParts };
         } catch (error) {
             this.logAssistantApiError(logger, error, { phase: "invoke" });
@@ -497,6 +615,11 @@ export class LangGraphAgent implements IAgentProvider {
             async *[Symbol.asyncIterator]() {
                 const allCitations: RawCitation[] = [];
                 const allOpaqueParts: OpaqueContentPart[] = [];
+                const reasoningState = new Map<string, AnthropicReasoningBlockState>();
+                const reasoningOrderCounter = { value: 0 };
+                const streamThinkingIndexByKey = new Map<string, number>();
+                let nextThinkingStreamIndex = 0;
+                let textStreamIndex: number | null = null;
                 let usage: AgentUsage | undefined;
                 let chunkIndex = 0;
                 const debugApiContentEnabled = isDebugApiContentEnabled();
@@ -526,10 +649,12 @@ export class LangGraphAgent implements IAgentProvider {
                             );
                         }
 
-                        const text = extractTextFromContent(rawContent);
+                        const textParts = extractTextPartsFromContent(rawContent, reasoningOrderCounter.value);
                         const toolStatus = detectToolStatus(rawChunk);
                         allCitations.push(...extractCitations(rawContent));
                         allOpaqueParts.push(...extractCompactionBlocks(rawContent));
+                        collectReasoningBlocks(rawContent, reasoningState, reasoningOrderCounter);
+                        reasoningOrderCounter.value += 1;
 
                         // Capture token usage from the final chunk's usage_metadata.
                         // Multiple chunks may carry usage_metadata; keep the one with
@@ -563,8 +688,35 @@ export class LangGraphAgent implements IAgentProvider {
                         if (toolStatus) {
                             yield { type: "status" as const, status: toolStatus.code, statusText: toolStatus.text };
                         }
-                        if (text) {
-                            yield { type: "text-delta" as const, partIndex: 0, delta: text };
+
+                        for (const textPart of textParts) {
+                            if (textPart.partType === "thinking") {
+                                const key =
+                                    textPart.reasoningKey ??
+                                    `thinking:stream:${String(reasoningOrderCounter.value)}:${String(nextThinkingStreamIndex)}`;
+                                const partIndex =
+                                    streamThinkingIndexByKey.get(key) ??
+                                    (() => {
+                                        const idx = nextThinkingStreamIndex;
+                                        streamThinkingIndexByKey.set(key, idx);
+                                        nextThinkingStreamIndex += 1;
+                                        return idx;
+                                    })();
+                                yield {
+                                    type: "text-delta" as const,
+                                    partType: "thinking" as const,
+                                    partIndex,
+                                    delta: textPart.text,
+                                };
+                            } else {
+                                textStreamIndex ??= nextThinkingStreamIndex;
+                                yield {
+                                    type: "text-delta" as const,
+                                    partType: "text" as const,
+                                    partIndex: textStreamIndex,
+                                    delta: textPart.text,
+                                };
+                            }
                         }
                     }
                 } catch (error) {
@@ -576,6 +728,13 @@ export class LangGraphAgent implements IAgentProvider {
                         "Assistant API stream failed",
                     );
                     throw error;
+                }
+                const completeThinkingParts = materializeThinkingParts(reasoningState);
+                for (let i = 0; i < completeThinkingParts.length; i++) {
+                    const part = completeThinkingParts[i];
+                    if (part) {
+                        yield { type: "thinking-part" as const, partIndex: i, part };
+                    }
                 }
                 // Yield opaque parts, citations, and usage at end.
                 for (let i = 0; i < allOpaqueParts.length; i++) {

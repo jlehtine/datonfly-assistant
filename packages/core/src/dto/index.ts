@@ -1,6 +1,7 @@
 export {
     // Content part schemas
     textContentPartSchema,
+    thinkingContentPartSchema,
     toolCallContentPartSchema,
     toolResultContentPartSchema,
     opaqueContentPartSchema,

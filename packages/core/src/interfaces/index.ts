@@ -6,6 +6,7 @@ export type {
     AgentMessageRole,
     AgentStreamChunk,
     TextDeltaChunk,
+    ThinkingPartChunk,
     OpaquePartChunk,
     StatusChunk,
     CitationsChunk,

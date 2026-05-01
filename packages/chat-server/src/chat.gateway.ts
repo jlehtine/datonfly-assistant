@@ -73,6 +73,7 @@ interface ActiveStream {
     controller: AbortController;
     messageId: string;
     currentText: string;
+    thinkingPartsByIndex: Map<number, Extract<ContentPart, { type: "thinking" }>>;
     opaqueParts: OpaqueContentPart[];
     citations: Citation[];
     usage: AgentUsage | null;
@@ -85,6 +86,10 @@ function toolBoundarySeparator(text: string): string {
     if (text.endsWith("\n\n")) return "";
     if (text.endsWith("\n")) return "\n";
     return "\n\n";
+}
+
+function orderedThinkingParts(map: Map<number, Extract<ContentPart, { type: "thinking" }>>): ContentPart[] {
+    return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([, part]) => part);
 }
 
 @WebSocketGateway({ path: WS_PATH })
@@ -414,6 +419,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             messageId: aiMessageId,
             citations: [],
             usage: null,
+            thinkingPartsByIndex: new Map(),
             opaqueParts: [],
             hasTextSinceToolBoundary: false,
             pendingToolBoundaryBreak: false,
@@ -449,26 +455,51 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     if (controller.signal.aborted) return;
 
                     if (chunk.type === "text-delta") {
-                        let delta = chunk.delta;
-                        if (streamState.pendingToolBoundaryBreak) {
-                            const separator = toolBoundarySeparator(streamState.currentText);
-                            if (separator) {
-                                delta = `${separator}${delta}`;
+                        if (chunk.partType === "thinking") {
+                            const existing = streamState.thinkingPartsByIndex.get(chunk.partIndex);
+                            if (existing) {
+                                streamState.thinkingPartsByIndex.set(chunk.partIndex, {
+                                    ...existing,
+                                    text: `${existing.text}${chunk.delta}`,
+                                });
+                            } else {
+                                streamState.thinkingPartsByIndex.set(chunk.partIndex, {
+                                    type: "thinking",
+                                    text: chunk.delta,
+                                });
                             }
-                            streamState.pendingToolBoundaryBreak = false;
-                        }
 
-                        streamState.currentText += delta;
-                        streamState.hasTextSinceToolBoundary = true;
-                        const deltaEvent: PartDeltaEvent = {
-                            event: "part-delta",
-                            threadId,
-                            messageId,
-                            partIndex: 0,
-                            type: "text",
-                            delta,
-                        };
-                        void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                            const deltaEvent: PartDeltaEvent = {
+                                event: "part-delta",
+                                threadId,
+                                messageId,
+                                partIndex: chunk.partIndex,
+                                type: "thinking",
+                                delta: chunk.delta,
+                            };
+                            void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                        } else {
+                            let delta = chunk.delta;
+                            if (streamState.pendingToolBoundaryBreak) {
+                                const separator = toolBoundarySeparator(streamState.currentText);
+                                if (separator) {
+                                    delta = `${separator}${delta}`;
+                                }
+                                streamState.pendingToolBoundaryBreak = false;
+                            }
+
+                            streamState.currentText += delta;
+                            streamState.hasTextSinceToolBoundary = true;
+                            const deltaEvent: PartDeltaEvent = {
+                                event: "part-delta",
+                                threadId,
+                                messageId,
+                                partIndex: chunk.partIndex,
+                                type: "text",
+                                delta,
+                            };
+                            void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                        }
                     } else if (chunk.type === "status") {
                         if (streamState.hasTextSinceToolBoundary) {
                             streamState.pendingToolBoundaryBreak = true;
@@ -483,6 +514,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             statusText: chunk.statusText,
                         };
                         void this.emitToThreadMembers(threadId, "message-status", statusEvent);
+                    } else if (chunk.type === "thinking-part") {
+                        streamState.thinkingPartsByIndex.set(chunk.partIndex, chunk.part);
                     } else if (chunk.type === "opaque-part") {
                         streamState.opaqueParts.push(chunk.part);
                     } else if (chunk.type === "citations") {
@@ -542,8 +575,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     }
                 }
 
-                // Build content array: prepend opaque parts (e.g. compaction) before text.
+                // Build content array: thinking parts first, then opaque parts (e.g. compaction), then final text.
                 const contentParts: ContentPart[] = [
+                    ...orderedThinkingParts(streamState.thinkingPartsByIndex),
                     ...streamState.opaqueParts,
                     { type: "text", text: streamState.currentText },
                 ];
@@ -639,8 +673,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         this.activeStreams.delete(threadId);
 
         // Persist partial response (if any text was generated)
-        if (active.currentText) {
-            const partialContent: ContentPart[] = [...active.opaqueParts, { type: "text", text: active.currentText }];
+        if (active.currentText || active.thinkingPartsByIndex.size > 0) {
+            const partialContent: ContentPart[] = [
+                ...orderedThinkingParts(active.thinkingPartsByIndex),
+                ...active.opaqueParts,
+                { type: "text", text: active.currentText },
+            ];
             await this.persistence.appendMessage({
                 threadId,
                 role: "ai",
@@ -653,7 +691,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 event: "message-complete",
                 threadId,
                 messageId: active.messageId,
-                content: [{ type: "text", text: active.currentText }],
+                content: partialContent.filter((p) => p.type !== "opaque"),
                 interrupted: true,
             };
             void this.emitToThreadMembers(threadId, "message-complete", completeEvent);

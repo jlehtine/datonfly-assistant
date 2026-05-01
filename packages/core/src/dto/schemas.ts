@@ -8,6 +8,12 @@ export const textContentPartSchema = z.object({
     text: z.string().max(100_000),
 });
 
+/** Zod schema for a model reasoning/thinking content part. */
+export const thinkingContentPartSchema = z.object({
+    type: z.literal("thinking"),
+    text: z.string().max(100_000),
+});
+
 /** Zod schema for a tool-call content part. */
 export const toolCallContentPartSchema = z.object({
     type: z.literal("tool-call"),
@@ -35,6 +41,7 @@ export const opaqueContentPartSchema = z.object({
 /** Zod discriminated union schema covering all content part types. */
 export const contentPartSchema = z.discriminatedUnion("type", [
     textContentPartSchema,
+    thinkingContentPartSchema,
     toolCallContentPartSchema,
     toolResultContentPartSchema,
     opaqueContentPartSchema,

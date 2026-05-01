@@ -127,7 +127,8 @@ export function threadMessagesToAgentMessages(
             }
             case "ai": {
                 let parts: ContentPart[] = [...msg.content];
-                if (msg.metadata?.interrupted === true) {
+                const hasThinkingPart = parts.some((part) => part.type === "thinking");
+                if (msg.metadata?.interrupted === true && !hasThinkingPart) {
                     const next = messages[i + 1];
                     const byAlias =
                         next?.role === "human" && next.authorId

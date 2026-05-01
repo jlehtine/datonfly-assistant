@@ -190,6 +190,9 @@ async function bootstrap(): Promise<void> {
         cors: { origin: frontendUrl, credentials: true },
         memberSearchStrategy,
         search: searchProvider,
+        searchRecencyHalfLifeDays: process.env.SEARCH_RECENCY_HALF_LIFE_DAYS
+            ? Number(process.env.SEARCH_RECENCY_HALF_LIFE_DAYS)
+            : undefined,
         trustedReverseProxy: parseTrustedReverseProxy(process.env.TRUSTED_REVERSE_PROXY),
         adminSecret: process.env.ADMIN_SECRET ?? undefined,
         adminIps: process.env.ADMIN_IPS ?? undefined,

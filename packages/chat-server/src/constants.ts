@@ -8,3 +8,4 @@ export const SEARCH_PROVIDER = Symbol("SEARCH_PROVIDER");
 export const ADMIN_SECRET = Symbol("ADMIN_SECRET");
 export const ADMIN_IPS = Symbol("ADMIN_IPS");
 export const TRUSTED_REVERSE_PROXY = Symbol("TRUSTED_REVERSE_PROXY");
+export const SEARCH_RECENCY_HALF_LIFE_DAYS = Symbol("SEARCH_RECENCY_HALF_LIFE_DAYS");

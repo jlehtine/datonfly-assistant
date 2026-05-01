@@ -38,25 +38,25 @@ import {
 
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
-import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER } from "./constants.js";
+import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER, SEARCH_RECENCY_HALF_LIFE_DAYS } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
 
-/** Half-life for recency decay scoring (days). */
-const RECENCY_HALF_LIFE_DAYS = 30;
-/** Decay constant derived from half-life: λ = ln(2) / halfLife. */
-const DECAY_LAMBDA = Math.LN2 / RECENCY_HALF_LIFE_DAYS;
-
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
 export class ThreadController {
+    private readonly decayLambda: number;
+
     constructor(
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
+        @Inject(SEARCH_RECENCY_HALF_LIFE_DAYS) recencyHalfLifeDays: number,
         private readonly gateway: ChatGateway,
         private readonly auditLogger: AuditLogger,
-    ) {}
+    ) {
+        this.decayLambda = Math.LN2 / recencyHalfLifeDays;
+    }
 
     @Post()
     async create(
@@ -108,7 +108,7 @@ export class ThreadController {
             const createdAt = doc.metadata.createdAt as string | undefined;
             const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
             const rawScore = doc.score ?? 0;
-            const finalScore = rawScore * Math.exp(-DECAY_LAMBDA * daysSince);
+            const finalScore = rawScore * Math.exp(-this.decayLambda * daysSince);
             return { threadId, snippet: doc.pageContent.slice(0, 200), score: finalScore, createdAt };
         });
 

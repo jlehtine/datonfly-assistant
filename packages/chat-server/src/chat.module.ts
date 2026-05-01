@@ -21,6 +21,7 @@ import {
     MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
+    SEARCH_RECENCY_HALF_LIFE_DAYS,
     TRUSTED_REVERSE_PROXY,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
@@ -78,6 +79,14 @@ export interface ChatModuleConfig {
     memberSearchStrategy?: MemberSearchStrategy | undefined;
     /** Optional semantic search provider for thread search and message indexing. */
     search?: ISearchProvider | undefined;
+    /**
+     * Half-life for search recency decay scoring, in days.
+     *
+     * A message from `N` days ago is scored as `rawScore * exp(-ln(2) / halfLife * N)`,
+     * so a message this many days old contributes half the score of a message from today.
+     * Defaults to 360 days.
+     */
+    searchRecencyHalfLifeDays?: number | undefined;
     /** Shared secret for admin endpoints. Both `adminSecret` and `adminIps` must be set. */
     adminSecret?: string | undefined;
     /** Allowed IP addresses or CIDR ranges for admin endpoints (whitespace/comma-delimited). */
@@ -140,6 +149,7 @@ export class ChatModule {
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },
                 { provide: SEARCH_PROVIDER, useValue: config.search ?? null },
+                { provide: SEARCH_RECENCY_HALF_LIFE_DAYS, useValue: config.searchRecencyHalfLifeDays ?? 360 },
                 { provide: TRUSTED_REVERSE_PROXY, useValue: config.trustedReverseProxy ?? null },
                 { provide: ADMIN_SECRET, useValue: config.adminSecret ?? null },
                 {

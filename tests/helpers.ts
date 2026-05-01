@@ -161,6 +161,9 @@ export async function openThread(page: Page, title: string): Promise<void> {
     const threadItem = threadItemByTitle(page, title);
     await expect(threadItem).toBeVisible({ timeout: 15_000 });
     await threadItem.click();
+    // Wait for selection state to settle so follow-up composer interactions
+    // do not race against route-driven remounts.
+    await expect(threadItem).toHaveClass(/Mui-selected/, { timeout: 10_000 });
 }
 
 /** Wait for a message with given text and role to appear. */

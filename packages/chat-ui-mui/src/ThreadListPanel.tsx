@@ -418,59 +418,105 @@ interface SearchResultItemProps {
 
 function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultItemProps): ReactElement {
     const relativeTime = formatTimestamp(result.updatedAt, undefined, locale, tsLabels);
-    const snippet = result.snippet.length > 80 ? `${result.snippet.slice(0, 80)}…` : result.snippet;
+    const snippet = result.snippet.length > 160 ? `${result.snippet.slice(0, 160)}…` : result.snippet;
     const scorePercent = Math.max(0, Math.min(100, result.score * 100));
+    const absoluteTime = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
+        result.updatedAt,
+    );
 
-    return (
-        <ListItemButton
+    const tooltipContent = (
+        <Box
+            sx={{ maxWidth: 280, cursor: "pointer" }}
             onClick={() => {
                 onSelect(result.threadId);
             }}
-            sx={{ pr: 1, pt: 1.5, pb: 0, flexDirection: "column", alignItems: "stretch" }}
         >
-            <ListItemText
-                primary={result.title}
-                secondary={
-                    <>
-                        {snippet && (
-                            <Typography
-                                component="span"
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{
-                                    display: "block",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                }}
-                            >
-                                {snippet}
+            <Typography variant="body2" fontWeight={600} gutterBottom>
+                {result.title}
+            </Typography>
+            {result.snippet && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                    {result.snippet}
+                </Typography>
+            )}
+            <Typography variant="caption" color="text.disabled">
+                {absoluteTime}
+            </Typography>
+        </Box>
+    );
+
+    return (
+        <Tooltip
+            title={tooltipContent}
+            placement="right"
+            enterDelay={500}
+            arrow
+            slotProps={{
+                tooltip: {
+                    sx: {
+                        bgcolor: "background.paper",
+                        color: "text.primary",
+                        boxShadow: 3,
+                        border: 1,
+                        borderColor: "divider",
+                        p: 1.5,
+                        "& .MuiTooltip-arrow": {
+                            color: "background.paper",
+                        },
+                    },
+                },
+            }}
+        >
+            <ListItemButton
+                onClick={() => {
+                    onSelect(result.threadId);
+                }}
+                sx={{ pr: 1, pt: 1.5, pb: 0, flexDirection: "column", alignItems: "stretch" }}
+            >
+                <ListItemText
+                    primary={result.title}
+                    secondary={
+                        <>
+                            {snippet && (
+                                <Typography
+                                    component="span"
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{
+                                        display: "block",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                    }}
+                                >
+                                    {snippet}
+                                </Typography>
+                            )}
+                            <Typography component="span" variant="caption" color="text.disabled">
+                                {relativeTime}
                             </Typography>
-                        )}
-                        <Typography component="span" variant="caption" color="text.disabled">
-                            {relativeTime}
-                        </Typography>
-                    </>
-                }
-                slotProps={{
-                    primary: {
-                        noWrap: true,
-                        variant: "body2",
-                    },
-                }}
-            />
-            <LinearProgress
-                variant="determinate"
-                value={scorePercent}
-                sx={{
-                    height: 2,
-                    borderRadius: 0,
-                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.15),
-                    "& .MuiLinearProgress-bar": {
-                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.55),
-                    },
-                }}
-            />
-        </ListItemButton>
+                        </>
+                    }
+                    slotProps={{
+                        primary: {
+                            noWrap: true,
+                            variant: "body2",
+                        },
+                    }}
+                />
+                <LinearProgress
+                    variant="determinate"
+                    value={scorePercent}
+                    sx={{
+                        height: 2,
+                        borderRadius: 0,
+                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.15),
+                        "& .MuiLinearProgress-bar": {
+                            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.55),
+                        },
+                    }}
+                />
+            </ListItemButton>
+        </Tooltip>
     );
 }

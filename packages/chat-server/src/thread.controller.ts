@@ -109,7 +109,11 @@ export class ThreadController {
             const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
             const rawScore = doc.score ?? 0;
             const finalScore = rawScore * Math.exp(-this.decayLambda * daysSince);
-            return { threadId, snippet: doc.pageContent.slice(0, 200), score: finalScore, createdAt };
+            const pageContent = doc.pageContent;
+            const snippetLimit = 400;
+            const snippet =
+                pageContent.length > snippetLimit ? `${pageContent.slice(0, snippetLimit)}...` : pageContent;
+            return { threadId, snippet, score: finalScore, createdAt };
         });
 
         // Sort by final score descending, take top `limit`, deduplicate by threadId

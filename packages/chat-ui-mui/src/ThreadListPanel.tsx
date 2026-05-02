@@ -17,6 +17,7 @@ import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Popover from "@mui/material/Popover";
 import Select from "@mui/material/Select";
+import { alpha } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -418,13 +419,14 @@ interface SearchResultItemProps {
 function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultItemProps): ReactElement {
     const relativeTime = formatTimestamp(result.updatedAt, undefined, locale, tsLabels);
     const snippet = result.snippet.length > 80 ? `${result.snippet.slice(0, 80)}…` : result.snippet;
+    const scorePercent = Math.max(0, Math.min(100, result.score * 100));
 
     return (
         <ListItemButton
             onClick={() => {
                 onSelect(result.threadId);
             }}
-            sx={{ pr: 1 }}
+            sx={{ pr: 1, pt: 1.5, pb: 0, flexDirection: "column", alignItems: "stretch" }}
         >
             <ListItemText
                 primary={result.title}
@@ -454,6 +456,18 @@ function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultIt
                     primary: {
                         noWrap: true,
                         variant: "body2",
+                    },
+                }}
+            />
+            <LinearProgress
+                variant="determinate"
+                value={scorePercent}
+                sx={{
+                    height: 2,
+                    borderRadius: 0,
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.15),
+                    "& .MuiLinearProgress-bar": {
+                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.55),
                     },
                 }}
             />

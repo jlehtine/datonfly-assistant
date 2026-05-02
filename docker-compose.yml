@@ -1,6 +1,7 @@
 services:
     postgres:
         image: postgres:18
+        restart: "${RESTART_POLICY:-no}"
         ports:
             - "5432:5432"
         environment:
@@ -17,6 +18,7 @@ services:
 
     qdrant:
         image: qdrant/qdrant:v1.17
+        restart: "${RESTART_POLICY:-no}"
         ports:
             - "6333:6333"
             - "6334:6334"
@@ -30,6 +32,7 @@ services:
 
     infinity:
         image: michaelf34/infinity:0.0.77
+        restart: "${RESTART_POLICY:-no}"
         ports:
             - "8080:8080"
         volumes:

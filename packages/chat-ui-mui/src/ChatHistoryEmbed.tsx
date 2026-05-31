@@ -59,6 +59,11 @@ export interface ChatHistoryEmbedConfig {
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
     /** Optional input tools (e.g. emoji picker) to attach to the composer. */
     inputTools?: InputTool[] | undefined;
+    /**
+     * Whether to enable the built-in audio input tool when the server advertises
+     * the `audioInput` feature. Defaults to `true`.
+     */
+    enableAudioInput?: boolean | undefined;
     /** Maximum number of visible rows in the composer textarea before it scrolls. */
     maxRows?: number | undefined;
     /**
@@ -109,6 +114,7 @@ function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { s
         basePath,
         inputComponent,
         inputTools,
+        enableAudioInput,
         maxRows,
         messageComponents,
         onBeforeSend,
@@ -331,6 +337,7 @@ function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { s
                         onBeforeSend: onBeforeSend ?? ensureThread,
                         inputComponent,
                         inputTools,
+                        enableAudioInput,
                         maxRows,
                         messageComponents,
                         thread: selectedThread,

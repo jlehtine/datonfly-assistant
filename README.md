@@ -36,6 +36,10 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
 - **Rich text & code** — Messages support full Markdown formatting with a
   toggleable rich text editor (bold, italic, strikethrough, code, lists, links).
   Code blocks render with syntax highlighting.
+- **Audio input** — Dictate messages with the microphone. Audio is transcribed
+  server-side via OpenAI and only the resulting text is sent and stored — the
+  audio itself is never persisted. The feature is enabled automatically when an
+  OpenAI API key is configured and advertised to clients via the welcome event.
 - **AI agent tools** — The default implementation uses Claude as the AI model,
   with built-in Claude tools for web search (with source citations), web page
   fetching, and code execution. Application-specific tools can be injected by
@@ -146,7 +150,9 @@ embedded into the Node.js backend of the host application or to be used as a
 building block of an application specific assistant backend. Provides hooks for
 custom logic such as assistant tools that can access application data or control
 the application. Supports a configurable member search strategy that can limit
-user discovery to existing co-members for privacy-sensitive deployments.
+user discovery to existing co-members for privacy-sensitive deployments. An
+optional transcription callback enables audio input; when configured, the
+capability is advertised to clients through the welcome event.
 
 Uses pluggable provider packages only indirectly through the generic API
 interfaces declared by `core`. The application logic initializes and configures

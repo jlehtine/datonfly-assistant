@@ -2,6 +2,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
 import { useTheme } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
@@ -58,6 +59,7 @@ export function RichInput({
     autoFocus,
     inputTools,
     maxRows,
+    onSubmitText,
 }: ComposerInputProps): ReactElement {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -108,6 +110,11 @@ export function RichInput({
 
     const handleDone = (result: InputToolResult | null): void => {
         if (result) {
+            if (result.submit && onSubmitText) {
+                onSubmitText(result.text);
+                setActiveTool(null);
+                return;
+            }
             onChange(result.text);
             selectionRef.current = { start: result.selectionStart, end: result.selectionEnd };
             if (expanded && textApiRef.current) {
@@ -128,24 +135,39 @@ export function RichInput({
         setActiveTool(null);
     };
 
-    const toolCommands: ICommand[] = (inputTools ?? []).map(
-        (tool): ICommand => ({
-            name: tool.name,
-            keyCommand: tool.name,
-            icon: tool.icon,
-            execute: (_state, api) => {
-                textApiRef.current = api;
-                setAnchorEl(document.querySelector<HTMLElement>(`[data-name="${tool.name}"]`));
-                setToolCtx({
-                    text: value,
-                    selectionStart: selectionRef.current.start,
-                    selectionEnd: selectionRef.current.end,
-                });
-                setActiveTool(tool);
-            },
-            buttonProps: { "data-name": tool.name } as React.ButtonHTMLAttributes<HTMLButtonElement>,
-        }),
-    );
+    const toolCommands: ICommand[] = (inputTools ?? [])
+        .filter((tool) => tool.placement !== "input-end")
+        .map(
+            (tool): ICommand => ({
+                name: tool.name,
+                keyCommand: tool.name,
+                icon: tool.icon,
+                execute: (_state, api) => {
+                    textApiRef.current = api;
+                    setAnchorEl(document.querySelector<HTMLElement>(`[data-name="${tool.name}"]`));
+                    setToolCtx({
+                        text: value,
+                        selectionStart: selectionRef.current.start,
+                        selectionEnd: selectionRef.current.end,
+                    });
+                    setActiveTool(tool);
+                },
+                buttonProps: { "data-name": tool.name } as React.ButtonHTMLAttributes<HTMLButtonElement>,
+            }),
+        );
+
+    const adornmentTools = (inputTools ?? []).filter((tool) => tool.placement === "input-end");
+
+    const activateAdornmentTool = (tool: InputTool, anchor: HTMLElement): void => {
+        textApiRef.current = null;
+        setAnchorEl(anchor);
+        setToolCtx({
+            text: value,
+            selectionStart: selectionRef.current.start,
+            selectionEnd: selectionRef.current.end,
+        });
+        setActiveTool(tool);
+    };
 
     const mainCommands = [...editorCommands, ...(toolCommands.length > 0 ? [commands.divider, ...toolCommands] : [])];
     const editorHeight = TOOLBAR_HEIGHT + resolvedMaxRows * LINE_HEIGHT;
@@ -221,6 +243,32 @@ export function RichInput({
                         }}
                         disabled={disabled}
                         size="small"
+                        slotProps={
+                            adornmentTools.length > 0
+                                ? {
+                                      input: {
+                                          endAdornment: (
+                                              <InputAdornment position="end" sx={{ alignSelf: "flex-end", mb: 0.5 }}>
+                                                  {adornmentTools.map((tool) => (
+                                                      <IconButton
+                                                          key={tool.name}
+                                                          size="small"
+                                                          edge="end"
+                                                          aria-label={tool.name}
+                                                          disabled={disabled}
+                                                          onClick={(e) => {
+                                                              activateAdornmentTool(tool, e.currentTarget);
+                                                          }}
+                                                      >
+                                                          {tool.icon}
+                                                      </IconButton>
+                                                  ))}
+                                              </InputAdornment>
+                                          ),
+                                      },
+                                  }
+                                : undefined
+                        }
                     />
                 )}
                 {activeTool && anchorEl && (

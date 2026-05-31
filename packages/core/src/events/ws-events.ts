@@ -219,6 +219,8 @@ export interface ErrorEvent {
 export interface ServerFeatures {
     /** Whether semantic thread search is available. */
     search?: boolean | undefined;
+    /** Whether server-side audio transcription is available. */
+    audioInput?: boolean | undefined;
 }
 
 /** Emitted to a client immediately after successful WebSocket authentication. */

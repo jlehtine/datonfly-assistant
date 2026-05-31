@@ -2,6 +2,7 @@ export const PERSISTENCE_PROVIDER = Symbol("PERSISTENCE_PROVIDER");
 export const AGENT_PROVIDER = Symbol("AGENT_PROVIDER");
 export const VALIDATE_TOKEN_FN = Symbol("VALIDATE_TOKEN_FN");
 export const GENERATE_TITLE_FN = Symbol("GENERATE_TITLE_FN");
+export const TRANSCRIBE_FN = Symbol("TRANSCRIBE_FN");
 export const CHAT_CORS_OPTIONS = Symbol("CHAT_CORS_OPTIONS");
 export const MEMBER_SEARCH_STRATEGY = Symbol("MEMBER_SEARCH_STRATEGY");
 export const SEARCH_PROVIDER = Symbol("SEARCH_PROVIDER");

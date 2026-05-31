@@ -41,6 +41,8 @@ export interface ComposerInputProps {
     inputTools?: InputTool[] | undefined;
     /** Maximum number of visible rows before the textarea scrolls. */
     maxRows?: number | undefined;
+    /** Submit the given text directly (used by tools that auto-send, e.g. audio input). */
+    onSubmitText?: ((text: string) => void) | undefined;
 }
 
 /** Props for the {@link Composer} component. */
@@ -66,6 +68,7 @@ function DefaultInput({
     autoFocus,
     inputTools,
     maxRows,
+    onSubmitText,
 }: ComposerInputProps): ReactElement {
     const { t } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -83,14 +86,18 @@ function DefaultInput({
 
     const handleDone = (result: InputToolResult | null): void => {
         if (result) {
-            onChange(result.text);
-            setTimeout(() => {
-                const input = inputRef.current;
-                if (input) {
-                    input.setSelectionRange(result.selectionStart, result.selectionEnd);
-                    input.focus();
-                }
-            }, 0);
+            if (result.submit && onSubmitText) {
+                onSubmitText(result.text);
+            } else {
+                onChange(result.text);
+                setTimeout(() => {
+                    const input = inputRef.current;
+                    if (input) {
+                        input.setSelectionRange(result.selectionStart, result.selectionEnd);
+                        input.focus();
+                    }
+                }, 0);
+            }
         }
         setActiveTool(null);
     };
@@ -215,7 +222,7 @@ export function Composer({
     maxRows,
 }: ComposerProps): ReactElement {
     const { t } = useTranslation();
-    const { text, setText, submit } = useComposer(onSend);
+    const { text, setText, submit, submitText } = useComposer(onSend);
     const isDisabled = disabled ?? false;
 
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -234,6 +241,7 @@ export function Composer({
         autoFocus: !isDisabled,
         inputTools,
         maxRows,
+        onSubmitText: submitText,
     };
 
     const ActiveInput = InputComponent ?? DefaultInput;

@@ -3,3 +3,4 @@ export type { ChatClientConfig, ChatClientEventMap } from "./client.js";
 export { ChatError, typedFetch } from "./fetch.js";
 export type { TypedFetchOptions } from "./fetch.js";
 export { searchThreads } from "./search.js";
+export { transcribeAudio } from "./transcribe.js";

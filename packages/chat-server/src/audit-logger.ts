@@ -20,6 +20,7 @@ export interface AuditData {
     indexed?: number | undefined;
     skipped?: number | undefined;
     elapsedMs?: number | undefined;
+    bytes?: number | undefined;
 }
 
 /**

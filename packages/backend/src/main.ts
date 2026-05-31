@@ -19,6 +19,7 @@ import { createQdrantSearch } from "@datonfly-assistant/search-qdrant";
 
 import { AppModule } from "./app.module.js";
 import { AuthModule, AuthService, type AuthConfig } from "./auth/index.js";
+import { createOpenAITranscribeFn } from "./transcribe.js";
 
 // Load .env from monorepo root (two levels up from packages/backend)
 for (const candidate of [".env", "../../.env"]) {
@@ -191,6 +192,16 @@ async function bootstrap(): Promise<void> {
           })
         : undefined;
 
+    // Optional: audio input transcription backed by OpenAI. Enabled when an API
+    // key is present; advertised to clients via the welcome event feature flag.
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    const transcribe = openaiApiKey
+        ? createOpenAITranscribeFn({
+              apiKey: openaiApiKey,
+              model: process.env.OPENAI_TRANSCRIBE_MODEL ?? "gpt-4o-mini-transcribe",
+          })
+        : undefined;
+
     const rawStrategy = process.env.MEMBER_SEARCH_STRATEGY ?? "default";
     if (rawStrategy !== "default" && rawStrategy !== "limited-visibility") {
         throw new Error(`MEMBER_SEARCH_STRATEGY must be "default" or "limited-visibility", got "${rawStrategy}"`);
@@ -221,6 +232,7 @@ async function bootstrap(): Promise<void> {
         persistence,
         validateToken: (token: string) => authService.authenticateToken(token),
         generateTitle,
+        transcribe,
         cors: { origin: frontendUrl, credentials: true },
         memberSearchStrategy,
         search: searchProvider,

@@ -33,5 +33,8 @@ export const THREAD_SEARCH_PATH = `${THREADS_PATH}/search`;
 /** Path for the user search endpoint. */
 export const USERS_SEARCH_PATH = `${API_PREFIX}/users/search`;
 
+/** Path for the audio transcription endpoint. */
+export const TRANSCRIBE_PATH = `${API_PREFIX}/transcribe`;
+
 /** Path for the authenticated user's profile. */
 export const USERS_ME_PATH = `${API_PREFIX}/users/me`;

@@ -5,6 +5,7 @@ export {
     THREAD_SEARCH_PATH,
     USERS_SEARCH_PATH,
     USERS_ME_PATH,
+    TRANSCRIBE_PATH,
     threadPath,
     threadMessagesPath,
     threadMembersPath,

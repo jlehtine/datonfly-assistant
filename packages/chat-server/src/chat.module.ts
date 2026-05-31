@@ -22,6 +22,7 @@ import {
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
     SEARCH_RECENCY_HALF_LIFE_DAYS,
+    TRANSCRIBE_FN,
     TRUSTED_REVERSE_PROXY,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
@@ -30,6 +31,7 @@ import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { TrustedProxyService, type TrustedReverseProxy } from "./trusted-proxy.service.js";
 import type { GenerateTitleFn } from "./title-generator.js";
 import { ThreadController } from "./thread.controller.js";
+import { TranscriptionController, type TranscribeFn } from "./transcription.controller.js";
 import { UserController } from "./user.controller.js";
 import type { ValidateTokenFn } from "./chat.gateway.js";
 
@@ -68,6 +70,14 @@ export interface ChatModuleConfig {
     validateToken?: ValidateTokenFn | undefined;
     /** Callback that generates a thread title from conversation messages. */
     generateTitle?: GenerateTitleFn | undefined;
+    /**
+     * Callback that transcribes uploaded audio to text.
+     *
+     * When provided, the `/transcribe` endpoint is enabled and the server
+     * advertises the `audioInput` feature in the welcome event. The audio is
+     * never persisted; only the transcribed text is.
+     */
+    transcribe?: TranscribeFn | undefined;
     /** CORS configuration forwarded to the WebSocket gateway. */
     cors?: { origin: string | string[]; credentials?: boolean | undefined } | undefined;
     /**
@@ -140,12 +150,13 @@ export class ChatModule {
                     },
                 }),
             ],
-            controllers: [ThreadController, UserController, AdminController],
+            controllers: [ThreadController, UserController, AdminController, TranscriptionController],
             providers: [
                 { provide: AGENT_PROVIDER, useValue: config.agent },
                 { provide: PERSISTENCE_PROVIDER, useValue: config.persistence },
                 { provide: VALIDATE_TOKEN_FN, useValue: config.validateToken ?? null },
                 { provide: GENERATE_TITLE_FN, useValue: config.generateTitle ?? null },
+                { provide: TRANSCRIBE_FN, useValue: config.transcribe ?? null },
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },
                 { provide: SEARCH_PROVIDER, useValue: config.search ?? null },

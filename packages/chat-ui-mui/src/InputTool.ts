@@ -18,6 +18,11 @@ export interface InputToolResult {
     selectionStart: number;
     /** Caret end position to restore after the text is updated. */
     selectionEnd: number;
+    /**
+     * When `true`, the composer submits `text` immediately instead of writing it
+     * to the input for further editing.
+     */
+    submit?: boolean | undefined;
 }
 
 /** A pluggable toolbar action that can modify the composer text. */
@@ -26,6 +31,13 @@ export interface InputTool {
     name: string;
     /** Icon element rendered inside the toolbar button. */
     icon: ReactElement;
+    /**
+     * Where the tool button is rendered.
+     *
+     * - `"toolbar"` (default) — alongside the other formatting/tool buttons.
+     * - `"input-end"` — as an end adornment inside the plain (non-expanded) text field.
+     */
+    placement?: "toolbar" | "input-end" | undefined;
     /**
      * Called when the user activates the tool.
      *

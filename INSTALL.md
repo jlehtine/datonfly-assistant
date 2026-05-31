@@ -119,6 +119,24 @@ ANTHROPIC_TITLE_MODEL=claude-haiku-4-5
 - **`ANTHROPIC_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
   titles. Omit to disable title generation.
 
+## Audio Input (Transcription)
+
+Users can dictate messages with their microphone. Audio is transcribed
+server-side via OpenAI and only the resulting text is sent and stored — the
+audio itself is never persisted. The feature is enabled automatically when an
+OpenAI API key is configured, and a microphone button then appears in the
+composer.
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe
+```
+
+- **`OPENAI_API_KEY`** _(optional)_ — Enables audio input when set. Omit to
+  disable transcription (the microphone button is hidden).
+- **`OPENAI_TRANSCRIBE_MODEL`** _(optional, default: gpt-4o-mini-transcribe)_ —
+  The OpenAI model used for transcription.
+
 ## Logging
 
 ```env

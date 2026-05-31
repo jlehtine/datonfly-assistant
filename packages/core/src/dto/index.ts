@@ -12,6 +12,8 @@ export {
     updateThreadUserStateRequestSchema,
     // Messages
     chatRequestSchema,
+    // Transcription
+    transcriptionResponseSchema,
     // Members
     inviteMemberRequestSchema,
     removeMemberRequestSchema,
@@ -36,6 +38,7 @@ export type {
     UpdateThreadRequest,
     UpdateThreadUserStateRequest,
     ChatRequest,
+    TranscriptionResponse,
     InviteMemberRequest,
     RemoveMemberRequest,
     UpdateMemberRoleRequest,

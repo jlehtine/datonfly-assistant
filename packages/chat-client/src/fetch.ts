@@ -77,7 +77,9 @@ export async function typedFetch<T>(
     }
 
     const headers: Record<string, string> = {};
-    if (body !== undefined) {
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+    if (body !== undefined && !isFormData) {
+        // For FormData, let the browser set the multipart Content-Type with its boundary.
         headers["Content-Type"] = "application/json";
     }
 
@@ -85,7 +87,7 @@ export async function typedFetch<T>(
         method,
         headers,
         credentials: "include",
-        ...(body !== undefined && { body: JSON.stringify(body) }),
+        ...(body !== undefined && { body: isFormData ? body : JSON.stringify(body) }),
         ...(signal ? { signal } : {}),
     });
 

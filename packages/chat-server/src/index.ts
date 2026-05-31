@@ -5,6 +5,8 @@ export type { ChatModuleConfig } from "./chat.module.js";
 export { AdminController } from "./admin.controller.js";
 export { ChatGateway } from "./chat.gateway.js";
 export { ThreadController } from "./thread.controller.js";
+export { TranscriptionController } from "./transcription.controller.js";
+export type { TranscribeFn } from "./transcription.controller.js";
 export { UserController } from "./user.controller.js";
 export { RequireUserGuard } from "./guards/require-user.guard.js";
 export { ResolvedUser } from "./decorators/user.decorator.js";

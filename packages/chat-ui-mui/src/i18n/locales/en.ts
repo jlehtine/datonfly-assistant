@@ -18,6 +18,13 @@ const en = {
     typeAMessage: "Type a message...",
     send: "Send",
 
+    // ── AudioInputTool ──
+    recordAudio: "Record audio",
+    stopRecording: "Stop recording",
+    transcribing: "Transcribing\u2026",
+    microphoneError: "Could not access the microphone.",
+    transcriptionFailed: "Transcription failed. Please try again.",
+
     // ── MessageList ──
     assistantIsThinking: "Assistant is thinking",
 

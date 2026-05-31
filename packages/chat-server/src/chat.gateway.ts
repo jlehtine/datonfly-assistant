@@ -51,11 +51,13 @@ import {
     GENERATE_TITLE_FN,
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
+    TRANSCRIBE_FN,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
 import { buildAuthorAliases, extractText, threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
+import type { TranscribeFn } from "./transcription.controller.js";
 
 /** Callback that validates a raw token string and returns the user identity, or `null` on failure. */
 export type ValidateTokenFn = (token: string) => UserIdentity | null;
@@ -116,6 +118,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
         @Optional() @Inject(GENERATE_TITLE_FN) private readonly generateTitleFn: GenerateTitleFn | null,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
+        @Optional() @Inject(TRANSCRIBE_FN) private readonly transcribeFn: TranscribeFn | null,
         private readonly auditLogger: AuditLogger,
     ) {}
 
@@ -198,7 +201,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             socket.emit("welcome", {
                 event: "welcome",
                 userId: user.id,
-                features: { search: this.searchProvider !== null },
+                features: { search: this.searchProvider !== null, audioInput: this.transcribeFn !== null },
             });
             // Join per-user room for multi-tab broadcasts (archive / read sync).
             void socket.join(`user:${user.id}`);

@@ -94,6 +94,16 @@ export const chatRequestSchema = z.object({
 /** Validated request body for sending a chat message. */
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 
+// ─── Transcription ───
+
+/** Zod schema for the response of the audio transcription endpoint. */
+export const transcriptionResponseSchema = z.object({
+    text: z.string(),
+});
+
+/** Validated response body from the audio transcription endpoint. */
+export type TranscriptionResponse = z.infer<typeof transcriptionResponseSchema>;
+
 // ─── Members ───
 
 /** Zod schema for a request to invite a member by email. */

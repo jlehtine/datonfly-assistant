@@ -8,6 +8,8 @@ export interface UseComposerResult {
     setText: (text: string) => void;
     /** Submit the current text via `onSend` and reset the composer. No-op when text is blank. */
     submit: () => void;
+    /** Submit the given text directly via `onSend` and reset the composer. No-op when text is blank. */
+    submitText: (text: string) => void;
 }
 
 /**
@@ -18,12 +20,19 @@ export interface UseComposerResult {
 export function useComposer(onSend: (text: string) => void): UseComposerResult {
     const [text, setText] = useState("");
 
-    const submit = useCallback(() => {
-        const trimmed = text.trim();
-        if (!trimmed) return;
-        onSend(trimmed);
-        setText("");
-    }, [text, onSend]);
+    const submitText = useCallback(
+        (value: string) => {
+            const trimmed = value.trim();
+            if (!trimmed) return;
+            onSend(trimmed);
+            setText("");
+        },
+        [onSend],
+    );
 
-    return { text, setText, submit };
+    const submit = useCallback(() => {
+        submitText(text);
+    }, [text, submitText]);
+
+    return { text, setText, submit, submitText };
 }

@@ -24,6 +24,13 @@ const fi: FlatKeys<typeof en> = {
     typeAMessage: "Kirjoita viesti...",
     send: "Lähetä",
 
+    // ── AudioInputTool ──
+    recordAudio: "Nauhoita ääntä",
+    stopRecording: "Lopeta nauhoitus",
+    transcribing: "Puretaan tekstiksi…",
+    microphoneError: "Mikrofonia ei voitu käyttää.",
+    transcriptionFailed: "Tekstiksi purkaminen epäonnistui. Yritä uudelleen.",
+
     // ── MessageList ──
     assistantIsThinking: "Avustaja ajattelee",
 

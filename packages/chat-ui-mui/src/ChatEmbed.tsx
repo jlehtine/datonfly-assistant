@@ -8,7 +8,7 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useCallback, useEffect, useState, type ComponentType, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
@@ -23,6 +23,7 @@ import {
 } from "@datonfly-assistant/chat-client/react";
 import type { MemberLeftEvent, Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
+import { audioInputTool } from "./AudioInputTool.js";
 import { Composer, type ComposerInputProps } from "./Composer.js";
 import { EditableTitle } from "./EditableTitle.js";
 import { AssistantI18nProvider } from "./i18n/index.js";
@@ -49,6 +50,11 @@ export interface ChatEmbedConfig {
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
     /** Optional input tools (e.g. emoji picker) to attach to the composer. */
     inputTools?: InputTool[] | undefined;
+    /**
+     * Whether to enable the built-in audio input tool when the server advertises
+     * the `audioInput` feature. Defaults to `true`.
+     */
+    enableAudioInput?: boolean | undefined;
     /** Maximum number of visible rows in the composer textarea before it scrolls. */
     maxRows?: number | undefined;
     /**
@@ -94,11 +100,17 @@ export interface ChatEmbedProps {
  * parent's height. Wrap the parent in a fixed-height container.
  */
 export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
-    const { client, connected, userId } = useChatConnection({
+    const { client, connected, userId, features } = useChatConnection({
         url: config.url,
         basePath: config.basePath,
     });
     const threadId = config.threadId ?? null;
+
+    const audioEnabled = (config.enableAudioInput ?? true) && features.audioInput === true;
+    const inputTools = useMemo<InputTool[] | undefined>(() => {
+        if (!audioEnabled) return config.inputTools;
+        return [...(config.inputTools ?? []), audioInputTool];
+    }, [audioEnabled, config.inputTools]);
 
     return (
         <AssistantI18nProvider locale={config.locale}>
@@ -109,7 +121,7 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                         connected={connected}
                         onBeforeSend={config.onBeforeSend}
                         inputComponent={config.inputComponent}
-                        inputTools={config.inputTools}
+                        inputTools={inputTools}
                         maxRows={config.maxRows}
                         messageComponents={config.messageComponents}
                         thread={config.thread}

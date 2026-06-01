@@ -1,13 +1,18 @@
+import DownloadIcon from "@mui/icons-material/Download";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { ChatMessage } from "@datonfly-assistant/chat-client/react";
+import { attachmentDownloadUrl } from "@datonfly-assistant/chat-client";
+import { useChatClient, type ChatMessage } from "@datonfly-assistant/chat-client/react";
 import type { ContentPart } from "@datonfly-assistant/core";
 
 /** Props for the {@link MessageBubble} component. */
@@ -25,6 +30,85 @@ export interface MessageBubbleProps {
     components?: Components | undefined;
 }
 
+/** Format a byte count as a short human-readable size string. */
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${String(bytes)} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Render a sent attachment as an image thumbnail (images) or file chip, each with a download action. */
+function AttachmentPartView({
+    attachmentId,
+    name,
+    mimeType,
+    size,
+}: {
+    attachmentId: string;
+    name: string;
+    mimeType: string;
+    size: number;
+}): ReactElement {
+    const { t } = useTranslation();
+    const client = useChatClient();
+    const url = attachmentDownloadUrl(client, attachmentId);
+    const isImage = mimeType.startsWith("image/");
+
+    if (isImage) {
+        return (
+            <Box
+                className="datonfly-message-attachment"
+                data-attachment-id={attachmentId}
+                sx={{ position: "relative", display: "inline-block", my: 0.5, maxWidth: 240 }}
+            >
+                <Box component="a" href={url} download={name} sx={{ display: "block" }}>
+                    <Box
+                        component="img"
+                        src={url}
+                        alt={name}
+                        sx={{ maxWidth: 240, maxHeight: 240, borderRadius: 1, display: "block" }}
+                    />
+                </Box>
+                <Tooltip title={t("downloadAttachment")}>
+                    <IconButton
+                        className="datonfly-download-attachment-button"
+                        component="a"
+                        href={url}
+                        download={name}
+                        aria-label={t("downloadAttachment")}
+                        size="small"
+                        sx={{
+                            position: "absolute",
+                            top: 4,
+                            right: 4,
+                            bgcolor: "background.paper",
+                            "&:hover": { bgcolor: "action.hover" },
+                        }}
+                    >
+                        <DownloadIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                </Tooltip>
+            </Box>
+        );
+    }
+
+    return (
+        <Chip
+            className="datonfly-message-attachment"
+            data-attachment-id={attachmentId}
+            component="a"
+            href={url}
+            download={name}
+            clickable
+            label={`${name} (${formatBytes(size)})`}
+            icon={<DownloadIcon fontSize="small" />}
+            variant="outlined"
+            aria-label={t("downloadAttachment")}
+            sx={{ my: 0.5, maxWidth: "100%" }}
+        />
+    );
+}
+
 /** Render a single content part. Unknown part types are silently skipped. */
 function renderPart(part: ContentPart, index: number, streaming: boolean, components?: Components): ReactNode {
     if (part.type === "text") {
@@ -32,6 +116,17 @@ function renderPart(part: ContentPart, index: number, streaming: boolean, compon
             <Markdown key={index} remarkPlugins={[remarkGfm]} components={streaming ? undefined : components}>
                 {part.text}
             </Markdown>
+        );
+    }
+    if (part.type === "attachment") {
+        return (
+            <AttachmentPartView
+                key={index}
+                attachmentId={part.attachmentId}
+                name={part.name}
+                mimeType={part.mimeType}
+                size={part.size}
+            />
         );
     }
     // thinking, tool-call, tool-result, opaque: handled elsewhere or not rendered yet

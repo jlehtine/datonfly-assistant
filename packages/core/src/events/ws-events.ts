@@ -1,3 +1,4 @@
+import type { AttachmentLimits } from "../attachments/attachments.js";
 import type { ErrorCode } from "../types/error-code.js";
 import type { ContentPart, MessageRole } from "../types/message.js";
 import type { StatusCode } from "../types/status-code.js";
@@ -221,6 +222,8 @@ export interface ServerFeatures {
     search?: boolean | undefined;
     /** Whether server-side audio transcription is available. */
     audioInput?: boolean | undefined;
+    /** Attachment (file/image context input) limits, when the feature is available. */
+    fileInput?: AttachmentLimits | undefined;
 }
 
 /** Emitted to a client immediately after successful WebSocket authentication. */

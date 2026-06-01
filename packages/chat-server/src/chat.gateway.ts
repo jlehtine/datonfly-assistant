@@ -35,6 +35,7 @@ import type {
 } from "@datonfly-assistant/core";
 
 import {
+    ATTACHMENT_LIMITS,
     ERROR_CODES,
     WS_PATH,
     chatRequestSchema,
@@ -54,7 +55,7 @@ import {
     TRANSCRIBE_FN,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
-import { buildAuthorAliases, extractText, threadMessagesToAgentMessages } from "./messages.js";
+import { buildAuthorAliases, extractText, resolveAttachmentData, threadMessagesToAgentMessages } from "./messages.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
 import type { TranscribeFn } from "./transcription.controller.js";
@@ -201,7 +202,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             socket.emit("welcome", {
                 event: "welcome",
                 userId: user.id,
-                features: { search: this.searchProvider !== null, audioInput: this.transcribeFn !== null },
+                features: {
+                    search: this.searchProvider !== null,
+                    audioInput: this.transcribeFn !== null,
+                    fileInput: ATTACHMENT_LIMITS,
+                },
             });
             // Join per-user room for multi-tab broadcasts (archive / read sync).
             void socket.join(`user:${user.id}`);
@@ -327,6 +332,41 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             }
         }
 
+        // Validate any referenced attachments before persisting: each must be
+        // owned by the sender and not yet associated with another message.
+        const attachmentIds = content
+            .filter((part): part is Extract<typeof part, { type: "attachment" }> => part.type === "attachment")
+            .map((part) => part.attachmentId);
+        if (attachmentIds.length > 0) {
+            if (!user) {
+                socket.emit("error", {
+                    event: "error",
+                    message: "Attachments require an authenticated user",
+                    code: ERROR_CODES.invalid_attachment,
+                });
+                return null;
+            }
+            if (attachmentIds.length > ATTACHMENT_LIMITS.maxPerMessage) {
+                socket.emit("error", {
+                    event: "error",
+                    message: `At most ${String(ATTACHMENT_LIMITS.maxPerMessage)} attachments are allowed per message`,
+                    code: ERROR_CODES.invalid_attachment,
+                });
+                return null;
+            }
+            for (const id of attachmentIds) {
+                const record = await this.persistence.getAttachment(id);
+                if (record?.uploaderId !== user.id || record.threadId !== null) {
+                    socket.emit("error", {
+                        event: "error",
+                        message: "Invalid or already-used attachment reference",
+                        code: ERROR_CODES.invalid_attachment,
+                    });
+                    return null;
+                }
+            }
+        }
+
         // Finalize any interrupted stream (abort was already signalled by handleSendMessage).
         await this.interruptActiveStream(threadId);
 
@@ -349,6 +389,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             return null;
         }
         this.auditLogger.audit("info", "message.send", { userId, threadId, messageId });
+
+        // Atomically associate validated attachments with this thread + message.
+        if (attachmentIds.length > 0 && user) {
+            await this.persistence.associateAttachments(attachmentIds, user.id, threadId, persistedMsg.id);
+        }
 
         // Fire-and-forget: index the user message for search.
         this.indexMessage(persistedMsg.id, threadId, content, "human", user?.id ?? null);
@@ -429,10 +474,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         };
         this.activeStreams.set(threadId, streamState);
 
+        // Resolve attachment bytes into the agent messages only now, on the
+        // stream path, so title/compaction paths never load file bytes.
+        await resolveAttachmentData(messages, this.persistence);
+
         const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
         return { stream, streamState, userId };
     }
-
     /**
      * Consume the agent stream, acquiring the per-thread mutex for each chunk
      * and for the final persistence step.  Between chunks the mutex is

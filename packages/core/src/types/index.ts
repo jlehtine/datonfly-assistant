@@ -10,6 +10,7 @@ export type {
     ThinkingContentPart,
     ToolCallContentPart,
     ToolResultContentPart,
+    AttachmentContentPart,
     OpaqueContentPart,
 } from "./message.js";
 export type { SearchResult, MemoryEntry } from "./search.js";

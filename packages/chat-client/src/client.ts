@@ -2,6 +2,8 @@ import { io, type Socket } from "socket.io-client";
 
 import {
     WS_PATH,
+    type AttachmentContentPart,
+    type ContentPart,
     type ErrorEvent,
     type InviteMemberEvent,
     type MemberJoinedEvent,
@@ -109,13 +111,23 @@ export class ChatClient {
         return this.socket.connected;
     }
 
-    /** Emit a `send-message` event to the server for the given thread. */
-    sendMessage(threadId: string, messageId: string, text: string): void {
+    /**
+     * Emit a `send-message` event to the server for the given thread.
+     *
+     * @param attachments - Optional uploaded attachment references to send as
+     *   context input alongside the text.
+     */
+    sendMessage(threadId: string, messageId: string, text: string, attachments: AttachmentContentPart[] = []): void {
+        const content: ContentPart[] = [];
+        if (text.length > 0 || attachments.length === 0) {
+            content.push({ type: "text", text });
+        }
+        content.push(...attachments);
         const event: SendMessageEvent = {
             event: "send-message",
             threadId,
             messageId,
-            content: [{ type: "text", text }],
+            content,
         };
         this.socket.emit("send-message", event);
     }

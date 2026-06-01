@@ -21,6 +21,7 @@ export interface AuditData {
     skipped?: number | undefined;
     elapsedMs?: number | undefined;
     bytes?: number | undefined;
+    attachmentId?: string | undefined;
 }
 
 /**

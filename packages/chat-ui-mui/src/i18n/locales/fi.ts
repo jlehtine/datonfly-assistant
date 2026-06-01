@@ -23,6 +23,13 @@ const fi: FlatKeys<typeof en> = {
     tools: "Työkalut",
     typeAMessage: "Kirjoita viesti...",
     send: "Lähetä",
+    addAttachment: "Lisää liite",
+    removeAttachment: "Poista liite",
+    downloadAttachment: "Lataa liite",
+    attachmentTooLarge: "Tiedosto on liian suuri",
+    attachmentTooMany: "Liian monta liitettä",
+    attachmentUnsupported: "Tiedostotyyppiä ei tueta",
+    attachmentUploadFailed: "Lataus epäonnistui",
 
     // ── AudioInputTool ──
     recordAudio: "Nauhoita ääntä",

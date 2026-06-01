@@ -6,10 +6,12 @@ export {
     USERS_SEARCH_PATH,
     USERS_ME_PATH,
     TRANSCRIBE_PATH,
+    ATTACHMENTS_PATH,
     threadPath,
     threadMessagesPath,
     threadMembersPath,
     threadUserStatePath,
+    attachmentPath,
 } from "./paths.js";
 
 export {

@@ -21,7 +21,7 @@ import {
     useMembers,
     useMessages,
 } from "@datonfly-assistant/chat-client/react";
-import type { MemberLeftEvent, Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
+import type { AttachmentLimits, MemberLeftEvent, Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
 
 import { audioInputTool } from "./AudioInputTool.js";
 import { Composer, type ComposerInputProps } from "./Composer.js";
@@ -55,6 +55,11 @@ export interface ChatEmbedConfig {
      * the `audioInput` feature. Defaults to `true`.
      */
     enableAudioInput?: boolean | undefined;
+    /**
+     * Whether to enable file/image context-input attachments when the server
+     * advertises the `fileInput` feature. Defaults to `true`.
+     */
+    enableFileInput?: boolean | undefined;
     /** Maximum number of visible rows in the composer textarea before it scrolls. */
     maxRows?: number | undefined;
     /**
@@ -112,6 +117,8 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
         return [...(config.inputTools ?? []), audioInputTool];
     }, [audioEnabled, config.inputTools]);
 
+    const fileInputLimits = (config.enableFileInput ?? true) && features.fileInput ? features.fileInput : undefined;
+
     return (
         <AssistantI18nProvider locale={config.locale}>
             <ChatClientContext.Provider value={client}>
@@ -122,6 +129,7 @@ export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
                         onBeforeSend={config.onBeforeSend}
                         inputComponent={config.inputComponent}
                         inputTools={inputTools}
+                        fileInputLimits={fileInputLimits}
                         maxRows={config.maxRows}
                         messageComponents={config.messageComponents}
                         thread={config.thread}
@@ -142,6 +150,7 @@ interface ChatInnerProps {
     onBeforeSend?: (() => Promise<string>) | undefined;
     inputComponent?: ComponentType<ComposerInputProps> | undefined;
     inputTools?: InputTool[] | undefined;
+    fileInputLimits?: AttachmentLimits | undefined;
     maxRows?: number | undefined;
     messageComponents?: Components | undefined;
     thread?: Thread | undefined;
@@ -157,6 +166,7 @@ function ChatInner({
     onBeforeSend,
     inputComponent,
     inputTools,
+    fileInputLimits,
     maxRows,
     messageComponents,
     thread,
@@ -314,6 +324,7 @@ function ChatInner({
                 disabled={!connected}
                 inputComponent={inputComponent}
                 inputTools={inputTools}
+                fileInputLimits={fileInputLimits}
                 maxRows={maxRows}
             />
             {threadId && (

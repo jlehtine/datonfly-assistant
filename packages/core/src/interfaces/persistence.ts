@@ -61,6 +61,50 @@ export interface LoadMessagesOptions {
     excludeCompactionSummaries?: boolean | undefined;
 }
 
+/** Options for saving a newly uploaded attachment. */
+export interface SaveAttachmentOptions {
+    /** Optional pre-assigned attachment ID. Generated when omitted. */
+    id?: string | undefined;
+    /** User ID of the uploader. */
+    uploaderId: string;
+    /** Original file name. */
+    name: string;
+    /** MIME type of the attachment. */
+    mimeType: string;
+    /** Size of the attachment in bytes. */
+    size: number;
+    /** Raw attachment bytes. */
+    bytes: Uint8Array;
+}
+
+/** Stored attachment metadata (without the raw bytes). */
+export interface AttachmentRecord {
+    /** Unique attachment ID. */
+    id: string;
+    /** User ID of the uploader. */
+    uploaderId: string;
+    /** Thread the attachment is associated with, or `null` while still pending. */
+    threadId: string | null;
+    /** Message the attachment is associated with, or `null` while still pending. */
+    messageId: string | null;
+    /** Original file name. */
+    name: string;
+    /** MIME type of the attachment. */
+    mimeType: string;
+    /** Size of the attachment in bytes. */
+    size: number;
+    /** Timestamp when the attachment was uploaded. */
+    createdAt: Date;
+}
+
+/** A stored attachment together with its raw bytes. */
+export interface AttachmentData {
+    /** Attachment metadata. */
+    record: AttachmentRecord;
+    /** Raw attachment bytes. */
+    bytes: Uint8Array;
+}
+
 /**
  * Storage provider for users, threads, memberships, and messages.
  *
@@ -132,6 +176,26 @@ export interface IPersistenceProvider {
     // Thread IDs
     /** Return the IDs of all threads the given user is a member of. */
     listThreadIds(userId: string): Promise<string[]>;
+
+    // Attachments
+    /** Persist a newly uploaded attachment (initially not associated with any thread/message). */
+    saveAttachment(options: SaveAttachmentOptions): Promise<AttachmentRecord>;
+    /** Fetch attachment metadata (without bytes) by ID, or `null` if not found. */
+    getAttachment(id: string): Promise<AttachmentRecord | null>;
+    /** Load an attachment's metadata and raw bytes by ID, or `null` if not found. */
+    loadAttachmentData(id: string): Promise<AttachmentData | null>;
+    /**
+     * Associate the given pending attachments with a thread and message.
+     *
+     * Only updates attachments that are owned by `uploaderId` and not yet
+     * associated (`thread_id IS NULL`). Returns the number of rows updated so
+     * callers can detect invalid or already-consumed references.
+     */
+    associateAttachments(ids: string[], uploaderId: string, threadId: string, messageId: string): Promise<number>;
+    /** Permanently delete an attachment by ID. */
+    deleteAttachment(id: string): Promise<void>;
+    /** Delete unassociated attachments uploaded before the given cutoff. Returns the number deleted. */
+    deleteOrphanAttachments(olderThan: Date): Promise<number>;
 
     // Bulk operations
     /**

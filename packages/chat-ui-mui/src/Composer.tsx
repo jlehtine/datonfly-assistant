@@ -1,14 +1,36 @@
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import CloseIcon from "@mui/icons-material/Close";
+import DescriptionIcon from "@mui/icons-material/Description";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import SendIcon from "@mui/icons-material/Send";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
-import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactElement } from "react";
+import Tooltip from "@mui/material/Tooltip";
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type ClipboardEvent,
+    type ComponentType,
+    type DragEvent,
+    type KeyboardEvent,
+    type ReactElement,
+} from "react";
 import { useTranslation } from "react-i18next";
 
-import { useComposer } from "@datonfly-assistant/chat-client/react";
+import { deleteAttachment, uploadAttachment } from "@datonfly-assistant/chat-client";
+import { useChatClient, useComposer } from "@datonfly-assistant/chat-client/react";
+import {
+    classifyAttachmentMimeType,
+    type AttachmentContentPart,
+    type AttachmentLimits,
+} from "@datonfly-assistant/core";
 
 import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
 
@@ -62,8 +84,8 @@ export interface ComposerInputProps {
 
 /** Props for the {@link Composer} component. */
 export interface ComposerProps {
-    /** Callback invoked with the trimmed message text when the user submits. */
-    onSend: (text: string) => void;
+    /** Callback invoked with the trimmed message text and any attachments when the user submits. */
+    onSend: (text: string, attachments?: AttachmentContentPart[]) => void;
     /** When `true`, the send button and input are disabled. */
     disabled?: boolean | undefined;
     /** Override the built-in plain-text input with a custom component. */
@@ -72,6 +94,28 @@ export interface ComposerProps {
     inputTools?: InputTool[] | undefined;
     /** Maximum number of visible rows in the textarea before it scrolls. */
     maxRows?: number | undefined;
+    /** When set, enables file/image context-input attachments with the given limits. */
+    fileInputLimits?: AttachmentLimits | undefined;
+}
+
+/** A locally-tracked attachment being uploaded or ready to send. */
+interface PendingAttachment {
+    /** Stable local identifier for list tracking. */
+    localId: string;
+    /** Original file name. */
+    name: string;
+    /** MIME type of the file. */
+    mimeType: string;
+    /** Size of the file in bytes. */
+    size: number;
+    /** Upload status. */
+    status: "uploading" | "ready" | "error";
+    /** Server-assigned attachment ID, set once uploaded. */
+    id?: string | undefined;
+    /** Object URL for image previews. */
+    previewUrl?: string | undefined;
+    /** Error message when `status` is `"error"`. */
+    error?: string | undefined;
 }
 
 function DefaultInput({
@@ -270,11 +314,20 @@ function DefaultInput({
     );
 }
 
+/** Format a byte count as a short human-readable size string. */
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${String(bytes)} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /**
  * Message input bar with a send button.
  *
  * Delegates text state management to {@link useComposer} and supports an
- * optional custom input component for rich-text editing.
+ * optional custom input component for rich-text editing. When `fileInputLimits`
+ * is provided, a "+" button, clipboard paste, and drag-and-drop allow attaching
+ * files/images as model context input.
  */
 export function Composer({
     onSend,
@@ -282,16 +335,160 @@ export function Composer({
     inputComponent: InputComponent,
     inputTools,
     maxRows,
+    fileInputLimits,
 }: ComposerProps): ReactElement {
     const { t } = useTranslation();
-    const { text, setText, submit, submitText } = useComposer(onSend);
+    const client = useChatClient();
+    const { text, setText } = useComposer(onSend);
+    const [pending, setPending] = useState<PendingAttachment[]>([]);
+    const [dragActive, setDragActive] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const isDisabled = disabled ?? false;
+    const fileInputEnabled = fileInputLimits !== undefined;
+
+    // Revoke object URLs on unmount to avoid leaks. The ref mirrors the latest
+    // pending list so the unmount cleanup and event callbacks see current data.
+    const pendingRef = useRef(pending);
+    useEffect(() => {
+        pendingRef.current = pending;
+    }, [pending]);
+    useEffect(() => {
+        return () => {
+            for (const p of pendingRef.current) {
+                if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+            }
+        };
+    }, []);
+
+    const uploading = pending.some((p) => p.status === "uploading");
+    const readyAttachments = pending.filter((p) => p.status === "ready" && p.id !== undefined);
+    const canSend = !isDisabled && !uploading && (text.trim().length > 0 || readyAttachments.length > 0);
+
+    const addFiles = useCallback(
+        (files: File[]): void => {
+            if (!fileInputLimits) return;
+            for (const file of files) {
+                const localId = crypto.randomUUID();
+                const tooMany = pendingRef.current.length >= fileInputLimits.maxPerMessage;
+                const tooLarge = file.size > fileInputLimits.maxFileBytes;
+                const kind = classifyAttachmentMimeType(file.type);
+                const unsupported = kind === "unsupported" && !file.type.startsWith("text/");
+                const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+                const base: PendingAttachment = {
+                    localId,
+                    name: file.name,
+                    mimeType: file.type,
+                    size: file.size,
+                    status: "uploading",
+                    previewUrl,
+                };
+
+                if (tooMany) {
+                    setPending((prev) => [...prev, { ...base, status: "error", error: t("attachmentTooMany") }]);
+                    continue;
+                }
+                if (tooLarge) {
+                    setPending((prev) => [...prev, { ...base, status: "error", error: t("attachmentTooLarge") }]);
+                    continue;
+                }
+                if (unsupported) {
+                    setPending((prev) => [...prev, { ...base, status: "error", error: t("attachmentUnsupported") }]);
+                    continue;
+                }
+
+                setPending((prev) => [...prev, base]);
+                void (async () => {
+                    try {
+                        const info = await uploadAttachment(client, file);
+                        setPending((prev) =>
+                            prev.map((p) =>
+                                p.localId === localId
+                                    ? { ...p, status: "ready", id: info.id, mimeType: info.mimeType, size: info.size }
+                                    : p,
+                            ),
+                        );
+                    } catch {
+                        setPending((prev) =>
+                            prev.map((p) =>
+                                p.localId === localId
+                                    ? { ...p, status: "error", error: t("attachmentUploadFailed") }
+                                    : p,
+                            ),
+                        );
+                    }
+                })();
+            }
+        },
+        [client, fileInputLimits, t],
+    );
+
+    const removeAttachment = useCallback(
+        (localId: string): void => {
+            setPending((prev) => {
+                const target = prev.find((p) => p.localId === localId);
+                if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+                if (target?.id) void deleteAttachment(client, target.id).catch(() => undefined);
+                return prev.filter((p) => p.localId !== localId);
+            });
+        },
+        [client],
+    );
+
+    const handleSend = useCallback(
+        (value: string): void => {
+            const trimmed = value.trim();
+            const ready = pendingRef.current.filter((p) => p.status === "ready" && p.id !== undefined);
+            if (uploading) return;
+            if (!trimmed && ready.length === 0) return;
+            const attachments: AttachmentContentPart[] = ready.flatMap((p) =>
+                p.id === undefined
+                    ? []
+                    : [
+                          {
+                              type: "attachment" as const,
+                              attachmentId: p.id,
+                              name: p.name,
+                              mimeType: p.mimeType,
+                              size: p.size,
+                          },
+                      ],
+            );
+            onSend(trimmed, attachments);
+            setText("");
+            // Attachments are now associated server-side; drop them locally
+            // without issuing delete calls.
+            setPending((prev) => {
+                for (const p of prev) {
+                    if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+                }
+                return [];
+            });
+        },
+        [onSend, setText, uploading],
+    );
 
     const handleKeyDown = (e: KeyboardEvent): void => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            submit();
+            handleSend(text);
         }
+    };
+
+    const handlePaste = (e: ClipboardEvent): void => {
+        if (!fileInputEnabled) return;
+        const files = Array.from(e.clipboardData.files);
+        if (files.length > 0) {
+            e.preventDefault();
+            addFiles(files);
+        }
+    };
+
+    const handleDrop = (e: DragEvent): void => {
+        if (!fileInputEnabled) return;
+        e.preventDefault();
+        setDragActive(false);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) addFiles(files);
     };
 
     const inputProps: ComposerInputProps = {
@@ -303,26 +500,178 @@ export function Composer({
         autoFocus: !isDisabled,
         inputTools,
         maxRows,
-        onSubmitText: submitText,
+        onSubmitText: handleSend,
     };
 
     const ActiveInput = InputComponent ?? DefaultInput;
 
     return (
-        <Box sx={{ display: "flex", gap: 1, p: 2, borderTop: 1, borderColor: "divider", alignItems: "flex-end" }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-                <ActiveInput {...inputProps} />
+        <Box
+            className="datonfly-composer"
+            onPaste={handlePaste}
+            onDragOver={
+                fileInputEnabled
+                    ? (e) => {
+                          e.preventDefault();
+                          setDragActive(true);
+                      }
+                    : undefined
+            }
+            onDragLeave={
+                fileInputEnabled
+                    ? () => {
+                          setDragActive(false);
+                      }
+                    : undefined
+            }
+            onDrop={fileInputEnabled ? handleDrop : undefined}
+            sx={{
+                p: 2,
+                borderTop: 1,
+                borderColor: "divider",
+                ...(dragActive ? { bgcolor: "action.hover", outline: "2px dashed", outlineColor: "primary.main" } : {}),
+            }}
+        >
+            {pending.length > 0 && (
+                <Box className="datonfly-attachment-previews" sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 1 }}>
+                    {pending.map((p) => (
+                        <AttachmentPreview key={p.localId} attachment={p} onRemove={removeAttachment} />
+                    ))}
+                </Box>
+            )}
+            <Box sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}>
+                {fileInputEnabled && (
+                    <>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            hidden
+                            className="datonfly-attachment-input"
+                            onChange={(e) => {
+                                const files = Array.from(e.target.files ?? []);
+                                if (files.length > 0) addFiles(files);
+                                e.target.value = "";
+                            }}
+                        />
+                        <Tooltip title={t("addAttachment")}>
+                            <span>
+                                <IconButton
+                                    className="datonfly-add-attachment-button"
+                                    aria-label={t("addAttachment")}
+                                    disabled={isDisabled}
+                                    onClick={() => fileInputRef.current?.click()}
+                                    sx={{ mb: 0.5 }}
+                                >
+                                    <AttachFileIcon />
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                    </>
+                )}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <ActiveInput {...inputProps} />
+                </Box>
+                <IconButton
+                    className="datonfly-send-button"
+                    onClick={() => {
+                        handleSend(text);
+                    }}
+                    disabled={!canSend}
+                    color="primary"
+                    aria-label={t("send")}
+                    sx={{ mb: 0.5 }}
+                >
+                    <SendIcon />
+                </IconButton>
             </Box>
-            <IconButton
-                className="datonfly-send-button"
-                onClick={submit}
-                disabled={isDisabled || !text.trim()}
-                color="primary"
-                aria-label={t("send")}
-                sx={{ mb: 0.5 }}
-            >
-                <SendIcon />
-            </IconButton>
         </Box>
+    );
+}
+
+/** Render a single pending attachment as a thumbnail (images) or chip (other files). */
+function AttachmentPreview({
+    attachment,
+    onRemove,
+}: {
+    attachment: PendingAttachment;
+    onRemove: (localId: string) => void;
+}): ReactElement {
+    const { t } = useTranslation();
+    const isImage = attachment.previewUrl !== undefined && attachment.status !== "error";
+
+    if (isImage) {
+        return (
+            <Box
+                className="datonfly-attachment-preview"
+                data-attachment-status={attachment.status}
+                sx={{ position: "relative", width: 64, height: 64 }}
+            >
+                <Box
+                    component="img"
+                    src={attachment.previewUrl}
+                    alt={attachment.name}
+                    sx={{
+                        width: 64,
+                        height: 64,
+                        objectFit: "cover",
+                        borderRadius: 1,
+                        border: 1,
+                        borderColor: "divider",
+                        opacity: attachment.status === "uploading" ? 0.5 : 1,
+                    }}
+                />
+                {attachment.status === "uploading" && (
+                    <CircularProgress
+                        size={20}
+                        sx={{ position: "absolute", top: "calc(50% - 10px)", left: "calc(50% - 10px)" }}
+                    />
+                )}
+                <IconButton
+                    className="datonfly-remove-attachment-button"
+                    aria-label={t("removeAttachment")}
+                    size="small"
+                    onClick={() => {
+                        onRemove(attachment.localId);
+                    }}
+                    sx={{
+                        position: "absolute",
+                        top: -8,
+                        right: -8,
+                        bgcolor: "background.paper",
+                        border: 1,
+                        borderColor: "divider",
+                        "&:hover": { bgcolor: "action.hover" },
+                    }}
+                >
+                    <CloseIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+            </Box>
+        );
+    }
+
+    return (
+        <Chip
+            className="datonfly-attachment-preview"
+            data-attachment-status={attachment.status}
+            icon={
+                attachment.status === "uploading" ? (
+                    <CircularProgress size={14} />
+                ) : (
+                    <DescriptionIcon fontSize="small" />
+                )
+            }
+            label={
+                attachment.status === "error"
+                    ? (attachment.error ?? attachment.name)
+                    : `${attachment.name} (${formatBytes(attachment.size)})`
+            }
+            color={attachment.status === "error" ? "error" : "default"}
+            variant="outlined"
+            onDelete={() => {
+                onRemove(attachment.localId);
+            }}
+            deleteIcon={<CloseIcon className="datonfly-remove-attachment-button" aria-label={t("removeAttachment")} />}
+        />
     );
 }

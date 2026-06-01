@@ -53,6 +53,19 @@ export interface ThreadUserStateTable {
     last_read_at: Date | null;
 }
 
+/** Kysely table definition for the `attachment` database table. */
+export interface AttachmentsTable {
+    id: Generated<string>;
+    uploader_id: string;
+    thread_id: string | null;
+    message_id: string | null;
+    name: string;
+    mime_type: string;
+    size: number;
+    bytes: ColumnType<Buffer, Buffer, never>;
+    created_at: ColumnType<Date, Date | undefined, never>;
+}
+
 // ─── Database ───
 
 /** Kysely database schema mapping table names to their definitions. */
@@ -62,6 +75,7 @@ export interface Database {
     thread_member: ThreadMembersTable;
     message: MessagesTable;
     thread_user_state: ThreadUserStateTable;
+    attachment: AttachmentsTable;
 }
 
 // ─── Row Types ───
@@ -90,3 +104,8 @@ export type NewMessage = Insertable<MessagesTable>;
 export type ThreadUserStateRow = Selectable<ThreadUserStateTable>;
 /** Insertable row type for the `thread_user_state` table. */
 export type NewThreadUserState = Insertable<ThreadUserStateTable>;
+
+/** Selected (read) row type for the `attachment` table. */
+export type AttachmentRow = Selectable<AttachmentsTable>;
+/** Insertable row type for the `attachment` table. */
+export type NewAttachment = Insertable<AttachmentsTable>;

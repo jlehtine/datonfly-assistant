@@ -21,6 +21,9 @@ export type {
     ListThreadsOptions,
     AppendMessageOptions,
     LoadMessagesOptions,
+    SaveAttachmentOptions,
+    AttachmentRecord,
+    AttachmentData,
 } from "./persistence.js";
 export type {
     ISearchProvider,

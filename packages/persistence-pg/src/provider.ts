@@ -4,11 +4,14 @@ import { sql, type Kysely, type QueryCreator, type SqlBool } from "kysely";
 
 import type {
     AppendMessageOptions,
+    AttachmentData,
+    AttachmentRecord,
     ContentPart,
     CreateThreadOptions,
     IPersistenceProvider,
     ListThreadsOptions,
     LoadMessagesOptions,
+    SaveAttachmentOptions,
     Thread,
     ThreadMember,
     ThreadMemberInfo,
@@ -17,7 +20,7 @@ import type {
     User,
 } from "@datonfly-assistant/core";
 
-import type { Database, MessageRow, ThreadMemberRow, ThreadRow, UserRow } from "./schema.js";
+import type { AttachmentRow, Database, MessageRow, ThreadMemberRow, ThreadRow, UserRow } from "./schema.js";
 
 /**
  * {@link IPersistenceProvider} implementation backed by a PostgreSQL database via Kysely.
@@ -525,6 +528,80 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             .execute();
         return rows.map(toUser);
     }
+
+    // ─── Attachments ───
+
+    async saveAttachment(options: SaveAttachmentOptions): Promise<AttachmentRecord> {
+        const id = options.id ?? randomUUID();
+        const row = await this.qb
+            .insertInto("attachment")
+            .values({
+                id,
+                uploader_id: options.uploaderId,
+                thread_id: null,
+                message_id: null,
+                name: options.name,
+                mime_type: options.mimeType,
+                size: options.size,
+                bytes: Buffer.from(options.bytes),
+                created_at: new Date(),
+            })
+            .returning(["id", "uploader_id", "thread_id", "message_id", "name", "mime_type", "size", "created_at"])
+            .executeTakeFirstOrThrow();
+        return toAttachmentRecord(row);
+    }
+
+    async getAttachment(id: string): Promise<AttachmentRecord | null> {
+        const row = await this.qb
+            .selectFrom("attachment")
+            .select(["id", "uploader_id", "thread_id", "message_id", "name", "mime_type", "size", "created_at"])
+            .where("id", "=", id)
+            .executeTakeFirst();
+        return row ? toAttachmentRecord(row) : null;
+    }
+
+    async loadAttachmentData(id: string): Promise<AttachmentData | null> {
+        const row = await this.qb.selectFrom("attachment").selectAll().where("id", "=", id).executeTakeFirst();
+        if (!row) {
+            return null;
+        }
+        return {
+            record: toAttachmentRecord(row),
+            bytes: new Uint8Array(row.bytes),
+        };
+    }
+
+    async associateAttachments(
+        ids: string[],
+        uploaderId: string,
+        threadId: string,
+        messageId: string,
+    ): Promise<number> {
+        if (ids.length === 0) {
+            return 0;
+        }
+        const result = await this.qb
+            .updateTable("attachment")
+            .set({ thread_id: threadId, message_id: messageId })
+            .where("id", "in", ids)
+            .where("uploader_id", "=", uploaderId)
+            .where("thread_id", "is", null)
+            .executeTakeFirst();
+        return Number(result.numUpdatedRows);
+    }
+
+    async deleteAttachment(id: string): Promise<void> {
+        await this.qb.deleteFrom("attachment").where("id", "=", id).execute();
+    }
+
+    async deleteOrphanAttachments(olderThan: Date): Promise<number> {
+        const result = await this.qb
+            .deleteFrom("attachment")
+            .where("thread_id", "is", null)
+            .where("created_at", "<", olderThan)
+            .executeTakeFirst();
+        return Number(result.numDeletedRows);
+    }
 }
 
 // ─── Row → Domain Mappers ───
@@ -575,5 +652,18 @@ function toMessage(row: MessageRow): ThreadMessage {
         createdAt: row.created_at,
         contentAt: row.content_at,
         metadata: row.metadata ?? undefined,
+    };
+}
+
+function toAttachmentRecord(row: Omit<AttachmentRow, "bytes">): AttachmentRecord {
+    return {
+        id: row.id,
+        uploaderId: row.uploader_id,
+        threadId: row.thread_id,
+        messageId: row.message_id,
+        name: row.name,
+        mimeType: row.mime_type,
+        size: row.size,
+        createdAt: row.created_at,
     };
 }

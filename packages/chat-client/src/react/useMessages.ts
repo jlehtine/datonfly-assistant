@@ -4,6 +4,7 @@ import {
     ERROR_CODES,
     threadMessageListWireSchema,
     threadMessagesPath,
+    type AttachmentContentPart,
     type ContentPart,
     type ErrorCode,
     type ErrorEvent,
@@ -66,8 +67,8 @@ export interface UseMessagesOptions {
 export interface UseMessagesResult {
     /** Ordered list of messages in the current thread. */
     messages: ChatMessage[];
-    /** Send a user message to the server. */
-    sendMessage: (text: string) => void;
+    /** Send a user message to the server, optionally with context-input attachments. */
+    sendMessage: (text: string, attachments?: AttachmentContentPart[]) => void;
     /** `true` while the assistant is generating a response. */
     isStreaming: boolean;
     /** Transient status during streaming (e.g. code execution), or `null`. */
@@ -379,12 +380,17 @@ export function useMessages(
     }, [client]);
 
     const sendMessage = useCallback(
-        (text: string) => {
+        (text: string, attachments: AttachmentContentPart[] = []) => {
             const messageId = crypto.randomUUID();
+            const parts: ContentPart[] = [];
+            if (text.length > 0 || attachments.length === 0) {
+                parts.push({ type: "text", text });
+            }
+            parts.push(...attachments);
             const userMsg: ChatMessage = {
                 id: messageId,
                 role: "human",
-                parts: [{ type: "text", text }],
+                parts,
                 streaming: false,
                 createdAt: new Date(),
                 authorId: currentUserId,
@@ -399,7 +405,7 @@ export function useMessages(
                     const tid = onBeforeSend ? await onBeforeSend() : resolvedThreadIdRef.current;
                     if (!tid) return;
                     resolvedThreadIdRef.current = tid;
-                    client.sendMessage(tid, messageId, text);
+                    client.sendMessage(tid, messageId, text, attachments);
                 } catch (e: unknown) {
                     console.error("[useMessages] Failed to send message:", e);
                     setError({ code: ERROR_CODES.client_error, message: "Failed to send message" });

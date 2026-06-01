@@ -3,6 +3,7 @@ export type { AuditData } from "./audit-logger.js";
 export { ChatModule } from "./chat.module.js";
 export type { ChatModuleConfig } from "./chat.module.js";
 export { AdminController } from "./admin.controller.js";
+export { AttachmentController } from "./attachment.controller.js";
 export { ChatGateway } from "./chat.gateway.js";
 export { ThreadController } from "./thread.controller.js";
 export { TranscriptionController } from "./transcription.controller.js";

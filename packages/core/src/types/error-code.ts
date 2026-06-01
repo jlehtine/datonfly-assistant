@@ -18,6 +18,10 @@ export type ErrorCode =
     | "thread_not_found"
     | "not_thread_owner"
     | "user_identity_not_provided"
+    | "invalid_attachment"
+    | "attachment_not_found"
+    | "unsupported_attachment_type"
+    | "attachment_too_large"
     | "client_error"
     | "unspecified";
 
@@ -41,6 +45,10 @@ export const ERROR_CODES = {
     thread_not_found: "thread_not_found",
     not_thread_owner: "not_thread_owner",
     user_identity_not_provided: "user_identity_not_provided",
+    invalid_attachment: "invalid_attachment",
+    attachment_not_found: "attachment_not_found",
+    unsupported_attachment_type: "unsupported_attachment_type",
+    attachment_too_large: "attachment_too_large",
     client_error: "client_error",
     unspecified: "unspecified",
 } as const satisfies Record<ErrorCode, ErrorCode>;

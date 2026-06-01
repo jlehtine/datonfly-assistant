@@ -4,3 +4,4 @@ export { ChatError, typedFetch } from "./fetch.js";
 export type { TypedFetchOptions } from "./fetch.js";
 export { searchThreads } from "./search.js";
 export { transcribeAudio } from "./transcribe.js";
+export { uploadAttachment, deleteAttachment, attachmentDownloadUrl } from "./attachments.js";

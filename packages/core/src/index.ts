@@ -14,6 +14,7 @@ export type {
     ThinkingContentPart,
     ToolCallContentPart,
     ToolResultContentPart,
+    AttachmentContentPart,
     OpaqueContentPart,
     SearchResult,
     MemoryEntry,
@@ -22,6 +23,16 @@ export type {
 } from "./types/index.js";
 
 export { STATUS_CODES, ERROR_CODES } from "./types/index.js";
+
+// Attachments
+export type { AttachmentKind, AttachmentInfo, AttachmentLimits } from "./attachments/index.js";
+export {
+    ATTACHMENT_LIMITS,
+    normalizeMimeType,
+    classifyAttachmentMimeType,
+    isModelReadableMimeType,
+    isValidUtf8,
+} from "./attachments/index.js";
 
 // Interfaces
 export { formatLoggedError, NOOP_PROVIDER_LOGGER } from "./interfaces/index.js";
@@ -45,6 +56,9 @@ export type {
     ListThreadsOptions,
     AppendMessageOptions,
     LoadMessagesOptions,
+    SaveAttachmentOptions,
+    AttachmentRecord,
+    AttachmentData,
     ISearchProvider,
     SearchDocument,
     IndexDocumentOptions,
@@ -94,12 +108,14 @@ export {
     toolCallContentPartSchema,
     toolResultContentPartSchema,
     opaqueContentPartSchema,
+    attachmentContentPartSchema,
     contentPartSchema,
     createThreadRequestSchema,
     updateThreadRequestSchema,
     updateThreadUserStateRequestSchema,
     chatRequestSchema,
     transcriptionResponseSchema,
+    attachmentInfoSchema,
     inviteMemberRequestSchema,
     removeMemberRequestSchema,
     updateMemberRoleRequestSchema,
@@ -119,6 +135,7 @@ export type {
     UpdateThreadUserStateRequest,
     ChatRequest,
     TranscriptionResponse,
+    AttachmentInfoWire,
     InviteMemberRequest,
     RemoveMemberRequest,
     UpdateMemberRoleRequest,
@@ -140,10 +157,12 @@ export {
     USERS_SEARCH_PATH,
     USERS_ME_PATH,
     TRANSCRIBE_PATH,
+    ATTACHMENTS_PATH,
     threadPath,
     threadMessagesPath,
     threadMembersPath,
     threadUserStatePath,
+    attachmentPath,
     threadWireSchema,
     threadListWireSchema,
     threadMessageWireSchema,

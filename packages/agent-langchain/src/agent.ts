@@ -4,10 +4,12 @@ import type { Runnable } from "@langchain/core/runnables";
 import type { ServerTool } from "@langchain/core/tools";
 
 import {
+    classifyAttachmentMimeType,
     NOOP_PROVIDER_LOGGER,
     type AgentMessage,
     type AgentStreamChunk,
     type AgentUsage,
+    type AttachmentContentPart,
     type Citation,
     type ContentPart,
     type IAgentProvider,
@@ -106,6 +108,35 @@ function extractAssistantApiErrorDetails(error: unknown): AssistantApiErrorDetai
 }
 
 /**
+ * Build an Anthropic content block for a resolved attachment part.
+ *
+ * Images map to `image` blocks, PDFs to `document` blocks, and everything else
+ * is decoded as UTF-8 text and emitted as a labeled `text` block. Returns
+ * `null` when the attachment has no resolved bytes (`data`) — e.g. on the
+ * title-generation or compaction paths, where bytes are never loaded.
+ */
+function attachmentToContentBlock(part: AttachmentContentPart): Record<string, unknown> | null {
+    if (part.data === undefined) return null;
+    const kind = classifyAttachmentMimeType(part.mimeType);
+    switch (kind) {
+        case "image":
+            return {
+                type: "image",
+                source: { type: "base64", media_type: part.mimeType, data: part.data },
+            };
+        case "pdf":
+            return {
+                type: "document",
+                source: { type: "base64", media_type: "application/pdf", data: part.data },
+            };
+        default: {
+            const text = Buffer.from(part.data, "base64").toString("utf-8");
+            return { type: "text", text: `[Attachment: ${part.name}]\n\n${text}` };
+        }
+    }
+}
+
+/**
  * Convert framework-agnostic {@link AgentMessage} instances to LangChain {@link BaseMessage} instances.
  *
  * When an AI message carries opaque parts with Anthropic compaction data, the
@@ -118,8 +149,17 @@ function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
         const text = textParts.map((p) => p.text).join("");
 
         switch (msg.role) {
-            case "human":
-                return new HumanMessage(text);
+            case "human": {
+                const attachmentBlocks = msg.content
+                    .filter((p): p is AttachmentContentPart => p.type === "attachment")
+                    .map(attachmentToContentBlock)
+                    .filter((block): block is Record<string, unknown> => block !== null);
+                if (attachmentBlocks.length === 0) {
+                    return new HumanMessage(text);
+                }
+                const contentBlocks: Record<string, unknown>[] = [{ type: "text", text }, ...attachmentBlocks];
+                return new HumanMessage({ content: contentBlocks as HumanMessage["content"] });
+            }
             case "system":
                 return new SystemMessage(text);
             case "ai": {

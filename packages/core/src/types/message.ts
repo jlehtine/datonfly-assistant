@@ -53,12 +53,40 @@ export interface OpaqueContentPart {
     data: unknown;
 }
 
+/**
+ * A content part referencing a file/image attachment uploaded as context input.
+ *
+ * The part itself carries only a reference (ID + descriptive metadata); the
+ * bytes are stored separately and fetched on demand. The optional {@link data}
+ * field is populated **server-side only** when resolving an attachment for the
+ * AI agent and must never be persisted, serialized to clients, or logged.
+ */
+export interface AttachmentContentPart {
+    type: "attachment";
+    /** ID of the stored attachment record. */
+    attachmentId: string;
+    /** Original file name. */
+    name: string;
+    /** MIME type of the attachment. */
+    mimeType: string;
+    /** Size of the attachment in bytes. */
+    size: number;
+    /**
+     * Base64-encoded attachment bytes.
+     *
+     * Server-only: set transiently when building agent context and never
+     * persisted or sent over the wire.
+     */
+    data?: string | undefined;
+}
+
 /** Discriminated union of all possible message content parts. */
 export type ContentPart =
     | TextContentPart
     | ThinkingContentPart
     | ToolCallContentPart
     | ToolResultContentPart
+    | AttachmentContentPart
     | OpaqueContentPart;
 
 /** A single message within a thread. */

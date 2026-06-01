@@ -5,6 +5,7 @@ export {
     toolCallContentPartSchema,
     toolResultContentPartSchema,
     opaqueContentPartSchema,
+    attachmentContentPartSchema,
     contentPartSchema,
     // Thread
     createThreadRequestSchema,
@@ -14,6 +15,8 @@ export {
     chatRequestSchema,
     // Transcription
     transcriptionResponseSchema,
+    // Attachments
+    attachmentInfoSchema,
     // Members
     inviteMemberRequestSchema,
     removeMemberRequestSchema,
@@ -39,6 +42,7 @@ export type {
     UpdateThreadUserStateRequest,
     ChatRequest,
     TranscriptionResponse,
+    AttachmentInfoWire,
     InviteMemberRequest,
     RemoveMemberRequest,
     UpdateMemberRoleRequest,

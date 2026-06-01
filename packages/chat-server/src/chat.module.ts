@@ -12,6 +12,7 @@ import type {
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
 import { AdminController } from "./admin.controller.js";
+import { AttachmentController } from "./attachment.controller.js";
 import {
     ADMIN_IPS,
     ADMIN_SECRET,
@@ -150,7 +151,13 @@ export class ChatModule {
                     },
                 }),
             ],
-            controllers: [ThreadController, UserController, AdminController, TranscriptionController],
+            controllers: [
+                ThreadController,
+                UserController,
+                AdminController,
+                TranscriptionController,
+                AttachmentController,
+            ],
             providers: [
                 { provide: AGENT_PROVIDER, useValue: config.agent },
                 { provide: PERSISTENCE_PROVIDER, useValue: config.persistence },

@@ -17,6 +17,13 @@ const en = {
     tools: "Tools",
     typeAMessage: "Type a message...",
     send: "Send",
+    addAttachment: "Add attachment",
+    removeAttachment: "Remove attachment",
+    downloadAttachment: "Download attachment",
+    attachmentTooLarge: "File is too large",
+    attachmentTooMany: "Too many attachments",
+    attachmentUnsupported: "Unsupported file type",
+    attachmentUploadFailed: "Upload failed",
 
     // ── AudioInputTool ──
     recordAudio: "Record audio",

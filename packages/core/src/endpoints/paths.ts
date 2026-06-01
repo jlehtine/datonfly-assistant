@@ -36,5 +36,13 @@ export const USERS_SEARCH_PATH = `${API_PREFIX}/users/search`;
 /** Path for the audio transcription endpoint. */
 export const TRANSCRIBE_PATH = `${API_PREFIX}/transcribe`;
 
+/** Path for the attachments collection (upload). */
+export const ATTACHMENTS_PATH = `${API_PREFIX}/attachments`;
+
+/** Path for a single attachment by ID (download / delete). */
+export function attachmentPath(id: string): string {
+    return `${ATTACHMENTS_PATH}/${id}`;
+}
+
 /** Path for the authenticated user's profile. */
 export const USERS_ME_PATH = `${API_PREFIX}/users/me`;

@@ -40,6 +40,15 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   server-side via OpenAI and only the resulting text is sent and stored — the
   audio itself is never persisted. The feature is enabled automatically when an
   OpenAI API key is configured and advertised to clients via the welcome event.
+- **File & image attachments** — Attach files as context input from the composer
+  via a "+" button, clipboard paste, or drag-and-drop. Images, PDFs, and UTF-8
+  text files are accepted (other types are rejected at upload with a clear
+  error) and passed to the AI model as multimodal context. Bytes are uploaded
+  over a REST endpoint and stored via the persistence provider; chat messages
+  reference attachments by ID. Attachments inherit the thread's access
+  permissions — only thread members can read or download them, and uploaders can
+  remove their own attachments before sending. The feature is advertised to
+  clients via the welcome event with the applicable size and per-message limits.
 - **AI agent tools** — The default implementation uses Claude as the AI model,
   with built-in Claude tools for web search (with source citations), web page
   fetching, and code execution. Application-specific tools can be injected by

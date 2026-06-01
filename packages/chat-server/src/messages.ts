@@ -1,4 +1,10 @@
-import type { AgentMessage, ContentPart, ThreadMemberInfo, ThreadMessage } from "@datonfly-assistant/core";
+import type {
+    AgentMessage,
+    ContentPart,
+    IPersistenceProvider,
+    ThreadMemberInfo,
+    ThreadMessage,
+} from "@datonfly-assistant/core";
 
 /** Default alias used when a member has not configured an agent alias. */
 const DEFAULT_ALIAS = "Unidentified user";
@@ -122,7 +128,13 @@ export function threadMessagesToAgentMessages(
             case "human": {
                 const alias = (msg.authorId && authorAliases.get(msg.authorId)) ?? DEFAULT_ALIAS;
                 const header = `[${alias}] @ ${formatTimestamp(msg.createdAt)}`;
-                result.push({ role: "human", content: [{ type: "text", text: `${header}\n\n${text}` }] });
+                const attachments = msg.content.filter(
+                    (part): part is Extract<ContentPart, { type: "attachment" }> => part.type === "attachment",
+                );
+                result.push({
+                    role: "human",
+                    content: [{ type: "text", text: `${header}\n\n${text}` }, ...attachments],
+                });
                 break;
             }
             case "ai": {
@@ -161,4 +173,32 @@ export function threadMessagesToAgentMessages(
     }
 
     return result;
+}
+
+/**
+ * Resolve attachment bytes into the given agent messages in place.
+ *
+ * Loads the raw bytes for every `attachment` content part referenced in human
+ * messages and sets the transient base64 `data` field so the agent can build
+ * multimodal content blocks. This is invoked only on the agent-stream path —
+ * never for title generation or compaction — so bytes are read lazily and kept
+ * strictly server-side.
+ *
+ * @param messages - Agent messages to enrich (mutated in place).
+ * @param persistence - Provider used to load attachment bytes.
+ */
+export async function resolveAttachmentData(
+    messages: AgentMessage[],
+    persistence: IPersistenceProvider,
+): Promise<void> {
+    for (const message of messages) {
+        if (message.role !== "human") continue;
+        for (const part of message.content) {
+            if (part.type !== "attachment" || part.data !== undefined) continue;
+            const data = await persistence.loadAttachmentData(part.attachmentId);
+            if (data) {
+                part.data = Buffer.from(data.bytes).toString("base64");
+            }
+        }
+    }
 }

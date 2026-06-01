@@ -38,12 +38,27 @@ export const opaqueContentPartSchema = z.object({
     data: z.unknown(),
 });
 
+/**
+ * Zod schema for an attachment reference content part (wire format).
+ *
+ * Intentionally omits the server-only `data` field; unknown keys are stripped
+ * during parsing so clients cannot inject attachment bytes through this schema.
+ */
+export const attachmentContentPartSchema = z.object({
+    type: z.literal("attachment"),
+    attachmentId: z.uuid(),
+    name: z.string().min(1).max(500),
+    mimeType: z.string().min(1).max(200),
+    size: z.number().int().nonnegative(),
+});
+
 /** Zod discriminated union schema covering all content part types. */
 export const contentPartSchema = z.discriminatedUnion("type", [
     textContentPartSchema,
     thinkingContentPartSchema,
     toolCallContentPartSchema,
     toolResultContentPartSchema,
+    attachmentContentPartSchema,
     opaqueContentPartSchema,
 ]);
 
@@ -103,6 +118,19 @@ export const transcriptionResponseSchema = z.object({
 
 /** Validated response body from the audio transcription endpoint. */
 export type TranscriptionResponse = z.infer<typeof transcriptionResponseSchema>;
+
+// ─── Attachments ───
+
+/** Zod schema for the metadata returned after uploading an attachment. */
+export const attachmentInfoSchema = z.object({
+    id: z.uuid(),
+    name: z.string(),
+    mimeType: z.string(),
+    size: z.number().int().nonnegative(),
+});
+
+/** Validated attachment metadata returned by the upload endpoint. */
+export type AttachmentInfoWire = z.infer<typeof attachmentInfoSchema>;
 
 // ─── Members ───
 

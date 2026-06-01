@@ -22,7 +22,21 @@ function ToolPopoverContent({
     ctx: InputToolContext;
     onDone: (result: InputToolResult | null) => void;
 }): ReactElement {
-    return <>{tool.onActivate(ctx, onDone)}</>;
+    return <>{tool.onActivate?.(ctx, onDone)}</>;
+}
+
+function RenderButtonSlot({
+    render,
+    getContext,
+    done,
+    disabled,
+}: {
+    render: NonNullable<InputTool["renderButton"]>;
+    getContext: () => InputToolContext;
+    done: (result: InputToolResult | null) => void;
+    disabled: boolean;
+}): ReactElement {
+    return render({ getContext, done, disabled });
 }
 
 const LINE_HEIGHT = 21;
@@ -158,6 +172,12 @@ export function RichInput({
 
     const adornmentTools = (inputTools ?? []).filter((tool) => tool.placement === "input-end");
 
+    const getToolContext = (): InputToolContext => ({
+        text: value,
+        selectionStart: selectionRef.current.start,
+        selectionEnd: selectionRef.current.end,
+    });
+
     const activateAdornmentTool = (tool: InputTool, anchor: HTMLElement): void => {
         textApiRef.current = null;
         setAnchorEl(anchor);
@@ -249,20 +269,31 @@ export function RichInput({
                                       input: {
                                           endAdornment: (
                                               <InputAdornment position="end" sx={{ alignSelf: "flex-end", mb: 0.5 }}>
-                                                  {adornmentTools.map((tool) => (
-                                                      <IconButton
-                                                          key={tool.name}
-                                                          size="small"
-                                                          edge="end"
-                                                          aria-label={tool.name}
-                                                          disabled={disabled}
-                                                          onClick={(e) => {
-                                                              activateAdornmentTool(tool, e.currentTarget);
-                                                          }}
-                                                      >
-                                                          {tool.icon}
-                                                      </IconButton>
-                                                  ))}
+                                                  {adornmentTools.map((tool) =>
+                                                      tool.renderButton ? (
+                                                          <Box key={tool.name} sx={{ display: "inline-flex" }}>
+                                                              <RenderButtonSlot
+                                                                  render={tool.renderButton}
+                                                                  getContext={getToolContext}
+                                                                  done={handleDone}
+                                                                  disabled={disabled}
+                                                              />
+                                                          </Box>
+                                                      ) : (
+                                                          <IconButton
+                                                              key={tool.name}
+                                                              size="small"
+                                                              edge="end"
+                                                              aria-label={tool.name}
+                                                              disabled={disabled}
+                                                              onClick={(e) => {
+                                                                  activateAdornmentTool(tool, e.currentTarget);
+                                                              }}
+                                                          >
+                                                              {tool.icon}
+                                                          </IconButton>
+                                                      ),
+                                                  )}
                                               </InputAdornment>
                                           ),
                                       },

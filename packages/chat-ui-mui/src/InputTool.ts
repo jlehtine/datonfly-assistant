@@ -25,6 +25,16 @@ export interface InputToolResult {
     submit?: boolean | undefined;
 }
 
+/** Props passed to an {@link InputTool} that renders its own self-managed button. */
+export interface InputToolButtonProps {
+    /** Read the current composer state on demand (text and selection are live). */
+    getContext: () => InputToolContext;
+    /** Apply a result to the composer (updates text/selection, or submits when `submit` is set). */
+    done: (result: InputToolResult | null) => void;
+    /** Whether the composer is currently non-interactive (e.g. a message is sending). */
+    disabled: boolean;
+}
+
 /** A pluggable toolbar action that can modify the composer text. */
 export interface InputTool {
     /** Unique name used as a React key and accessible label. */
@@ -39,11 +49,21 @@ export interface InputTool {
      */
     placement?: "toolbar" | "input-end" | undefined;
     /**
-     * Called when the user activates the tool.
+     * Called when the user activates the tool via the host-rendered button.
+     *
+     * Provide either `onActivate` (host renders a button that opens this panel in
+     * a popover) or {@link InputTool.renderButton} (the tool renders its own
+     * self-managed button), but not both.
      *
      * @param ctx - Current composer state.
      * @param done - Callback to call with the updated text and selection, or `null` to cancel.
      * @returns A React element (typically a popover panel) to render while the tool is active.
      */
-    onActivate: (ctx: InputToolContext, done: (result: InputToolResult | null) => void) => ReactElement;
+    onActivate?: ((ctx: InputToolContext, done: (result: InputToolResult | null) => void) => ReactElement) | undefined;
+    /**
+     * Render a fully self-managed button for this tool. Use this when the tool
+     * needs its own interactive/stateful control (e.g. a recording toggle) rather
+     * than the default icon button that opens an {@link InputTool.onActivate} popover.
+     */
+    renderButton?: ((props: InputToolButtonProps) => ReactElement) | undefined;
 }

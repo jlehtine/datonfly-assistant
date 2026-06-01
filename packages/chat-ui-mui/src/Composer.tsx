@@ -2,6 +2,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import SendIcon from "@mui/icons-material/Send";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactElement } from "react";
@@ -20,7 +21,21 @@ function ToolPopoverContent({
     ctx: InputToolContext;
     onDone: (result: InputToolResult | null) => void;
 }): ReactElement {
-    return <>{tool.onActivate(ctx, onDone)}</>;
+    return <>{tool.onActivate?.(ctx, onDone)}</>;
+}
+
+function RenderButtonSlot({
+    render,
+    getContext,
+    done,
+    disabled,
+}: {
+    render: NonNullable<InputTool["renderButton"]>;
+    getContext: () => InputToolContext;
+    done: (result: InputToolResult | null) => void;
+    disabled: boolean;
+}): ReactElement {
+    return render({ getContext, done, disabled });
 }
 
 /** Props passed to a custom composer input component. */
@@ -110,7 +125,15 @@ function DefaultInput({
         });
     };
 
-    const hasMultipleTools = (inputTools?.length ?? 0) > 1;
+    const getToolContext = (): InputToolContext => ({
+        text: value,
+        selectionStart: selectionRef.current.start,
+        selectionEnd: selectionRef.current.end,
+    });
+
+    const leftTools = (inputTools ?? []).filter((tool) => tool.placement !== "input-end");
+    const adornmentTools = (inputTools ?? []).filter((tool) => tool.placement === "input-end");
+    const hasMultipleTools = leftTools.length > 1;
 
     return (
         <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5 }}>
@@ -127,7 +150,7 @@ function DefaultInput({
                     <ExpandLessIcon sx={{ fontSize: 20 }} />
                 </IconButton>
             ) : (
-                inputTools?.map((tool) => (
+                leftTools.map((tool) => (
                     <IconButton
                         key={tool.name}
                         size="small"
@@ -161,6 +184,45 @@ function DefaultInput({
                 size="small"
                 className="datonfly-composer-input"
                 sx={{ flex: 1 }}
+                slotProps={
+                    adornmentTools.length > 0
+                        ? {
+                              input: {
+                                  endAdornment: (
+                                      <InputAdornment position="end" sx={{ alignSelf: "flex-end", mb: 0.5 }}>
+                                          {adornmentTools.map((tool) =>
+                                              tool.renderButton ? (
+                                                  <Box key={tool.name} sx={{ display: "inline-flex" }}>
+                                                      <RenderButtonSlot
+                                                          render={tool.renderButton}
+                                                          getContext={getToolContext}
+                                                          done={handleDone}
+                                                          disabled={disabled}
+                                                      />
+                                                  </Box>
+                                              ) : (
+                                                  <IconButton
+                                                      key={tool.name}
+                                                      size="small"
+                                                      edge="end"
+                                                      aria-label={tool.name}
+                                                      disabled={disabled}
+                                                      onClick={(e) => {
+                                                          setAnchorEl(e.currentTarget);
+                                                          snapshotToolCtx();
+                                                          setActiveTool(tool);
+                                                      }}
+                                                  >
+                                                      {tool.icon}
+                                                  </IconButton>
+                                              ),
+                                          )}
+                                      </InputAdornment>
+                                  ),
+                              },
+                          }
+                        : undefined
+                }
             />
             {hasMultipleTools && menuAnchor && (
                 <Popover
@@ -173,7 +235,7 @@ function DefaultInput({
                     transformOrigin={{ vertical: "bottom", horizontal: "left" }}
                 >
                     <Box sx={{ display: "flex", gap: 0.5, p: 0.5 }}>
-                        {inputTools?.map((tool) => (
+                        {leftTools.map((tool) => (
                             <IconButton
                                 key={tool.name}
                                 size="small"

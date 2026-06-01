@@ -10,7 +10,6 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import {
     useCallback,
     useEffect,
@@ -314,6 +313,28 @@ function DefaultInput({
     );
 }
 
+/**
+ * Activation panel for the attachment tool. Opening the native file picker is
+ * the entire interaction, so this renders nothing visible: on mount it triggers
+ * the hidden file input and immediately dismisses the tool popover.
+ */
+function AttachmentTrigger({
+    onTrigger,
+    done,
+}: {
+    onTrigger: () => void;
+    done: (result: InputToolResult | null) => void;
+}): null {
+    const firedRef = useRef(false);
+    useEffect(() => {
+        if (firedRef.current) return;
+        firedRef.current = true;
+        onTrigger();
+        done(null);
+    }, [onTrigger, done]);
+    return null;
+}
+
 /** Format a byte count as a short human-readable size string. */
 function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${String(bytes)} B`;
@@ -491,6 +512,16 @@ export function Composer({
         if (files.length > 0) addFiles(files);
     };
 
+    // Surface the attachment action as a standard toolbar tool (like the emoji
+    // picker): a static icon whose activation opens the native file picker.
+    const attachmentTool: InputTool = {
+        name: "attachment",
+        icon: <AttachFileIcon sx={{ fontSize: 16 }} />,
+        onActivate: (_ctx, done) => <AttachmentTrigger onTrigger={() => fileInputRef.current?.click()} done={done} />,
+    };
+
+    const mergedInputTools = fileInputEnabled ? [...(inputTools ?? []), attachmentTool] : inputTools;
+
     const inputProps: ComposerInputProps = {
         value: text,
         onChange: setText,
@@ -498,7 +529,7 @@ export function Composer({
         placeholder: t("typeAMessage"),
         disabled: isDisabled,
         autoFocus: !isDisabled,
-        inputTools,
+        inputTools: mergedInputTools,
         maxRows,
         onSubmitText: handleSend,
     };
@@ -541,33 +572,18 @@ export function Composer({
             )}
             <Box sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}>
                 {fileInputEnabled && (
-                    <>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            multiple
-                            hidden
-                            className="datonfly-attachment-input"
-                            onChange={(e) => {
-                                const files = Array.from(e.target.files ?? []);
-                                if (files.length > 0) addFiles(files);
-                                e.target.value = "";
-                            }}
-                        />
-                        <Tooltip title={t("addAttachment")}>
-                            <span>
-                                <IconButton
-                                    className="datonfly-add-attachment-button"
-                                    aria-label={t("addAttachment")}
-                                    disabled={isDisabled}
-                                    onClick={() => fileInputRef.current?.click()}
-                                    sx={{ mb: 0.5 }}
-                                >
-                                    <AttachFileIcon />
-                                </IconButton>
-                            </span>
-                        </Tooltip>
-                    </>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        hidden
+                        className="datonfly-attachment-input"
+                        onChange={(e) => {
+                            const files = Array.from(e.target.files ?? []);
+                            if (files.length > 0) addFiles(files);
+                            e.target.value = "";
+                        }}
+                    />
                 )}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     <ActiveInput {...inputProps} />

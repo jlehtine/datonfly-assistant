@@ -9,15 +9,27 @@ test("upload a text attachment, preview it, send, and render with a download lin
     const composer = composerInput(page);
     await expect(composer).toBeEnabled({ timeout: 10_000 });
 
-    // The attachment "+" button is shown only when the server advertises fileInput.
-    await expect(page.locator(".datonfly-add-attachment-button")).toBeVisible({ timeout: 10_000 });
+    // The attachment action lives in the formatting toolbar next to the emoji
+    // picker; expand the editor to reveal it.
+    await page.getByRole("button", { name: "Toggle formatting" }).click();
+    await expect(page.locator('[data-name="emoji"]')).toBeVisible();
+    // Attachment follows emoji in the toolbar order.
+    await expect(page.locator('[data-name="attachment"]')).toBeVisible({ timeout: 10_000 });
 
-    // Attach a small text file via the hidden file input.
-    await page.locator(".datonfly-attachment-input").setInputFiles({
+    // Clicking the attachment command opens the native file picker; choose a file.
+    const [fileChooser] = await Promise.all([
+        page.waitForEvent("filechooser"),
+        page.locator('[data-name="attachment"]').click(),
+    ]);
+    await fileChooser.setFiles({
         name: "notes.txt",
         mimeType: "text/plain",
         buffer: Buffer.from("Hello from an attachment.", "utf-8"),
     });
+
+    // Collapse again so the plain composer input is available for typing.
+    await page.getByRole("button", { name: "Toggle formatting" }).click();
+    await expect(composer).toBeVisible({ timeout: 10_000 });
 
     // A preview chip appears and becomes ready once uploaded.
     const preview = page.locator(".datonfly-attachment-preview").first();

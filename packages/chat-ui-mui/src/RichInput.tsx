@@ -10,6 +10,7 @@ import MDEditor, { commands, type ICommand, type TextAreaTextApi } from "@uiw/re
 import { useEffect, useRef, useState, type ReactElement, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
+import { AdornmentToolButton } from "./AdornmentToolButton.js";
 import type { ComposerInputProps } from "./Composer.js";
 import { orderAdornmentTools, type InputTool, type InputToolContext, type InputToolResult } from "./InputTool.js";
 
@@ -282,18 +283,14 @@ export function RichInput({
                                                               />
                                                           </Box>
                                                       ) : (
-                                                          <IconButton
+                                                          <AdornmentToolButton
                                                               key={tool.name}
-                                                              size="small"
-                                                              edge="end"
-                                                              aria-label={tool.name}
+                                                              tool={tool}
                                                               disabled={disabled}
-                                                              onClick={(e) => {
-                                                                  activateAdornmentTool(tool, e.currentTarget);
+                                                              onActivate={(anchor) => {
+                                                                  activateAdornmentTool(tool, anchor);
                                                               }}
-                                                          >
-                                                              {tool.icon}
-                                                          </IconButton>
+                                                          />
                                                       ),
                                                   )}
                                               </InputAdornment>

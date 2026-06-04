@@ -42,6 +42,12 @@ export interface InputTool {
     /** Icon element rendered inside the toolbar button. */
     icon: ReactElement;
     /**
+     * Optional tooltip text shown on hover for the host-rendered button. When
+     * omitted, no tooltip is shown. Tools that render their own button via
+     * {@link InputTool.renderButton} are responsible for their own tooltips.
+     */
+    tooltip?: string | undefined;
+    /**
      * Where the tool button is rendered.
      *
      * - `"toolbar"` (default) — alongside the other formatting/tool buttons

@@ -31,6 +31,7 @@ import {
     type AttachmentLimits,
 } from "@datonfly-assistant/core";
 
+import { AdornmentToolButton } from "./AdornmentToolButton.js";
 import { orderAdornmentTools, type InputTool, type InputToolContext, type InputToolResult } from "./InputTool.js";
 
 function ToolPopoverContent({
@@ -248,20 +249,16 @@ function DefaultInput({
                                                       />
                                                   </Box>
                                               ) : (
-                                                  <IconButton
+                                                  <AdornmentToolButton
                                                       key={tool.name}
-                                                      size="small"
-                                                      edge="end"
-                                                      aria-label={tool.name}
+                                                      tool={tool}
                                                       disabled={disabled}
-                                                      onClick={(e) => {
-                                                          setAnchorEl(e.currentTarget);
+                                                      onActivate={(anchor) => {
+                                                          setAnchorEl(anchor);
                                                           snapshotToolCtx();
                                                           setActiveTool(tool);
                                                       }}
-                                                  >
-                                                      {tool.icon}
-                                                  </IconButton>
+                                                  />
                                               ),
                                           )}
                                       </InputAdornment>
@@ -525,6 +522,7 @@ export function Composer({
     const attachmentTool: InputTool = {
         name: "attachment",
         icon: <AttachFileIcon sx={{ fontSize: 16 }} />,
+        tooltip: t("addAttachment"),
         placement: "action",
         onActivate: (_ctx, done) => <AttachmentTrigger onTrigger={() => fileInputRef.current?.click()} done={done} />,
     };

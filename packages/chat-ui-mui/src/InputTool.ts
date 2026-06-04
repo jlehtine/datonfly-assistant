@@ -44,10 +44,15 @@ export interface InputTool {
     /**
      * Where the tool button is rendered.
      *
-     * - `"toolbar"` (default) — alongside the other formatting/tool buttons.
-     * - `"input-end"` — as an end adornment inside the plain (non-expanded) text field.
+     * - `"toolbar"` (default) — alongside the other formatting/tool buttons
+     *   (only visible in the expanded Markdown editor).
+     * - `"input-end"` — as an end adornment inside the plain (non-expanded) text
+     *   field only (hidden when the editor is expanded).
+     * - `"action"` — a non-formatting action available in every mode: shown in
+     *   the input-end adornment while collapsed and in the formatting toolbar
+     *   while expanded.
      */
-    placement?: "toolbar" | "input-end" | undefined;
+    placement?: "toolbar" | "input-end" | "action" | undefined;
     /**
      * Called when the user activates the tool via the host-rendered button.
      *
@@ -66,4 +71,14 @@ export interface InputTool {
      * than the default icon button that opens an {@link InputTool.onActivate} popover.
      */
     renderButton?: ((props: InputToolButtonProps) => ReactElement) | undefined;
+}
+
+/**
+ * Order the tools rendered inside the plain text field's end adornment so that
+ * `"action"` tools (e.g. attachment) precede `"input-end"` tools (e.g. audio
+ * recording), grouping the persistent action buttons before mode-specific ones.
+ */
+export function orderAdornmentTools(tools: InputTool[]): InputTool[] {
+    const rank = (tool: InputTool): number => (tool.placement === "action" ? 0 : 1);
+    return [...tools].sort((a, b) => rank(a) - rank(b));
 }

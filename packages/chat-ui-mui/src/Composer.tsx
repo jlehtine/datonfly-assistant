@@ -31,7 +31,7 @@ import {
     type AttachmentLimits,
 } from "@datonfly-assistant/core";
 
-import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
+import { orderAdornmentTools, type InputTool, type InputToolContext, type InputToolResult } from "./InputTool.js";
 
 function ToolPopoverContent({
     tool,
@@ -174,8 +174,12 @@ function DefaultInput({
         selectionEnd: selectionRef.current.end,
     });
 
-    const leftTools = (inputTools ?? []).filter((tool) => tool.placement !== "input-end");
-    const adornmentTools = (inputTools ?? []).filter((tool) => tool.placement === "input-end");
+    const leftTools = (inputTools ?? []).filter(
+        (tool) => tool.placement !== "input-end" && tool.placement !== "action",
+    );
+    const adornmentTools = orderAdornmentTools(
+        (inputTools ?? []).filter((tool) => tool.placement === "input-end" || tool.placement === "action"),
+    );
     const hasMultipleTools = leftTools.length > 1;
 
     return (
@@ -514,9 +518,14 @@ export function Composer({
 
     // Surface the attachment action as a standard toolbar tool (like the emoji
     // picker): a static icon whose activation opens the native file picker.
+    // Placement `"action"` keeps it available in every mode — next to the audio
+    // button in the collapsed input-end adornment and in the formatting toolbar
+    // when the editor is expanded — so files can be attached without leaving the
+    // plain text field.
     const attachmentTool: InputTool = {
         name: "attachment",
         icon: <AttachFileIcon sx={{ fontSize: 16 }} />,
+        placement: "action",
         onActivate: (_ctx, done) => <AttachmentTrigger onTrigger={() => fileInputRef.current?.click()} done={done} />,
     };
 

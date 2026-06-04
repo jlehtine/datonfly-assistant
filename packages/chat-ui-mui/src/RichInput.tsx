@@ -11,7 +11,7 @@ import { useEffect, useRef, useState, type ReactElement, type KeyboardEvent as R
 import { useTranslation } from "react-i18next";
 
 import type { ComposerInputProps } from "./Composer.js";
-import type { InputTool, InputToolContext, InputToolResult } from "./InputTool.js";
+import { orderAdornmentTools, type InputTool, type InputToolContext, type InputToolResult } from "./InputTool.js";
 
 function ToolPopoverContent({
     tool,
@@ -170,7 +170,9 @@ export function RichInput({
             }),
         );
 
-    const adornmentTools = (inputTools ?? []).filter((tool) => tool.placement === "input-end");
+    const adornmentTools = orderAdornmentTools(
+        (inputTools ?? []).filter((tool) => tool.placement === "input-end" || tool.placement === "action"),
+    );
 
     const getToolContext = (): InputToolContext => ({
         text: value,

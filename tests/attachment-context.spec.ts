@@ -75,3 +75,39 @@ test("remove an uploaded attachment before sending", async ({ page }) => {
 
     await expect(page.locator(".datonfly-attachment-preview")).toHaveCount(0);
 });
+
+test("attach a file from the collapsed input without opening the formatting editor", async ({ page }) => {
+    await page.goto("/");
+
+    const composer = composerInput(page);
+    await expect(composer).toBeEnabled({ timeout: 10_000 });
+
+    // The plain (collapsed) input is shown by default. The attachment button is
+    // available directly in the input-end adornment, alongside the audio button,
+    // so files can be attached without expanding the formatting editor.
+    const attachButton = page.getByRole("button", { name: "attachment", exact: true });
+    await expect(attachButton).toBeVisible({ timeout: 10_000 });
+
+    // Clicking the attachment button opens the native file picker; choose a file.
+    const [fileChooser] = await Promise.all([page.waitForEvent("filechooser"), attachButton.click()]);
+    await fileChooser.setFiles({
+        name: "inline.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("Attached from the collapsed input.", "utf-8"),
+    });
+
+    // A preview chip appears and becomes ready once uploaded — all without ever
+    // toggling the formatting editor.
+    const preview = page.locator(".datonfly-attachment-preview").first();
+    await expect(preview).toBeVisible({ timeout: 10_000 });
+    await expect(preview).toHaveAttribute("data-attachment-status", "ready", { timeout: 10_000 });
+
+    // Send the message together with the attachment.
+    await composer.fill("Here is a file attached from the plain input.");
+    await expect(composerSendButton(page)).toBeEnabled();
+    await composerSendButton(page).click();
+
+    const sentAttachment = page.locator(".datonfly-message-human .datonfly-message-attachment").first();
+    await expect(sentAttachment).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".datonfly-attachment-previews")).toHaveCount(0);
+});

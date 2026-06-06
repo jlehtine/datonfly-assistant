@@ -81,6 +81,30 @@ export interface CitationsChunk {
     citations: Citation[];
 }
 
+/** A tool invocation requested by the model, emitted mid-stream before execution. */
+export interface ToolCallChunk {
+    type: "tool-call";
+    /** Identifier correlating this call with its {@link ToolResultChunk}. */
+    toolCallId: string;
+    /** Name of the tool being invoked. */
+    toolName: string;
+    /** Arguments passed to the tool. */
+    args: Record<string, unknown>;
+}
+
+/** The result of a mid-stream tool invocation, emitted after execution. */
+export interface ToolResultChunk {
+    type: "tool-result";
+    /** Identifier of the {@link ToolCallChunk} this result corresponds to. */
+    toolCallId: string;
+    /** Name of the tool that produced the result. */
+    toolName: string;
+    /** The value returned by the tool (serialized to a string by the agent). */
+    result: unknown;
+    /** Whether the tool execution ended in an error. */
+    isError?: boolean | undefined;
+}
+
 /** Token usage statistics. Only present on the final chunk. */
 export interface UsageChunk {
     type: "usage";
@@ -94,6 +118,8 @@ export type AgentStreamChunk =
     | OpaquePartChunk
     | StatusChunk
     | CitationsChunk
+    | ToolCallChunk
+    | ToolResultChunk
     | UsageChunk;
 
 /** Result of an agent's decision on whether to respond in a room thread. */

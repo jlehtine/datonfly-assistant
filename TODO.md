@@ -51,19 +51,19 @@ model.
 
 Surface tool activity in the stream and round-trip it through history.
 
-- [ ] Add `ToolCallChunk` and `ToolResultChunk` to the `AgentStreamChunk` union
+- [x] Add `ToolCallChunk` and `ToolResultChunk` to the `AgentStreamChunk` union
       in `packages/core/src/interfaces/agent.ts`.
-- [ ] Handle mid-stream tool execution in `LangGraphAgent.stream`: accumulate
+- [x] Handle mid-stream tool execution in `LangGraphAgent.stream`: accumulate
       the streamed tool-input JSON, emit a `ToolCallChunk`, execute the tool,
       emit a `ToolResultChunk`, then continue streaming the next model turn.
       (This is the most delicate piece — guard partial-JSON assembly and
       ordering.)
-- [ ] Round-trip `tool-call` / `tool-result` content parts through
+- [x] Round-trip `tool-call` / `tool-result` content parts through
       `packages/chat-server/src/messages.ts` (serialization) and the message
       persistence layer so resumed threads replay tool calls and results.
-- [ ] Update the `chat-server` gateway/consumer to handle the new chunk types
+- [x] Update the `chat-server` gateway/consumer to handle the new chunk types
       (render or ignore safely) without breaking existing chat behaviour.
-- [ ] Tests: streaming tool chunks emit in order; a persisted-then-reloaded
+- [x] Tests: streaming tool chunks emit in order; a persisted-then-reloaded
       thread containing tool parts deserializes to equivalent `AgentMessage`s.
 
 ### C. MCP client integration

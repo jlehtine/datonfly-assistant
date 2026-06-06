@@ -78,6 +78,8 @@ interface ActiveStream {
     currentText: string;
     thinkingPartsByIndex: Map<number, Extract<ContentPart, { type: "thinking" }>>;
     opaqueParts: OpaqueContentPart[];
+    /** Tool-call / tool-result parts collected in execution order (empty unless tools are used). */
+    toolParts: ContentPart[];
     citations: Citation[];
     usage: AgentUsage | null;
     hasTextSinceToolBoundary: boolean;
@@ -469,6 +471,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             usage: null,
             thinkingPartsByIndex: new Map(),
             opaqueParts: [],
+            toolParts: [],
             hasTextSinceToolBoundary: false,
             pendingToolBoundaryBreak: false,
         };
@@ -571,6 +574,21 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                         streamState.opaqueParts.push(chunk.part);
                     } else if (chunk.type === "citations") {
                         streamState.citations.push(...chunk.citations);
+                    } else if (chunk.type === "tool-call") {
+                        streamState.toolParts.push({
+                            type: "tool-call",
+                            toolCallId: chunk.toolCallId,
+                            toolName: chunk.toolName,
+                            args: chunk.args,
+                        });
+                    } else if (chunk.type === "tool-result") {
+                        streamState.toolParts.push({
+                            type: "tool-result",
+                            toolCallId: chunk.toolCallId,
+                            toolName: chunk.toolName,
+                            result: chunk.result,
+                            ...(chunk.isError !== undefined ? { isError: chunk.isError } : {}),
+                        });
                     } else {
                         // usage chunk
                         streamState.usage = chunk.usage;
@@ -626,9 +644,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     }
                 }
 
-                // Build content array: thinking parts first, then opaque parts (e.g. compaction), then final text.
+                // Build content array: thinking parts first, then tool calls/results
+                // (in execution order), then opaque parts (e.g. compaction), then final text.
                 const contentParts: ContentPart[] = [
                     ...orderedThinkingParts(streamState.thinkingPartsByIndex),
+                    ...streamState.toolParts,
                     ...streamState.opaqueParts,
                     { type: "text", text: streamState.currentText },
                 ];
@@ -724,9 +744,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         this.activeStreams.delete(threadId);
 
         // Persist partial response (if any text was generated)
-        if (active.currentText || active.thinkingPartsByIndex.size > 0) {
+        if (active.currentText || active.thinkingPartsByIndex.size > 0 || active.toolParts.length > 0) {
             const partialContent: ContentPart[] = [
                 ...orderedThinkingParts(active.thinkingPartsByIndex),
+                ...active.toolParts,
                 ...active.opaqueParts,
                 { type: "text", text: active.currentText },
             ];

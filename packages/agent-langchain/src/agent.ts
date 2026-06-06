@@ -1,7 +1,15 @@
 import { ChatAnthropic } from "@langchain/anthropic";
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import {
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+    type AIMessageChunk,
+    type BaseMessage,
+} from "@langchain/core/messages";
 import type { Runnable } from "@langchain/core/runnables";
 import type { ServerTool } from "@langchain/core/tools";
+import { concat } from "@langchain/core/utils/stream";
 
 import {
     classifyAttachmentMimeType,
@@ -23,7 +31,7 @@ import {
     type ThinkingContentPart,
 } from "@datonfly-assistant/core";
 
-import { runToolLoop, toLangChainToolDef, type ToolLoopModel } from "./tools.js";
+import { executeToolCall, runToolLoop, toLangChainToolDef, type ToolLoopModel } from "./tools.js";
 
 /** The opaque block provider identifier used by this agent. */
 const PROVIDER_ID = "anthropic";
@@ -146,8 +154,11 @@ function attachmentToContentBlock(part: AttachmentContentPart): Record<string, u
  * When an AI message carries opaque parts with Anthropic compaction data, the
  * compaction block is included in the content array so LangChain sends it back
  * to the API.
+ *
+ * Exported for unit testing of tool-part serialization; not part of the package
+ * public API.
  */
-function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
+export function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
     return messages.flatMap((msg): BaseMessage[] => {
         const textParts = msg.content.filter((p): p is TextContentPart => p.type === "text");
         const text = textParts.map((p) => p.text).join("");
@@ -738,9 +749,13 @@ export class LangGraphAgent implements IAgentProvider {
         const trimmed = trimBeforeCompaction(messages);
         const baseMessages = withSystemPrompt(agentMessagesToBaseMessages(trimmed), options?.systemPrompt);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
-        // Phase A binds caller-provided tools so the model is aware of them;
-        // mid-stream tool execution is handled in Phase B.
-        const streamModel = this.modelForTools(options?.tools ?? []);
+        const tools = options?.tools ?? [];
+        const hasTools = tools.length > 0;
+        const toolMap = new Map(tools.map((tool) => [tool.name, tool]));
+        const maxToolIterations = this.maxToolIterations;
+        // Caller-provided tools are bound so the model can request them; when it
+        // does, the loop below executes them mid-stream and re-invokes the model.
+        const streamModel = this.modelForTools(tools);
         let langchainStream: AsyncIterable<unknown>;
         try {
             langchainStream = await streamModel.stream(baseMessages, opts);
@@ -751,6 +766,9 @@ export class LangGraphAgent implements IAgentProvider {
         const modelName = this.modelName;
         return {
             async *[Symbol.asyncIterator]() {
+                const conversation: BaseMessage[] = [...baseMessages];
+                let currentStream = langchainStream;
+                let turn = 0;
                 const allCitations: RawCitation[] = [];
                 const allOpaqueParts: OpaqueContentPart[] = [];
                 const reasoningState = new Map<string, AnthropicReasoningBlockState>();
@@ -761,111 +779,171 @@ export class LangGraphAgent implements IAgentProvider {
                 let usage: AgentUsage | undefined;
                 let chunkIndex = 0;
                 const debugApiContentEnabled = isDebugApiContentEnabled();
-                try {
-                    if (debugApiContentEnabled) {
-                        logger.info(
-                            {
-                                debugApiContent: debugApiContentEnabled,
-                            },
-                            "stream.debug-gates",
-                        );
-                    }
-                    for await (const chunk of langchainStream) {
-                        chunkIndex += 1;
-                        const rawChunk = chunk as Record<string, unknown>;
-                        const rawContent = rawChunk.content as string | Record<string, unknown>[];
-
+                streamLoop: for (;;) {
+                    turn += 1;
+                    let gathered: AIMessageChunk | undefined;
+                    try {
                         if (debugApiContentEnabled) {
                             logger.info(
                                 {
-                                    chunkIndex,
-                                    rawContent,
-                                    toolCallChunks: rawChunk.tool_call_chunks,
-                                    invalidToolCalls: rawChunk.invalid_tool_calls,
+                                    debugApiContent: debugApiContentEnabled,
                                 },
-                                "stream.api-content",
+                                "stream.debug-gates",
                             );
                         }
+                        for await (const chunk of currentStream) {
+                            chunkIndex += 1;
+                            const rawChunk = chunk as Record<string, unknown>;
+                            const rawContent = rawChunk.content as string | Record<string, unknown>[];
+                            if (hasTools) {
+                                const messageChunk = chunk as AIMessageChunk;
+                                gathered = gathered === undefined ? messageChunk : concat(gathered, messageChunk);
+                            }
 
-                        const textParts = extractTextPartsFromContent(rawContent, reasoningOrderCounter.value);
-                        const toolStatus = detectToolStatus(rawChunk);
-                        allCitations.push(...extractCitations(rawContent));
-                        allOpaqueParts.push(...extractCompactionBlocks(rawContent));
-                        collectReasoningBlocks(rawContent, reasoningState, reasoningOrderCounter);
-                        reasoningOrderCounter.value += 1;
+                            if (debugApiContentEnabled) {
+                                logger.info(
+                                    {
+                                        chunkIndex,
+                                        rawContent,
+                                        toolCallChunks: rawChunk.tool_call_chunks,
+                                        invalidToolCalls: rawChunk.invalid_tool_calls,
+                                    },
+                                    "stream.api-content",
+                                );
+                            }
 
-                        // Capture token usage from the final chunk's usage_metadata.
-                        // Multiple chunks may carry usage_metadata; keep the one with
-                        // the highest input_tokens (the real totals, not partial zeros).
-                        const usageMeta = rawChunk.usage_metadata as
-                            | {
-                                  input_tokens?: number;
-                                  output_tokens?: number;
-                                  input_token_details?: { cache_creation?: number; cache_read?: number };
-                              }
-                            | undefined;
-                        if (
-                            usageMeta &&
-                            typeof usageMeta.input_tokens === "number" &&
-                            usageMeta.input_tokens > (usage?.inputTokens ?? 0)
-                        ) {
-                            const details = usageMeta.input_token_details;
-                            usage = {
-                                vendor: "anthropic",
-                                model: modelName,
-                                inputTokens: usageMeta.input_tokens,
-                                outputTokens: usageMeta.output_tokens ?? 0,
-                                ...(details?.cache_creation
-                                    ? { cacheCreationInputTokens: details.cache_creation }
-                                    : {}),
-                                ...(details?.cache_read ? { cacheReadInputTokens: details.cache_read } : {}),
-                            };
-                        }
+                            const textParts = extractTextPartsFromContent(rawContent, reasoningOrderCounter.value);
+                            const toolStatus = detectToolStatus(rawChunk);
+                            allCitations.push(...extractCitations(rawContent));
+                            allOpaqueParts.push(...extractCompactionBlocks(rawContent));
+                            collectReasoningBlocks(rawContent, reasoningState, reasoningOrderCounter);
+                            reasoningOrderCounter.value += 1;
 
-                        // Emit status chunk before text so the gateway can inject a separator.
-                        if (toolStatus) {
-                            yield { type: "status" as const, status: toolStatus.code, statusText: toolStatus.text };
-                        }
-
-                        for (const textPart of textParts) {
-                            if (textPart.partType === "thinking") {
-                                const key =
-                                    textPart.reasoningKey ??
-                                    `thinking:stream:${String(reasoningOrderCounter.value)}:${String(nextThinkingStreamIndex)}`;
-                                const partIndex =
-                                    streamThinkingIndexByKey.get(key) ??
-                                    (() => {
-                                        const idx = nextThinkingStreamIndex;
-                                        streamThinkingIndexByKey.set(key, idx);
-                                        nextThinkingStreamIndex += 1;
-                                        return idx;
-                                    })();
-                                yield {
-                                    type: "text-delta" as const,
-                                    partType: "thinking" as const,
-                                    partIndex,
-                                    delta: textPart.text,
-                                };
-                            } else {
-                                textStreamIndex ??= nextThinkingStreamIndex;
-                                yield {
-                                    type: "text-delta" as const,
-                                    partType: "text" as const,
-                                    partIndex: textStreamIndex,
-                                    delta: textPart.text,
+                            // Capture token usage from the final chunk's usage_metadata.
+                            // Multiple chunks may carry usage_metadata; keep the one with
+                            // the highest input_tokens (the real totals, not partial zeros).
+                            const usageMeta = rawChunk.usage_metadata as
+                                | {
+                                      input_tokens?: number;
+                                      output_tokens?: number;
+                                      input_token_details?: { cache_creation?: number; cache_read?: number };
+                                  }
+                                | undefined;
+                            if (
+                                usageMeta &&
+                                typeof usageMeta.input_tokens === "number" &&
+                                usageMeta.input_tokens > (usage?.inputTokens ?? 0)
+                            ) {
+                                const details = usageMeta.input_token_details;
+                                usage = {
+                                    vendor: "anthropic",
+                                    model: modelName,
+                                    inputTokens: usageMeta.input_tokens,
+                                    outputTokens: usageMeta.output_tokens ?? 0,
+                                    ...(details?.cache_creation
+                                        ? { cacheCreationInputTokens: details.cache_creation }
+                                        : {}),
+                                    ...(details?.cache_read ? { cacheReadInputTokens: details.cache_read } : {}),
                                 };
                             }
+
+                            // Emit status chunk before text so the gateway can inject a separator.
+                            if (toolStatus) {
+                                yield { type: "status" as const, status: toolStatus.code, statusText: toolStatus.text };
+                            }
+
+                            for (const textPart of textParts) {
+                                if (textPart.partType === "thinking") {
+                                    const key =
+                                        textPart.reasoningKey ??
+                                        `thinking:stream:${String(reasoningOrderCounter.value)}:${String(nextThinkingStreamIndex)}`;
+                                    const partIndex =
+                                        streamThinkingIndexByKey.get(key) ??
+                                        (() => {
+                                            const idx = nextThinkingStreamIndex;
+                                            streamThinkingIndexByKey.set(key, idx);
+                                            nextThinkingStreamIndex += 1;
+                                            return idx;
+                                        })();
+                                    yield {
+                                        type: "text-delta" as const,
+                                        partType: "thinking" as const,
+                                        partIndex,
+                                        delta: textPart.text,
+                                    };
+                                } else {
+                                    textStreamIndex ??= nextThinkingStreamIndex;
+                                    yield {
+                                        type: "text-delta" as const,
+                                        partType: "text" as const,
+                                        partIndex: textStreamIndex,
+                                        delta: textPart.text,
+                                    };
+                                }
+                            }
                         }
+                    } catch (error) {
+                        logger.error(
+                            {
+                                phase: "stream_iterate",
+                                ...extractAssistantApiErrorDetails(error),
+                            },
+                            "Assistant API stream failed",
+                        );
+                        throw error;
                     }
-                } catch (error) {
-                    logger.error(
-                        {
-                            phase: "stream_iterate",
-                            ...extractAssistantApiErrorDetails(error),
-                        },
-                        "Assistant API stream failed",
-                    );
-                    throw error;
+
+                    // No tools, or the model produced a final answer with no tool
+                    // calls: end the loop and emit the trailing parts below.
+                    const toolCalls = gathered?.tool_calls ?? [];
+                    if (!hasTools || gathered === undefined || toolCalls.length === 0) {
+                        break streamLoop;
+                    }
+                    if (turn >= maxToolIterations) {
+                        throw new Error(
+                            `Tool-calling loop exceeded the maximum of ${maxToolIterations.toString()} iterations.`,
+                        );
+                    }
+                    signal?.throwIfAborted();
+                    // Replay the assistant turn (preserving thinking signatures and
+                    // tool_use blocks) before appending the tool results.
+                    conversation.push(gathered);
+                    for (const call of toolCalls) {
+                        const toolCallId = call.id ?? crypto.randomUUID();
+                        yield { type: "tool-call" as const, toolCallId, toolName: call.name, args: call.args };
+                        const { resultContent, isError } = await executeToolCall(toolMap, {
+                            ...(call.id !== undefined ? { id: call.id } : {}),
+                            name: call.name,
+                            args: call.args,
+                        });
+                        yield {
+                            type: "tool-result" as const,
+                            toolCallId,
+                            toolName: call.name,
+                            result: resultContent,
+                            isError,
+                        };
+                        conversation.push(
+                            new ToolMessage({
+                                content: resultContent,
+                                tool_call_id: toolCallId,
+                                status: isError ? "error" : "success",
+                            }),
+                        );
+                    }
+                    signal?.throwIfAborted();
+                    try {
+                        currentStream = await streamModel.stream(conversation, opts);
+                    } catch (error) {
+                        logger.error(
+                            {
+                                phase: "stream_init",
+                                ...extractAssistantApiErrorDetails(error),
+                            },
+                            "Assistant API stream failed",
+                        );
+                        throw error;
+                    }
                 }
                 const completeThinkingParts = materializeThinkingParts(reasoningState);
                 for (let i = 0; i < completeThinkingParts.length; i++) {

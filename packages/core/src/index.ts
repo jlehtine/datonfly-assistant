@@ -48,6 +48,8 @@ export type {
     OpaquePartChunk,
     StatusChunk,
     CitationsChunk,
+    ToolCallChunk,
+    ToolResultChunk,
     UsageChunk,
     AgentUsage,
     Citation,

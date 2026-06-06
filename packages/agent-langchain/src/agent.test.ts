@@ -1,4 +1,4 @@
-import { AIMessage, AIMessageChunk, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, AIMessageChunk, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -37,6 +37,22 @@ function agentWithFakeModel(fake: FakeStreamModel): LangGraphAgent {
     const agent = new LangGraphAgent({ modelName: "claude-test", apiKey: "sk-ant-test", maxToolIterations: 3 });
     // Override both the base model (used when tools are bound per call) and the
     // pre-bound runnable (used on the no-tools path) so no real API call is made.
+    (agent as unknown as { model: unknown; runnableModel: unknown }).model = fake;
+    (agent as unknown as { model: unknown; runnableModel: unknown }).runnableModel = fake;
+    return agent;
+}
+
+/** Build an agent with extra default config, then swap in the fake streamer. */
+function agentWith(
+    fake: FakeStreamModel,
+    config: { defaultTools?: ITool[]; defaultSystemPrompt?: string },
+): LangGraphAgent {
+    const agent = new LangGraphAgent({
+        modelName: "claude-test",
+        apiKey: "sk-ant-test",
+        maxToolIterations: 3,
+        ...config,
+    });
     (agent as unknown as { model: unknown; runnableModel: unknown }).model = fake;
     (agent as unknown as { model: unknown; runnableModel: unknown }).runnableModel = fake;
     return agent;
@@ -214,5 +230,75 @@ describe("agentMessagesToBaseMessages tool-part round-trip", () => {
         const base = agentMessagesToBaseMessages(messages);
         const toolMsg = base.find((m): m is ToolMessage => m instanceof ToolMessage);
         expect(toolMsg?.status).toBe("error");
+    });
+});
+
+describe("LangGraphAgent default tools and system prompt", () => {
+    it("applies default tools when a call omits its own", async () => {
+        let executedWith: { a: number; b: number } | undefined;
+        const fake = new FakeStreamModel([
+            [new AIMessageChunk({ content: "", tool_calls: [{ name: "adder", args: { a: 1, b: 2 }, id: "c1" }] })],
+            [new AIMessageChunk({ content: "done" })],
+        ]);
+        const agent = agentWith(fake, { defaultTools: [adderTool((input) => (executedWith = input))] });
+
+        await collect(await agent.stream(HUMAN_MESSAGE, "t1", "u1"));
+
+        expect(executedWith).toEqual({ a: 1, b: 2 });
+    });
+
+    it("lets a call's tools fully replace the defaults", async () => {
+        let defaultRan = false;
+        let perCallRan = false;
+        const defaultTool: ITool = {
+            name: "adder",
+            description: "Default adder.",
+            schema: z.object({ a: z.number(), b: z.number() }),
+            execute: () => {
+                defaultRan = true;
+                return Promise.resolve("default");
+            },
+        };
+        const perCallTool: ITool = {
+            name: "adder",
+            description: "Per-call adder.",
+            schema: z.object({ a: z.number(), b: z.number() }),
+            execute: () => {
+                perCallRan = true;
+                return Promise.resolve("per-call");
+            },
+        };
+        const fake = new FakeStreamModel([
+            [new AIMessageChunk({ content: "", tool_calls: [{ name: "adder", args: { a: 1, b: 2 }, id: "c1" }] })],
+            [new AIMessageChunk({ content: "done" })],
+        ]);
+        const agent = agentWith(fake, { defaultTools: [defaultTool] });
+
+        await collect(await agent.stream(HUMAN_MESSAGE, "t1", "u1", undefined, { tools: [perCallTool] }));
+
+        expect(perCallRan).toBe(true);
+        expect(defaultRan).toBe(false);
+    });
+
+    it("prepends the default system prompt when a call omits its own", async () => {
+        const fake = new FakeStreamModel([[new AIMessageChunk({ content: "Hi." })]]);
+        const agent = agentWith(fake, { defaultSystemPrompt: "You are the default." });
+
+        await collect(await agent.stream(HUMAN_MESSAGE, "t1", "u1"));
+
+        const first = fake.streamedMessages[0]?.[0];
+        expect(first).toBeInstanceOf(SystemMessage);
+        expect(first?.content).toBe("You are the default.");
+    });
+
+    it("lets a call's system prompt override the default", async () => {
+        const fake = new FakeStreamModel([[new AIMessageChunk({ content: "Hi." })]]);
+        const agent = agentWith(fake, { defaultSystemPrompt: "You are the default." });
+
+        await collect(await agent.stream(HUMAN_MESSAGE, "t1", "u1", undefined, { systemPrompt: "Override prompt." }));
+
+        const first = fake.streamedMessages[0]?.[0];
+        expect(first).toBeInstanceOf(SystemMessage);
+        expect(first?.content).toBe("Override prompt.");
     });
 });

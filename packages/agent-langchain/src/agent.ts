@@ -546,6 +546,21 @@ export interface LangGraphAgentConfig {
      */
     maxToolIterations?: number | undefined;
 
+    /**
+     * Tools the agent may invoke on every call, unless a call overrides them.
+     *
+     * A call that passes {@link AgentRunOptions.tools} replaces these defaults
+     * for that call; a call that omits `tools` uses these. Single-sourced via
+     * the vendor-neutral {@link ITool} contract.
+     */
+    defaultTools?: ITool[] | undefined;
+
+    /**
+     * System prompt prepended to every call, unless a call overrides it via
+     * {@link AgentRunOptions.systemPrompt}.
+     */
+    defaultSystemPrompt?: string | undefined;
+
     /** Optional logger for assistant API failures. Defaults to a no-op logger when omitted. */
     logger?: ProviderLogger | undefined;
 }
@@ -563,6 +578,10 @@ export class LangGraphAgent implements IAgentProvider {
     private readonly serverTools: ServerTool[];
     /** Maximum number of model turns in a caller-provided tool-calling loop. */
     private readonly maxToolIterations: number;
+    /** Tools applied to calls that do not supply their own (may be empty). */
+    private readonly defaultTools: ITool[];
+    /** System prompt applied to calls that do not supply their own. */
+    private readonly defaultSystemPrompt: string | undefined;
     /** Lazy-initialized cheap model for triage classification. */
     private triageModel: ChatAnthropic | null = null;
     private readonly triageModelName: string | undefined;
@@ -655,6 +674,8 @@ export class LangGraphAgent implements IAgentProvider {
         this.runnableModel = serverTools.length > 0 ? this.model.bindTools(serverTools) : this.model;
         this.serverTools = serverTools;
         this.maxToolIterations = config.maxToolIterations ?? 10;
+        this.defaultTools = config.defaultTools ?? [];
+        this.defaultSystemPrompt = config.defaultSystemPrompt;
     }
 
     /**
@@ -694,9 +715,10 @@ export class LangGraphAgent implements IAgentProvider {
     ): Promise<AgentMessage> {
         const logger = this.createOperationLogger("run", { threadId, userId });
         const trimmed = trimBeforeCompaction(messages);
-        const baseMessages = withSystemPrompt(agentMessagesToBaseMessages(trimmed), options?.systemPrompt);
+        const systemPrompt = options?.systemPrompt ?? this.defaultSystemPrompt;
+        const baseMessages = withSystemPrompt(agentMessagesToBaseMessages(trimmed), systemPrompt);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
-        const tools = options?.tools ?? [];
+        const tools = options?.tools ?? this.defaultTools;
         try {
             if (tools.length > 0) {
                 const boundModel = this.modelForTools(tools);
@@ -747,9 +769,10 @@ export class LangGraphAgent implements IAgentProvider {
     ): Promise<AsyncIterable<AgentStreamChunk>> {
         const logger = this.createOperationLogger("stream", { threadId, userId });
         const trimmed = trimBeforeCompaction(messages);
-        const baseMessages = withSystemPrompt(agentMessagesToBaseMessages(trimmed), options?.systemPrompt);
+        const systemPrompt = options?.systemPrompt ?? this.defaultSystemPrompt;
+        const baseMessages = withSystemPrompt(agentMessagesToBaseMessages(trimmed), systemPrompt);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
-        const tools = options?.tools ?? [];
+        const tools = options?.tools ?? this.defaultTools;
         const hasTools = tools.length > 0;
         const toolMap = new Map(tools.map((tool) => [tool.name, tool]));
         const maxToolIterations = this.maxToolIterations;

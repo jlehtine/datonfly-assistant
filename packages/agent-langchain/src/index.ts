@@ -2,5 +2,8 @@ export { LangGraphAgent } from "./agent.js";
 export type { LangGraphAgentConfig } from "./agent.js";
 export { createTitleGenerateFn } from "./title.js";
 export type { TitleModelConfig } from "./title.js";
-export { executeToolCall, readToolCalls, runToolLoop, throwIfAborted, toLangChainToolDef } from "./tools.js";
-export type { LoopToolCall, RunToolLoopParams, RunToolLoopResult, ToolLoopModel } from "./tools.js";
+
+// Re-export the vendor-neutral tool and per-call option contracts so embedders
+// can build tools and drive the agent without depending on `@langchain/*`
+// types. These are single-sourced in `@datonfly-assistant/core`.
+export type { AgentRunOptions, ITool } from "@datonfly-assistant/core";

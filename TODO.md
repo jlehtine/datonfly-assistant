@@ -97,14 +97,23 @@ intentionally **not** supported, as Streamable HTTP supersedes it.
 
 Make the above cleanly consumable by an external embedder.
 
-- [ ] Export the tool, loop-options, and MCP client types/factory from
+- [x] Export the tool, loop-options, and MCP client types/factory from
       `packages/agent-langchain/src/index.ts` (and `core` as needed).
-- [ ] Extend `LangGraphAgentConfig` with `maxToolIterations` and optional
+- [x] Extend `LangGraphAgentConfig` with `maxToolIterations` and optional
       default tools / system prompt; support per-call overrides via the new
       run/stream options object.
-- [ ] Keep the public tool contract vendor-neutral (single-sourced via
+- [x] Keep the public tool contract vendor-neutral (single-sourced via
       `@datonfly-assistant/core` `ITool`); do not leak `@langchain/*` types
       across the package boundary.
+
+Decisions: per-call `tools` fully replace `defaultTools` (no merging), and
+per-call `systemPrompt` replaces `defaultSystemPrompt`. The MCP client is
+**not** re-exported from `agent-langchain` — embedders import
+`@datonfly-assistant/agent-mcp` directly to keep the packages decoupled. The
+`agent-langchain` barrel now exposes only
+`LangGraphAgent`/`LangGraphAgentConfig`, the title helpers, and the
+vendor-neutral `ITool`/`AgentRunOptions` re-exported from `core`; the internal
+`tools.js` LangChain helpers are no longer re-exported.
 
 ### E. Standalone wiring, tests & docs (assistant product — optional)
 

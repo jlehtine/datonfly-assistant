@@ -70,17 +70,24 @@ Surface tool activity in the stream and round-trip it through history.
 
 Adapt external MCP servers' tools into the same tool-calling loop.
 
-- [ ] Add an MCP client (`@modelcontextprotocol/sdk`) supporting **stdio** and
-      **HTTP/SSE** transports. Decide placement: inside `agent-langchain` or a
-      new `@datonfly-assistant/agent-mcp` package (record the decision).
-- [ ] On connect, list the server's tools and wrap each as an `ITool` whose
-      `execute()` proxies the call to the MCP server (mapping the MCP input
-      schema to the `ITool` Zod schema).
-- [ ] Lifecycle management: connect / disconnect, a per-session/per-job set of
-      servers, and per-call timeout + error handling.
-- [ ] Defer (note as out of scope here): MCP resources/prompts and dynamic
-      tool-list-changed notifications.
-- [ ] Tests: the adapter lists and invokes tools against a mock MCP server;
+Decisions: the MCP client lives in a new, LLM-vendor-neutral
+`@datonfly-assistant/agent-mcp` package (depends only on `core` + the MCP SDK,
+no `@langchain/*`), so the adapter just produces `ITool`s the agent already
+accepts. Only the **stdio** transport is implemented for now; **HTTP/SSE** is
+deferred until a concrete need arises.
+
+- [x] Add an MCP client (`@modelcontextprotocol/sdk` v1) in a new
+      `@datonfly-assistant/agent-mcp` package. **stdio** transport implemented;
+      HTTP/SSE deferred.
+- [x] On connect, list the server's tools and wrap each as an `ITool` whose
+      `execute()` proxies the call to the MCP server (the MCP JSON-Schema input
+      is converted to a Zod schema via `jsonSchemaToZod`).
+- [x] Lifecycle management: `McpClient` connect / `close`, an `McpServerSet`
+      grouping a per-session/per-job set of servers, and a per-call timeout +
+      error handling (failures thrown as tool errors).
+- [x] Defer (out of scope here): MCP resources/prompts and dynamic
+      tool-list-changed notifications (tool list captured at connect time).
+- [x] Tests: the adapter lists and invokes tools against a mock MCP server;
       transport/connection errors surface as tool errors, not crashes.
 
 ### D. Library API & configuration surface

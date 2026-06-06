@@ -47,10 +47,6 @@ interface AssistantApiErrorDetails {
     isAbortError?: boolean | undefined;
 }
 
-function isDebugApiContentEnabled(): boolean {
-    return process.env.DEBUG_API_CONTENT === "true";
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
@@ -561,6 +557,13 @@ export interface LangGraphAgentConfig {
      */
     defaultSystemPrompt?: string | undefined;
 
+    /**
+     * Emit verbose debug logging of streamed API content gates. Defaults to
+     * `false`. The standalone entrypoint wires this from configuration; library
+     * embedders pass it explicitly (this package does not read `process.env`).
+     */
+    debugApiContent?: boolean | undefined;
+
     /** Optional logger for assistant API failures. Defaults to a no-op logger when omitted. */
     logger?: ProviderLogger | undefined;
 }
@@ -582,6 +585,8 @@ export class LangGraphAgent implements IAgentProvider {
     private readonly defaultTools: ITool[];
     /** System prompt applied to calls that do not supply their own. */
     private readonly defaultSystemPrompt: string | undefined;
+    /** Whether to emit verbose debug logging of streamed API content gates. */
+    private readonly debugApiContent: boolean;
     /** Lazy-initialized cheap model for triage classification. */
     private triageModel: ChatAnthropic | null = null;
     private readonly triageModelName: string | undefined;
@@ -676,6 +681,7 @@ export class LangGraphAgent implements IAgentProvider {
         this.maxToolIterations = config.maxToolIterations ?? 10;
         this.defaultTools = config.defaultTools ?? [];
         this.defaultSystemPrompt = config.defaultSystemPrompt;
+        this.debugApiContent = config.debugApiContent ?? false;
     }
 
     /**
@@ -787,6 +793,7 @@ export class LangGraphAgent implements IAgentProvider {
             throw error;
         }
         const modelName = this.modelName;
+        const debugApiContent = this.debugApiContent;
         return {
             async *[Symbol.asyncIterator]() {
                 const conversation: BaseMessage[] = [...baseMessages];
@@ -801,7 +808,7 @@ export class LangGraphAgent implements IAgentProvider {
                 let textStreamIndex: number | null = null;
                 let usage: AgentUsage | undefined;
                 let chunkIndex = 0;
-                const debugApiContentEnabled = isDebugApiContentEnabled();
+                const debugApiContentEnabled = debugApiContent;
                 streamLoop: for (;;) {
                     turn += 1;
                     let gathered: AIMessageChunk | undefined;

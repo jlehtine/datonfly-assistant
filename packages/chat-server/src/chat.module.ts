@@ -109,6 +109,13 @@ export interface ChatModuleConfig {
      * resolves to the actual client IP from forwarded headers.
      */
     trustedReverseProxy?: TrustedReverseProxy | undefined;
+    /** Pino log level for the request logger. Defaults to `"info"`. */
+    logLevel?: string | undefined;
+    /**
+     * Log output format. `"json"` emits machine-parseable JSON lines; any other
+     * value (the default) uses human-readable pretty output.
+     */
+    logFormat?: "json" | "pretty" | undefined;
 }
 
 @Module({})
@@ -132,8 +139,8 @@ export class ChatModule {
             imports: [
                 LoggerModule.forRoot({
                     pinoHttp: {
-                        level: process.env.LOG_LEVEL ?? "info",
-                        ...(process.env.LOG_FORMAT === "json"
+                        level: config.logLevel ?? "info",
+                        ...(config.logFormat === "json"
                             ? {}
                             : { transport: { target: "pino-pretty", options: { singleLine: true } } }),
                         redact: {

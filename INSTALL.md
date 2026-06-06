@@ -40,20 +40,26 @@ pnpm start
 This starts the backend, which also serves the pre-built frontend to the
 browser.
 
-By default, `AUTH_MODE=fake` is used — no login is required for local
+By default, `DF_AUTH_MODE=fake` is used — no login is required for local
 development.
 
 ## Authentication
 
 Datonfly Assistant supports two authentication modes, controlled by the
-`AUTH_MODE` environment variable:
+`DF_AUTH_MODE` environment variable:
 
 | Mode   | Use case                  | Login required? |
 | ------ | ------------------------- | --------------- |
 | `fake` | Local development, E2E CI | No              |
 | `oidc` | Production                | Yes             |
 
-### Fake Mode (`AUTH_MODE=fake`)
+> All Datonfly configuration variables use the `DF_` prefix. The only exceptions
+> are `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, which keep their canonical names
+> because the vendor SDKs read them directly. Legacy unprefixed names are still
+> accepted during a deprecation window — see
+> [ENV_MIGRATION.md](ENV_MIGRATION.md).
+
+### Fake Mode (`DF_AUTH_MODE=fake`)
 
 The default. A hardcoded dev user is automatically authenticated on every
 request. No OIDC provider is needed.
@@ -61,11 +67,11 @@ request. No OIDC provider is needed.
 Optional configuration:
 
 ```env
-FAKE_USER_EMAIL=dev@localhost
-FAKE_USER_NAME=Dev User
+DF_FAKE_USER_EMAIL=dev@localhost
+DF_FAKE_USER_NAME=Dev User
 ```
 
-### OIDC Mode (`AUTH_MODE=oidc`)
+### OIDC Mode (`DF_AUTH_MODE=oidc`)
 
 Uses OpenID Connect Authorization Code flow with PKCE. Any standards-compliant
 OIDC provider works (Google, Azure AD, Keycloak, Auth0, etc.).
@@ -73,32 +79,33 @@ OIDC provider works (Google, Azure AD, Keycloak, Auth0, etc.).
 Required environment variables:
 
 ```env
-AUTH_MODE=oidc
-OIDC_ISSUER_URL=https://accounts.google.com
-OIDC_CLIENT_ID=your-client-id.apps.googleusercontent.com
-OIDC_CLIENT_SECRET=your-client-secret
-OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
-JWT_SECRET=a-strong-random-secret
+DF_AUTH_MODE=oidc
+DF_OIDC_ISSUER_URL=https://accounts.google.com
+DF_OIDC_CLIENT_ID=your-client-id.apps.googleusercontent.com
+DF_OIDC_CLIENT_SECRET=your-client-secret
+DF_OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
+DF_JWT_SECRET=a-strong-random-secret
 ```
 
-- **`OIDC_ISSUER_URL`** — The OIDC provider's issuer URL. The backend performs
+- **`DF_OIDC_ISSUER_URL`** — The OIDC provider's issuer URL. The backend
+  performs
   [discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
   automatically (`/.well-known/openid-configuration`).
-- **`OIDC_CLIENT_ID`** / **`OIDC_CLIENT_SECRET`** — OAuth 2.0 client
+- **`DF_OIDC_CLIENT_ID`** / **`DF_OIDC_CLIENT_SECRET`** — OAuth 2.0 client
   credentials.
-- **`OIDC_REDIRECT_URI`** — Must match the redirect URI registered with the
+- **`DF_OIDC_REDIRECT_URI`** — Must match the redirect URI registered with the
   provider. For local dev: `http://localhost:3000/auth/callback`.
-- **`JWT_SECRET`** — Secret used to sign session JWTs. Auto-generated if omitted
-  but should be set explicitly in production for persistent sessions across
-  restarts.
-- **`OIDC_ALLOWED_EMAIL_DOMAIN`** _(optional)_ — If set, only users whose email
-  address ends with `@<domain>` are allowed to log in (e.g. `example.com`).
-  Useful when the identity provider cannot restrict sign-ins to a single
-  organization.
-- **`OIDC_ALLOWED_EMAILS`** _(optional)_ — Comma-separated list of allowed email
-  addresses. If set, only these addresses can authenticate. Other restrictions
-  (e.g. domain) still apply.
-- **`SESSION_TTL_SECONDS`** _(optional, default: 604800 = 7 days)_ — Session
+- **`DF_JWT_SECRET`** — Secret used to sign session JWTs. Auto-generated if
+  omitted but should be set explicitly in production for persistent sessions
+  across restarts.
+- **`DF_OIDC_ALLOWED_EMAIL_DOMAIN`** _(optional)_ — If set, only users whose
+  email address ends with `@<domain>` are allowed to log in (e.g.
+  `example.com`). Useful when the identity provider cannot restrict sign-ins to
+  a single organization.
+- **`DF_OIDC_ALLOWED_EMAILS`** _(optional)_ — Comma-separated list of allowed
+  email addresses. If set, only these addresses can authenticate. Other
+  restrictions (e.g. domain) still apply.
+- **`DF_SESSION_TTL_SECONDS`** _(optional, default: 604800 = 7 days)_ — Session
   idle timeout. Both the JWT expiry and cookie maxAge are set to this value. The
   session is automatically extended on each authenticated `/auth/me` request.
 
@@ -109,14 +116,15 @@ title generation model:
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-opus-4-6
-ANTHROPIC_TITLE_MODEL=claude-haiku-4-5
+DF_ANTHROPIC_MODEL=claude-opus-4-6
+DF_ANTHROPIC_TITLE_MODEL=claude-haiku-4-5
 ```
 
-- **`ANTHROPIC_API_KEY`** — Required. Your Anthropic API key.
-- **`ANTHROPIC_MODEL`** _(optional, default: claude-opus-4-6)_ — The model used
-  for chat responses.
-- **`ANTHROPIC_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
+- **`ANTHROPIC_API_KEY`** — Required. Your Anthropic API key (canonical name,
+  read by the SDK — no `DF_` prefix).
+- **`DF_ANTHROPIC_MODEL`** _(optional, default: claude-opus-4-6)_ — The model
+  used for chat responses.
+- **`DF_ANTHROPIC_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
   titles. Omit to disable title generation.
 
 ## Agent Tools and MCP
@@ -126,35 +134,35 @@ The agent can call tools while answering. Anthropic's built-in server-side tools
 corresponding flag to `"false"` to disable any of them:
 
 ```env
-ENABLE_COMPACTION=true
-ENABLE_CODE_EXECUTION=true
-ENABLE_WEB_SEARCH=true
-ENABLE_WEB_FETCH=true
+DF_ENABLE_COMPACTION=true
+DF_ENABLE_CODE_EXECUTION=true
+DF_ENABLE_WEB_SEARCH=true
+DF_ENABLE_WEB_FETCH=true
 ```
 
 Custom tools can additionally be provided through external **MCP (Model Context
-Protocol)** servers. This is disabled by default; when `MCP_SERVERS` is unset
+Protocol)** servers. This is disabled by default; when `DF_MCP_SERVERS` is unset
 the agent behaves exactly as before. Set it to a JSON array of server
 configurations:
 
 ```env
 # stdio server (a local process)
-MCP_SERVERS=[{"name":"filesystem","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/data"]}]
+DF_MCP_SERVERS=[{"name":"filesystem","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/data"]}]
 
 # remote Streamable HTTP server
-MCP_SERVERS=[{"transport":"http","name":"remote","url":"https://mcp.example.com/mcp","headers":{"Authorization":"Bearer TOKEN"}}]
+DF_MCP_SERVERS=[{"transport":"http","name":"remote","url":"https://mcp.example.com/mcp","headers":{"Authorization":"Bearer TOKEN"}}]
 ```
 
-- **`MCP_SERVERS`** _(optional)_ — JSON array of MCP servers. Each entry is
+- **`DF_MCP_SERVERS`** _(optional)_ — JSON array of MCP servers. Each entry is
   either a stdio server (`{ "name", "command", "args"?, "env"?, "cwd"? }`) or a
   Streamable HTTP server (`{ "transport": "http", "name", "url", "headers"? }`).
   The legacy HTTP+SSE transport is not supported. On startup the backend
   connects to each server, lists its tools, and exposes them to the agent; tool
   names must be unique across all servers. A connection failure aborts startup.
-- **`MCP_TOOL_TIMEOUT_MS`** _(optional)_ — Per tool-call timeout in
+- **`DF_MCP_TOOL_TIMEOUT_MS`** _(optional)_ — Per tool-call timeout in
   milliseconds. Omit to use the MCP SDK default.
-- **`AGENT_MAX_TOOL_ITERATIONS`** _(optional, default: 10)_ — Maximum number of
-  model turns in a tool-calling loop before the agent aborts the request.
+- **`DF_AGENT_MAX_TOOL_ITERATIONS`** _(optional, default: 10)_ — Maximum number
+  of model turns in a tool-calling loop before the agent aborts the request.
 
 ## Audio Input (Transcription)
 
@@ -166,24 +174,25 @@ composer.
 
 ```env
 OPENAI_API_KEY=sk-...
-OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe
+DF_OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe
 ```
 
-- **`OPENAI_API_KEY`** _(optional)_ — Enables audio input when set. Omit to
-  disable transcription (the microphone button is hidden).
-- **`OPENAI_TRANSCRIBE_MODEL`** _(optional, default: gpt-4o-mini-transcribe)_ —
-  The OpenAI model used for transcription.
+- **`OPENAI_API_KEY`** _(optional)_ — Enables audio input when set (canonical
+  name, read by the SDK — no `DF_` prefix). Omit to disable transcription (the
+  microphone button is hidden).
+- **`DF_OPENAI_TRANSCRIBE_MODEL`** _(optional, default: gpt-4o-mini-transcribe)_
+  — The OpenAI model used for transcription.
 
 ## Logging
 
 ```env
-LOG_FORMAT=pretty
-LOG_LEVEL=info
+DF_LOG_FORMAT=pretty
+DF_LOG_LEVEL=info
 ```
 
-- **`LOG_FORMAT`** _(optional, default: pretty)_ — `"json"` for
+- **`DF_LOG_FORMAT`** _(optional, default: pretty)_ — `"json"` for
   machine-parseable JSON lines, or `"pretty"` for human-readable output.
-- **`LOG_LEVEL`** _(optional, default: info)_ — One of `"trace"`, `"debug"`,
+- **`DF_LOG_LEVEL`** _(optional, default: info)_ — One of `"trace"`, `"debug"`,
   `"info"`, `"warn"`, `"error"`, `"fatal"`.
 
 ---
@@ -224,12 +233,12 @@ LOG_LEVEL=info
 ### 4. Configure environment
 
 ```env
-AUTH_MODE=oidc
-OIDC_ISSUER_URL=https://accounts.google.com
-OIDC_CLIENT_ID=123456789-abc.apps.googleusercontent.com
-OIDC_CLIENT_SECRET=GOCSPX-...
-OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
-JWT_SECRET=$(openssl rand -base64 32)
+DF_AUTH_MODE=oidc
+DF_OIDC_ISSUER_URL=https://accounts.google.com
+DF_OIDC_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+DF_OIDC_CLIENT_SECRET=GOCSPX-...
+DF_OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
+DF_JWT_SECRET=$(openssl rand -base64 32)
 ```
 
 ### 5. Verify
@@ -245,7 +254,7 @@ After signing in, you'll be returned to the app authenticated.
 
 ## End-to-End Tests
 
-E2E tests use `AUTH_MODE=fake` (the default), so no OIDC setup is needed:
+E2E tests use `DF_AUTH_MODE=fake` (the default), so no OIDC setup is needed:
 
 ```bash
 # Start backend + frontend, then:

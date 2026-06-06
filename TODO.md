@@ -36,54 +36,54 @@ deployments, so it must ship with a deprecation window, not a hard rename.
 
 ### Variables to rename to `DF_*`
 
-- [ ] Auth: `AUTH_MODE`, `JWT_SECRET`, `SESSION_TTL_SECONDS`, `FRONTEND_URL`,
-      `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
-      `OIDC_REDIRECT_URI`, `OIDC_ALLOWED_EMAIL_DOMAIN`, `OIDC_ALLOWED_EMAILS`,
-      `FAKE_USER_EMAIL`, `FAKE_USER_NAME`.
-- [ ] Model / agent: `ANTHROPIC_MODEL`, `ANTHROPIC_TRIAGE_MODEL`,
-      `ANTHROPIC_TITLE_MODEL`, `ANTHROPIC_THINKING_TYPE`,
-      `ANTHROPIC_THINKING_DISPLAY`, `ANTHROPIC_THINKING_BUDGET_TOKENS`,
-      `ANTHROPIC_THINKING_EFFORT`, `ENABLE_COMPACTION`, `ENABLE_CODE_EXECUTION`,
-      `ENABLE_WEB_SEARCH`, `ENABLE_WEB_FETCH`, `AGENT_MAX_TOOL_ITERATIONS`,
-      `DEBUG_API_CONTENT`. (The `ANTHROPIC_*` knobs here are _our_ config, not
-      SDK-read — only the bare `ANTHROPIC_API_KEY` stays canonical.)
-- [ ] MCP: `MCP_SERVERS`, `MCP_TOOL_TIMEOUT_MS`.
-- [ ] Transcription: `OPENAI_TRANSCRIBE_MODEL`.
-- [ ] Search: `MEMBER_SEARCH_STRATEGY`, `SEARCH_STEMMER_LANGUAGE`,
-      `EMBEDDINGS_TIMEOUT_MS`, `SEARCH_RECENCY_HALF_LIFE_DAYS`.
-- [ ] Logging / infra: `LOG_LEVEL`, `LOG_FORMAT`, `QDRANT_URL`, `INFINITY_URL`.
-- [ ] Infra with canonical fallback (`DF_X ?? X`): `PORT`, `DATABASE_URL`.
-- [ ] Ops/admin: `TRUSTED_REVERSE_PROXY`, `ADMIN_SECRET`, `ADMIN_IPS`.
-- [ ] Frontend (Vite): audit `import.meta.env.VITE_*` usage; Vite enforces its
-      own `VITE_` prefix, so keep that prefix (do not apply `DF_` there).
+- Auth: `AUTH_MODE`, `JWT_SECRET`, `SESSION_TTL_SECONDS`, `FRONTEND_URL`,
+  `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
+  `OIDC_REDIRECT_URI`, `OIDC_ALLOWED_EMAIL_DOMAIN`, `OIDC_ALLOWED_EMAILS`,
+  `FAKE_USER_EMAIL`, `FAKE_USER_NAME`.
+- Model / agent: `ANTHROPIC_MODEL`, `ANTHROPIC_TRIAGE_MODEL`,
+  `ANTHROPIC_TITLE_MODEL`, `ANTHROPIC_THINKING_TYPE`,
+  `ANTHROPIC_THINKING_DISPLAY`, `ANTHROPIC_THINKING_BUDGET_TOKENS`,
+  `ANTHROPIC_THINKING_EFFORT`, `ENABLE_COMPACTION`, `ENABLE_CODE_EXECUTION`,
+  `ENABLE_WEB_SEARCH`, `ENABLE_WEB_FETCH`, `AGENT_MAX_TOOL_ITERATIONS`,
+  `DEBUG_API_CONTENT`. (The `ANTHROPIC_*` knobs here are _our_ config, not
+  SDK-read — only the bare `ANTHROPIC_API_KEY` stays canonical.)
+- MCP: `MCP_SERVERS`, `MCP_TOOL_TIMEOUT_MS`.
+- Transcription: `OPENAI_TRANSCRIBE_MODEL`.
+- Search: `MEMBER_SEARCH_STRATEGY`, `SEARCH_STEMMER_LANGUAGE`,
+  `EMBEDDINGS_TIMEOUT_MS`, `SEARCH_RECENCY_HALF_LIFE_DAYS`.
+- Logging / infra: `LOG_LEVEL`, `LOG_FORMAT`, `QDRANT_URL`, `INFINITY_URL`.
+- Infra with canonical fallback (`DF_X ?? X`): `PORT`, `DATABASE_URL`.
+- Ops/admin: `TRUSTED_REVERSE_PROXY`, `ADMIN_SECRET`, `ADMIN_IPS`.
+- Frontend (Vite): audit `import.meta.env.VITE_*` usage; Vite enforces its own
+  `VITE_` prefix, so keep that prefix (do not apply `DF_` there).
 
 ### Implementation steps
 
-- [ ] Move env reads out of shared library packages so the prefix governs only
+- [x] Move env reads out of shared library packages so the prefix governs only
       the standalone entrypoint and embedded Autocode controls config via
       objects. Specifically, lift `LOG_LEVEL` / `LOG_FORMAT` out of
       `packages/chat-server/src/chat.module.ts` and `DEBUG_API_CONTENT` out of
       `packages/agent-langchain/src/agent.ts` into explicit config passed from
       the composition root. Library packages should not read `process.env`.
-- [ ] Add a single typed config loader (e.g. `packages/backend/src/config.ts`)
+- [x] Add a single typed config loader (e.g. `packages/backend/src/config.ts`)
       that centralises all `process.env` reads, the `DF_` prefix, validation,
       and defaults. Replace the inline `process.env.*` reads in
       `packages/backend/src/main.ts` with it.
-- [ ] Implement a backward-compatible read helper:
+- [x] Implement a backward-compatible read helper:
       `read("FOO") => process.env.DF_FOO ?? process.env.FOO`. When only the
       legacy name is present, log a one-time deprecation warning naming the new
       variable. (`PORT` and `DATABASE_URL` use the same helper, but their
       canonical fallback is permanent rather than deprecated.)
-- [ ] Update `.env.example`, `README.md`, `INSTALL.md`, `docker-compose.yml`,
+- [x] Update `.env.example`, `README.md`, `INSTALL.md`, `docker-compose.yml`,
       and any deployment manifests to the new names. All other documentation
       must refer to the new `DF_*` names only (no legacy names except where the
       permanent `PORT` / `DATABASE_URL` canonical fallback is explained).
-- [ ] Write `ENV_MIGRATION.md` documenting every renamed variable (old → new),
+- [x] Write `ENV_MIGRATION.md` documenting every renamed variable (old → new),
       the keep-canonical exceptions (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), the
       permanent `PORT` / `DATABASE_URL` canonical fallbacks, and step-by-step
       instructions for migrating an existing deployment to the new names,
       including the deprecation window and warning behaviour.
-- [ ] Add a unit test for the config loader: prefixed name wins, legacy fallback
+- [x] Add a unit test for the config loader: prefixed name wins, legacy fallback
       works and warns, validation errors are raised for malformed values.
 - [ ] After test deployments have migrated, remove the legacy fallbacks and
       deprecation warnings (except the permanent `PORT` / `DATABASE_URL`

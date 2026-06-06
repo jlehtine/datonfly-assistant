@@ -89,6 +89,9 @@ importers:
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
+      '@types/node':
+        specifier: ^25.5.2
+        version: 25.5.2
       typescript:
         specifier: ^6.0.2
         version: 6.0.2

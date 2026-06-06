@@ -1,6 +1,6 @@
 import type { ITool } from "@datonfly-assistant/core";
 
-import { McpClient, type McpConnectionOptions, type McpStdioServerConfig } from "./mcp-client.js";
+import { McpClient, type McpConnectionOptions, type McpServerConfig, type McpStdioServerConfig } from "./mcp-client.js";
 
 /**
  * A lifecycle-managed set of MCP server connections for a single session or job.
@@ -26,25 +26,33 @@ export class McpServerSet {
     }
 
     /**
-     * Connect to every configured stdio server, aggregating their tools.
+     * Connect to every configured server (stdio, HTTP, or SSE), aggregating
+     * their tools.
      *
      * If any connection fails, all connections already established are closed
      * before the error is re-thrown, so no server is left dangling.
      */
-    static async connectStdio(
-        configs: McpStdioServerConfig[],
-        options: McpConnectionOptions = {},
-    ): Promise<McpServerSet> {
+    static async connect(configs: McpServerConfig[], options: McpConnectionOptions = {}): Promise<McpServerSet> {
         const clients: McpClient[] = [];
         try {
             for (const config of configs) {
-                clients.push(await McpClient.connectStdio(config, options));
+                clients.push(await McpClient.connectServer(config, options));
             }
         } catch (error) {
             await Promise.allSettled(clients.map((client) => client.close()));
             throw error;
         }
         return McpServerSet.fromClients(clients);
+    }
+
+    /**
+     * Connect to every configured stdio server, aggregating their tools.
+     *
+     * Convenience wrapper around {@link McpServerSet.connect} for stdio-only
+     * sets.
+     */
+    static connectStdio(configs: McpStdioServerConfig[], options: McpConnectionOptions = {}): Promise<McpServerSet> {
+        return McpServerSet.connect(configs, options);
     }
 
     /** Close every server connection in the set. */

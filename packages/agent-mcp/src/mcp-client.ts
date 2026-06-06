@@ -1,18 +1,18 @@
+import { URL } from "node:url";
+
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 import type { ITool } from "@datonfly-assistant/core";
 
 import { jsonSchemaToZod } from "./json-schema-to-zod.js";
 
-/**
- * Connection parameters for an MCP server reached over the **stdio** transport.
- *
- * (HTTP/SSE transports are intentionally out of scope for now — see the package
- * README / project TODO.)
- */
+/** Connection parameters for an MCP server reached over the **stdio** transport. */
 export interface McpStdioServerConfig {
+    /** Transport discriminator (defaults to stdio when omitted). */
+    transport?: "stdio";
     /** Stable, human-readable name used in diagnostics and tool error messages. */
     name: string;
     /** Executable to spawn for the MCP server process. */
@@ -24,6 +24,29 @@ export interface McpStdioServerConfig {
     /** Working directory for the spawned process. */
     cwd?: string;
 }
+
+/**
+ * Connection parameters for a **remote** MCP server reached over the modern
+ * **Streamable HTTP** transport (a single endpoint that upgrades to SSE
+ * internally only when streaming is required).
+ *
+ * The legacy HTTP+SSE transport (MCP spec `2024-11-05`) is intentionally not
+ * supported; Streamable HTTP supersedes it and is what current remote servers
+ * use.
+ */
+export interface McpHttpServerConfig {
+    /** Transport discriminator selecting the Streamable HTTP transport. */
+    transport: "http";
+    /** Stable, human-readable name used in diagnostics and tool error messages. */
+    name: string;
+    /** Endpoint URL of the remote MCP server. */
+    url: string;
+    /** Extra HTTP headers (e.g. `Authorization`) attached to every request. */
+    headers?: Record<string, string>;
+}
+
+/** Any supported MCP server connection configuration. */
+export type McpServerConfig = McpStdioServerConfig | McpHttpServerConfig;
 
 /** Options governing an MCP client connection and its proxied tool calls. */
 export interface McpConnectionOptions {
@@ -150,6 +173,30 @@ export class McpClient {
             ...(config.cwd !== undefined ? { cwd: config.cwd } : {}),
         });
         return McpClient.connect(transport, config.name, options);
+    }
+
+    /**
+     * Connect to a remote MCP server over the Streamable HTTP transport.
+     *
+     * Configured headers are attached to every outgoing request (including the
+     * SSE event stream the transport opens internally for streaming responses).
+     */
+    static connectHttp(config: McpHttpServerConfig, options: McpConnectionOptions = {}): Promise<McpClient> {
+        const url = new URL(config.url);
+        const opts = config.headers !== undefined ? { requestInit: { headers: config.headers } } : {};
+        // The transport class exposes `sessionId: string | undefined` via a
+        // getter, which trips `exactOptionalPropertyTypes` against `Transport`'s
+        // `sessionId?: string`; the class implements `Transport`, so the
+        // assertion is sound.
+        const transport = new StreamableHTTPClientTransport(url, opts) as Transport;
+        return McpClient.connect(transport, config.name, options);
+    }
+
+    /** Connect to an MCP server described by any supported {@link McpServerConfig}. */
+    static connectServer(config: McpServerConfig, options: McpConnectionOptions = {}): Promise<McpClient> {
+        return config.transport === "http"
+            ? McpClient.connectHttp(config, options)
+            : McpClient.connectStdio(config, options);
     }
 
     /** Close the connection and terminate the underlying transport. */

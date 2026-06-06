@@ -73,12 +73,14 @@ Adapt external MCP servers' tools into the same tool-calling loop.
 Decisions: the MCP client lives in a new, LLM-vendor-neutral
 `@datonfly-assistant/agent-mcp` package (depends only on `core` + the MCP SDK,
 no `@langchain/*`), so the adapter just produces `ITool`s the agent already
-accepts. Only the **stdio** transport is implemented for now; **HTTP/SSE** is
-deferred until a concrete need arises.
+accepts. Remote servers use the modern **Streamable HTTP** transport; the legacy
+HTTP+SSE transport (MCP spec `2024-11-05`, deprecated in the SDK) is
+intentionally **not** supported, as Streamable HTTP supersedes it.
 
 - [x] Add an MCP client (`@modelcontextprotocol/sdk` v1) in a new
-      `@datonfly-assistant/agent-mcp` package. **stdio** transport implemented;
-      HTTP/SSE deferred.
+      `@datonfly-assistant/agent-mcp` package. **stdio** and **Streamable HTTP**
+      transports implemented (`McpClient.connectStdio` / `connectHttp` /
+      `connectServer`); legacy HTTP+SSE intentionally omitted.
 - [x] On connect, list the server's tools and wrap each as an `ITool` whose
       `execute()` proxies the call to the MCP server (the MCP JSON-Schema input
       is converted to a Zod schema via `jsonSchemaToZod`).
@@ -87,7 +89,8 @@ deferred until a concrete need arises.
       error handling (failures thrown as tool errors).
 - [x] Defer (out of scope here): MCP resources/prompts and dynamic
       tool-list-changed notifications (tool list captured at connect time).
-- [x] Tests: the adapter lists and invokes tools against a mock MCP server;
+- [x] Tests: the adapter lists and invokes tools against a mock MCP server
+      (in-process stdio and a dummy Streamable HTTP server);
       transport/connection errors surface as tool errors, not crashes.
 
 ### D. Library API & configuration surface

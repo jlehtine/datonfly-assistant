@@ -1,5 +1,6 @@
 import type { ContentPart, MessageRole, OpaqueContentPart } from "../types/message.js";
 import type { StatusCode } from "../types/status-code.js";
+import type { ITool } from "./tool.js";
 
 /** The role of an agent message. Extends {@link MessageRole} with any agent-specific roles. */
 export type AgentMessageRole = MessageRole | "system";
@@ -104,6 +105,31 @@ export interface ShouldRespondResult {
 }
 
 /**
+ * Per-call options for {@link IAgentProvider.run} and {@link IAgentProvider.stream}.
+ *
+ * Tools are supplied per call (rather than bound at construction) so that they
+ * can be scoped to a particular workspace, session, or codegen job.
+ */
+export interface AgentRunOptions {
+    /**
+     * Custom tools the agent may invoke during this call.
+     *
+     * When present, the agent runs an agentic tool-calling loop: it executes
+     * each requested tool, feeds the result back to the model, and repeats
+     * until the model responds without requesting further tools (bounded by the
+     * provider's iteration budget).
+     */
+    tools?: ITool[] | undefined;
+    /**
+     * System prompt prepended to the conversation for this call.
+     *
+     * Intended for embedders that drive the agent toward a task (e.g. codegen)
+     * without persisting a system message in the thread.
+     */
+    systemPrompt?: string | undefined;
+}
+
+/**
  * Agent service provider that processes messages and produces responses.
  *
  * Implementations wrap an LLM (or chain/graph) and expose both
@@ -114,7 +140,13 @@ export interface IAgentProvider {
     /**
      * Run the agent and return a complete response message.
      */
-    run(messages: AgentMessage[], threadId: string, userId: string, signal?: AbortSignal): Promise<AgentMessage>;
+    run(
+        messages: AgentMessage[],
+        threadId: string,
+        userId: string,
+        signal?: AbortSignal,
+        options?: AgentRunOptions,
+    ): Promise<AgentMessage>;
 
     /**
      * Run the agent and return a stream of response chunks.
@@ -124,6 +156,7 @@ export interface IAgentProvider {
         threadId: string,
         userId: string,
         signal?: AbortSignal,
+        options?: AgentRunOptions,
     ): Promise<AsyncIterable<AgentStreamChunk>>;
 
     /**

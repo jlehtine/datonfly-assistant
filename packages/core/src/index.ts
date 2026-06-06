@@ -41,6 +41,7 @@ export type {
     ProviderLogger,
     AgentMessage,
     AgentMessageRole,
+    AgentRunOptions,
     AgentStreamChunk,
     TextDeltaChunk,
     ThinkingPartChunk,

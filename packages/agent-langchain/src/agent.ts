@@ -1,5 +1,5 @@
 import { ChatAnthropic } from "@langchain/anthropic";
-import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { Runnable } from "@langchain/core/runnables";
 import type { ServerTool } from "@langchain/core/tools";
 
@@ -7,12 +7,14 @@ import {
     classifyAttachmentMimeType,
     NOOP_PROVIDER_LOGGER,
     type AgentMessage,
+    type AgentRunOptions,
     type AgentStreamChunk,
     type AgentUsage,
     type AttachmentContentPart,
     type Citation,
     type ContentPart,
     type IAgentProvider,
+    type ITool,
     type OpaqueContentPart,
     type ProviderLogger,
     type ShouldRespondResult,
@@ -20,6 +22,8 @@ import {
     type TextContentPart,
     type ThinkingContentPart,
 } from "@datonfly-assistant/core";
+
+import { runToolLoop, toLangChainToolDef, type ToolLoopModel } from "./tools.js";
 
 /** The opaque block provider identifier used by this agent. */
 const PROVIDER_ID = "anthropic";
@@ -144,7 +148,7 @@ function attachmentToContentBlock(part: AttachmentContentPart): Record<string, u
  * to the API.
  */
 function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
-    return messages.map((msg) => {
+    return messages.flatMap((msg): BaseMessage[] => {
         const textParts = msg.content.filter((p): p is TextContentPart => p.type === "text");
         const text = textParts.map((p) => p.text).join("");
 
@@ -155,13 +159,13 @@ function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
                     .map(attachmentToContentBlock)
                     .filter((block): block is Record<string, unknown> => block !== null);
                 if (attachmentBlocks.length === 0) {
-                    return new HumanMessage(text);
+                    return [new HumanMessage(text)];
                 }
                 const contentBlocks: Record<string, unknown>[] = [{ type: "text", text }, ...attachmentBlocks];
-                return new HumanMessage({ content: contentBlocks as HumanMessage["content"] });
+                return [new HumanMessage({ content: contentBlocks as HumanMessage["content"] })];
             }
             case "system":
-                return new SystemMessage(text);
+                return [new SystemMessage(text)];
             case "ai": {
                 // Build LangChain content blocks from typed parts.
                 // NOTE: We intentionally do not replay persisted thinking blocks
@@ -170,6 +174,8 @@ function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
                 // the original response; reconstructed persisted parts can violate
                 // that constraint and cause 400 invalid_request_error.
                 const contentBlocks: Record<string, unknown>[] = [];
+                const toolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+                const toolMessages: ToolMessage[] = [];
                 for (const part of msg.content) {
                     if (part.type === "opaque" && part.provider === PROVIDER_ID) {
                         const data = part.data as Record<string, unknown>;
@@ -178,17 +184,49 @@ function agentMessagesToBaseMessages(messages: AgentMessage[]): BaseMessage[] {
                         }
                     } else if (part.type === "text") {
                         contentBlocks.push({ type: "text", text: part.text });
+                    } else if (part.type === "tool-call") {
+                        toolCalls.push({ id: part.toolCallId, name: part.toolName, args: part.args });
+                    } else if (part.type === "tool-result") {
+                        toolMessages.push(
+                            new ToolMessage({
+                                content: typeof part.result === "string" ? part.result : JSON.stringify(part.result),
+                                tool_call_id: part.toolCallId,
+                                status: part.isError === true ? "error" : "success",
+                            }),
+                        );
                     }
-                    // tool-call, tool-result, unknown opaque: skip (not sent to Anthropic directly)
+                    // thinking, unknown opaque: skip (not sent to Anthropic directly)
                 }
-                if (contentBlocks.length === 0) return new AIMessage("");
-                if (contentBlocks.length === 1 && contentBlocks[0]?.type === "text") {
-                    return new AIMessage(contentBlocks[0].text as string);
-                }
-                return new AIMessage({ content: contentBlocks as AIMessage["content"] });
+                return [buildAiMessage(contentBlocks, toolCalls), ...toolMessages];
             }
         }
     });
+}
+
+/** Build a single LangChain {@link AIMessage} from content blocks and tool calls. */
+function buildAiMessage(
+    contentBlocks: Record<string, unknown>[],
+    toolCalls: { id: string; name: string; args: Record<string, unknown> }[],
+): AIMessage {
+    if (toolCalls.length > 0) {
+        const content =
+            contentBlocks.length === 0
+                ? ""
+                : contentBlocks.length === 1 && contentBlocks[0]?.type === "text"
+                  ? (contentBlocks[0].text as string)
+                  : (contentBlocks as AIMessage["content"]);
+        return new AIMessage({ content, tool_calls: toolCalls });
+    }
+    if (contentBlocks.length === 0) return new AIMessage("");
+    if (contentBlocks.length === 1 && contentBlocks[0]?.type === "text") {
+        return new AIMessage(contentBlocks[0].text as string);
+    }
+    return new AIMessage({ content: contentBlocks as AIMessage["content"] });
+}
+
+/** Prepend a system prompt to a message list when one is provided. */
+function withSystemPrompt(messages: BaseMessage[], systemPrompt: string | undefined): BaseMessage[] {
+    return systemPrompt ? [new SystemMessage(systemPrompt), ...messages] : messages;
 }
 
 /** Server-tool names that indicate code execution activity. */
@@ -491,6 +529,12 @@ export interface LangGraphAgentConfig {
      */
     compactionTriggerTokens?: number | undefined;
 
+    /**
+     * Maximum number of model turns in a caller-provided tool-calling loop
+     * before {@link LangGraphAgent.run} aborts with an error. Defaults to `10`.
+     */
+    maxToolIterations?: number | undefined;
+
     /** Optional logger for assistant API failures. Defaults to a no-op logger when omitted. */
     logger?: ProviderLogger | undefined;
 }
@@ -504,6 +548,10 @@ export class LangGraphAgent implements IAgentProvider {
     private readonly model: ChatAnthropic;
     /** Model with server tools bound (if any are enabled), or the base model. */
     private readonly runnableModel: Runnable;
+    /** Anthropic server tools bound to every request (may be empty). */
+    private readonly serverTools: ServerTool[];
+    /** Maximum number of model turns in a caller-provided tool-calling loop. */
+    private readonly maxToolIterations: number;
     /** Lazy-initialized cheap model for triage classification. */
     private triageModel: ChatAnthropic | null = null;
     private readonly triageModelName: string | undefined;
@@ -594,6 +642,18 @@ export class LangGraphAgent implements IAgentProvider {
             serverTools.push(webFetchTool as ServerTool);
         }
         this.runnableModel = serverTools.length > 0 ? this.model.bindTools(serverTools) : this.model;
+        this.serverTools = serverTools;
+        this.maxToolIterations = config.maxToolIterations ?? 10;
+    }
+
+    /**
+     * Bind caller-provided tools (alongside any server tools) for a single
+     * call. Returns the shared {@link runnableModel} unchanged when no
+     * per-call tools are supplied, preserving the no-tools request shape.
+     */
+    private modelForTools(tools: ITool[]): Runnable {
+        if (tools.length === 0) return this.runnableModel;
+        return this.model.bindTools([...this.serverTools, ...tools.map(toLangChainToolDef)]);
     }
 
     private createOperationLogger(
@@ -614,12 +674,45 @@ export class LangGraphAgent implements IAgentProvider {
     }
 
     /** Run the agent and return a single complete assistant message. */
-    async run(messages: AgentMessage[], threadId: string, userId: string, signal?: AbortSignal): Promise<AgentMessage> {
+    async run(
+        messages: AgentMessage[],
+        threadId: string,
+        userId: string,
+        signal?: AbortSignal,
+        options?: AgentRunOptions,
+    ): Promise<AgentMessage> {
         const logger = this.createOperationLogger("run", { threadId, userId });
         const trimmed = trimBeforeCompaction(messages);
+        const baseMessages = withSystemPrompt(agentMessagesToBaseMessages(trimmed), options?.systemPrompt);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
+        const tools = options?.tools ?? [];
         try {
-            const response = (await this.runnableModel.invoke(agentMessagesToBaseMessages(trimmed), opts)) as {
+            if (tools.length > 0) {
+                const boundModel = this.modelForTools(tools);
+                const loopModel: ToolLoopModel = {
+                    invoke: (msgs, invokeOpts) => boundModel.invoke(msgs, invokeOpts) as Promise<AIMessage>,
+                };
+                const { finalResponse, toolParts } = await runToolLoop({
+                    model: loopModel,
+                    messages: baseMessages,
+                    tools,
+                    maxIterations: this.maxToolIterations,
+                    invokeOptions: opts,
+                    signal,
+                });
+                const content = finalResponse.content as string | Record<string, unknown>[];
+                const text = extractTextFromContent(content);
+                const thinkingParts = extractThinkingParts(content);
+                const opaqueParts = extractCompactionBlocks(content);
+                const contentParts: ContentPart[] = [
+                    ...toolParts,
+                    ...thinkingParts,
+                    ...opaqueParts,
+                    { type: "text", text },
+                ];
+                return { role: "ai", content: contentParts };
+            }
+            const response = (await this.runnableModel.invoke(baseMessages, opts)) as {
                 content: string | Record<string, unknown>[];
             };
             const text = extractTextFromContent(response.content);
@@ -639,13 +732,18 @@ export class LangGraphAgent implements IAgentProvider {
         threadId: string,
         userId: string,
         signal?: AbortSignal,
+        options?: AgentRunOptions,
     ): Promise<AsyncIterable<AgentStreamChunk>> {
         const logger = this.createOperationLogger("stream", { threadId, userId });
         const trimmed = trimBeforeCompaction(messages);
+        const baseMessages = withSystemPrompt(agentMessagesToBaseMessages(trimmed), options?.systemPrompt);
         const opts = { cache_control: { type: "ephemeral" } as const, ...(signal ? { signal } : {}) };
+        // Phase A binds caller-provided tools so the model is aware of them;
+        // mid-stream tool execution is handled in Phase B.
+        const streamModel = this.modelForTools(options?.tools ?? []);
         let langchainStream: AsyncIterable<unknown>;
         try {
-            langchainStream = await this.runnableModel.stream(agentMessagesToBaseMessages(trimmed), opts);
+            langchainStream = await streamModel.stream(baseMessages, opts);
         } catch (error) {
             this.logAssistantApiError(logger, error, { phase: "stream_init" });
             throw error;

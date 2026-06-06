@@ -4,6 +4,7 @@ export type {
     IAgentProvider,
     AgentMessage,
     AgentMessageRole,
+    AgentRunOptions,
     AgentStreamChunk,
     TextDeltaChunk,
     ThinkingPartChunk,

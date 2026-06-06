@@ -26,24 +26,24 @@ in-repo callers.
 Let the agent invoke caller-provided `ITool`s and feed results back to the
 model.
 
-- [ ] Extend `IAgentProvider.run` / `stream` in
+- [x] Extend `IAgentProvider.run` / `stream` in
       `packages/core/src/interfaces/agent.ts` to accept caller-provided tools
       per call (e.g. an optional
       `options: { tools?: ITool[]; systemPrompt?: string }` argument). Keep the
       no-tools call shape behaviourally unchanged.
-- [ ] In `packages/agent-langchain/src/agent.ts`, convert each `ITool` (Zod
+- [x] In `packages/agent-langchain/src/agent.ts`, convert each `ITool` (Zod
       schema) into an Anthropic custom tool definition (JSON Schema) and
       `bindTools` them alongside the existing server tools.
-- [ ] Stop filtering `ToolCallContentPart` / `ToolResultContentPart` when
+- [x] Stop filtering `ToolCallContentPart` / `ToolResultContentPart` when
       building the provider request; serialize them to the Anthropic `tool_use`
       / `tool_result` block format (both directions).
-- [ ] Implement the agentic loop: model turn → detect `tool_use` → validate args
+- [x] Implement the agentic loop: model turn → detect `tool_use` → validate args
       against the tool's Zod schema → `tool.execute()` → append a `tool_result`
       → re-invoke the model → repeat until no tool calls remain.
-- [ ] Guardrails: a `maxToolIterations` budget (config + sane default), honour
+- [x] Guardrails: a `maxToolIterations` budget (config + sane default), honour
       the `AbortSignal` between iterations, and return tool execution failures
       as `tool_result` parts with `isError: true` so the model can recover.
-- [ ] Unit tests: a fake `ITool` exercising a multi-step loop (execute → result
+- [x] Unit tests: a fake `ITool` exercising a multi-step loop (execute → result
       → follow-up turn), schema-validation rejection, the iteration cap, and
       abort mid-loop.
 

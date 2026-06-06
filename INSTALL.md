@@ -197,6 +197,55 @@ DF_LOG_LEVEL=info
 
 ---
 
+## Rate Limiting
+
+Per-subject request limits protect login, mutations, and expensive LLM-backed
+operations against brute-force and abuse. They are enabled by default with
+limits sized for tens of simultaneous users, so most deployments need to
+configure nothing.
+
+```env
+DF_RATE_LIMIT_ENABLED=true
+DF_RATE_LIMIT_FACTOR=1.0
+# DF_RATE_LIMIT_EXPECTED_USERS=50
+```
+
+- **`DF_RATE_LIMIT_ENABLED`** _(optional, default: `true`)_ — Set to `false` to
+  disable all rate limiting (trusted networks, load testing, or when the host
+  already enforces limits).
+- **`DF_RATE_LIMIT_FACTOR`** _(optional, default: `1.0`)_ — The single tuning
+  knob: a positive multiplier applied to every tier's limit. `2` doubles all
+  allowances, `0.5` halves them. This is the recommended way to loosen or
+  tighten a deployment without learning every tier.
+- **`DF_RATE_LIMIT_EXPECTED_USERS`** _(optional)_ — A positive integer that
+  enables an aggregate ceiling on the shared expensive pool (agent messages +
+  transcription), sized at `expectedUsers × per-user-expensive-allowance`. This
+  bounds total load on the LLM/transcription provider independently of per-user
+  limits. Omit for per-user limits only (no global cap).
+
+Limits are keyed by authenticated user id where available, falling back to the
+client IP. IP extraction respects `DF_TRUSTED_REVERSE_PROXY`, so limits are
+applied to the real client rather than the reverse proxy.
+
+Per-tier defaults (requests per minute, before `DF_RATE_LIMIT_FACTOR`):
+
+| Tier         | Limit | Endpoints                                               |
+| ------------ | ----- | ------------------------------------------------------- |
+| `read`       | 300   | Authenticated GETs (thread list/detail, messages, etc.) |
+| `mutation`   | 60    | Thread/message create/patch/delete, profile updates     |
+| `auth`       | 10    | Login / OIDC callback / logout                          |
+| `message`    | 20    | WebSocket `send-message` (triggers an agent run)        |
+| `transcribe` | 10    | `POST /transcribe` (audio transcription)                |
+| `search`     | 30    | Thread/user semantic search (embeddings)                |
+| `upload`     | 30    | `POST /attachments`                                     |
+| `admin`      | 5     | `POST /admin/reindex`                                   |
+
+Exceeded HTTP limits return `429 Too Many Requests` with a `Retry-After` header;
+an exceeded WebSocket `send-message` limit emits a structured `error` event with
+code `rate_limited`.
+
+---
+
 ## Google Cloud OIDC Setup
 
 ### 1. Create a Google Cloud project

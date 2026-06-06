@@ -266,6 +266,11 @@ export interface BackendConfig {
     trustedReverseProxy: boolean | number | string | string[] | undefined;
     adminSecret: string | undefined;
     adminIps: string | undefined;
+    rateLimit: {
+        enabled: boolean;
+        factor: number | undefined;
+        expectedUsers: number | undefined;
+    };
 }
 
 const DEFAULT_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
@@ -444,5 +449,13 @@ export function loadBackendConfig(
         trustedReverseProxy: parseTrustedReverseProxy(reader.prefixed("TRUSTED_REVERSE_PROXY")),
         adminSecret: reader.prefixed("ADMIN_SECRET"),
         adminIps: reader.prefixed("ADMIN_IPS"),
+        rateLimit: {
+            enabled: reader.prefixed("RATE_LIMIT_ENABLED") !== "false",
+            factor: parsePositiveNumber(reader.prefixed("RATE_LIMIT_FACTOR"), "DF_RATE_LIMIT_FACTOR"),
+            expectedUsers: parseOptionalPositiveInt(
+                reader.prefixed("RATE_LIMIT_EXPECTED_USERS"),
+                "DF_RATE_LIMIT_EXPECTED_USERS",
+            ),
+        },
     };
 }

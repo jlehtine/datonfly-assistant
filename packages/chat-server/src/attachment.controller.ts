@@ -32,6 +32,7 @@ import { AuditLogger } from "./audit-logger.js";
 import { PERSISTENCE_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
+import { RateTier } from "./rate-limit/rate-tier.decorator.js";
 
 /** Subset of the multer file object consumed by this controller. */
 interface UploadedAttachment {
@@ -61,6 +62,7 @@ export class AttachmentController {
     ) {}
 
     @Post()
+    @RateTier("upload")
     @UseInterceptors(FileInterceptor("file", { limits: { fileSize: ATTACHMENT_LIMITS.maxFileBytes } }))
     async upload(
         @ResolvedUser() user: User,

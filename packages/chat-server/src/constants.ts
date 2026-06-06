@@ -10,3 +10,4 @@ export const ADMIN_SECRET = Symbol("ADMIN_SECRET");
 export const ADMIN_IPS = Symbol("ADMIN_IPS");
 export const TRUSTED_REVERSE_PROXY = Symbol("TRUSTED_REVERSE_PROXY");
 export const SEARCH_RECENCY_HALF_LIFE_DAYS = Symbol("SEARCH_RECENCY_HALF_LIFE_DAYS");
+export const RATE_LIMIT_CONFIG = Symbol("RATE_LIMIT_CONFIG");

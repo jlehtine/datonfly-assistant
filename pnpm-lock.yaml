@@ -109,7 +109,7 @@ importers:
         version: link:../agent-mcp
       '@datonfly-assistant/chat-server':
         specifier: workspace:*
-        version: link:../chat-server
+        version: file:packages/chat-server(@datonfly-assistant/core@file:packages/core)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(@nestjs/platform-express@11.1.18)(@nestjs/platform-socket.io@11.1.18)(@nestjs/websockets@11.1.18)(pino-http@11.0.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)(zod@4.3.6)
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core
@@ -229,6 +229,9 @@ importers:
 
   packages/chat-server:
     dependencies:
+      '@nestjs/throttler':
+        specifier: ^6.5.0
+        version: 6.5.0(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(reflect-metadata@0.2.2)
       cookie:
         specifier: ^1.1.1
         version: 1.1.1
@@ -275,6 +278,9 @@ importers:
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@types/node@25.5.2)(vite@8.0.7(@types/node@25.5.2)(esbuild@0.27.7)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/chat-ui-mui:
     dependencies:
@@ -539,6 +545,20 @@ packages:
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
+
+  '@datonfly-assistant/chat-server@file:packages/chat-server':
+    resolution: {directory: packages/chat-server, type: directory}
+    peerDependencies:
+      '@datonfly-assistant/core': workspace:*
+      '@nestjs/common': ^11.0.0
+      '@nestjs/core': ^11.0.0
+      '@nestjs/platform-express': ^11.0.0
+      '@nestjs/platform-socket.io': ^11.0.0
+      '@nestjs/websockets': ^11.0.0
+      zod: ^4.0.0
+
+  '@datonfly-assistant/core@file:packages/core':
+    resolution: {directory: packages/core, type: directory}
 
   '@emnapi/core@1.9.1':
     resolution: {integrity: sha512-mukuNALVsoix/w1BJwFzwXBN/dHeejQtuVzcDsfOEsdpCumXb/E9j8w11h5S54tT1xhifGfbbSm/ICrObRb3KA==}
@@ -1046,6 +1066,13 @@ packages:
         optional: true
       fastify:
         optional: true
+
+  '@nestjs/throttler@6.5.0':
+    resolution: {integrity: sha512-9j0ZRfH0QE1qyrj9JjIRDz5gQLPqq9yVC2nHsrosDVAfI5HHw08/aUAWx9DZLSdQf4HDkmhTTEGLrRFHENvchQ==}
+    peerDependencies:
+      '@nestjs/common': ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0
+      '@nestjs/core': ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0
+      reflect-metadata: ^0.1.13 || ^0.2.0
 
   '@nestjs/websockets@11.1.18':
     resolution: {integrity: sha512-HLO/QGlJoJaMMDphgjbcIwW7/8EA8nnFQjf+qPvA+wWLLfPKoiFPUezc5m9YgN2A7jmzwo6YmEAXeHyqO9tvTw==}
@@ -4162,6 +4189,32 @@ snapshots:
 
   '@cfworker/json-schema@4.1.1': {}
 
+  '@datonfly-assistant/chat-server@file:packages/chat-server(@datonfly-assistant/core@file:packages/core)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(@nestjs/platform-express@11.1.18)(@nestjs/platform-socket.io@11.1.18)(@nestjs/websockets@11.1.18)(pino-http@11.0.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)(zod@4.3.6)':
+    dependencies:
+      '@datonfly-assistant/core': file:packages/core
+      '@nestjs/common': 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.18)(@nestjs/websockets@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/platform-express': 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)
+      '@nestjs/platform-socket.io': 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/websockets@11.1.18)(rxjs@7.8.2)
+      '@nestjs/throttler': 6.5.0(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(reflect-metadata@0.2.2)
+      '@nestjs/websockets': 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(@nestjs/platform-socket.io@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      cookie: 1.1.1
+      nestjs-pino: 4.6.1(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@11.0.0)(pino@10.3.1)(rxjs@7.8.2)
+      pino: 10.3.1
+      socket.io: 4.8.3
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - bufferutil
+      - pino-http
+      - reflect-metadata
+      - rxjs
+      - supports-color
+      - utf-8-validate
+
+  '@datonfly-assistant/core@file:packages/core':
+    dependencies:
+      zod: 4.3.6
+
   '@emnapi/core@1.9.1':
     dependencies:
       '@emnapi/wasi-threads': 1.2.0
@@ -4635,6 +4688,12 @@ snapshots:
       path-to-regexp: 8.3.0
     optionalDependencies:
       express: 5.2.1
+
+  '@nestjs/throttler@6.5.0(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(reflect-metadata@0.2.2)':
+    dependencies:
+      '@nestjs/common': 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.18)(@nestjs/websockets@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
 
   '@nestjs/websockets@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(@nestjs/platform-socket.io@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
     dependencies:

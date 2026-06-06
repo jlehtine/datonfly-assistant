@@ -56,6 +56,7 @@ import {
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
 import { buildAuthorAliases, extractText, resolveAttachmentData, threadMessagesToAgentMessages } from "./messages.js";
+import { RateLimitService } from "./rate-limit/rate-limit.service.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
 import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
 import type { TranscribeFn } from "./transcription.controller.js";
@@ -123,6 +124,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
         @Optional() @Inject(TRANSCRIBE_FN) private readonly transcribeFn: TranscribeFn | null,
         private readonly auditLogger: AuditLogger,
+        private readonly rateLimit: RateLimitService,
     ) {}
 
     afterInit(_server: Server): void {
@@ -274,6 +276,24 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
 
         const { threadId } = parsed.data;
+
+        // Rate-limit agent-invoking messages (per user, plus the shared
+        // expensive-resource ceiling) before doing any work.
+        const user = (socket.data as { user?: User | undefined }).user;
+        const rateSubject = user?.id ?? `ws:${socket.handshake.address}`;
+        const decision = await this.rateLimit.consumeMessage(rateSubject);
+        if (!decision.allowed) {
+            socket.emit("error", {
+                event: "error",
+                message: `Rate limit exceeded. Try again in ${decision.retryAfterSeconds.toString()}s.`,
+                code: ERROR_CODES.rate_limited,
+            });
+            this.auditLogger.audit("info", "ws.send-message.rate-limited", {
+                userId: user?.id ?? "anonymous",
+                threadId,
+            });
+            return;
+        }
 
         // Signal abort on any active stream immediately, before waiting for the
         // lock, so the streaming loop can break at the next chunk boundary.

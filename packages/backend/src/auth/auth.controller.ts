@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { PinoLogger } from "nestjs-pino";
 
 import { formatLoggedError } from "@datonfly-assistant/core";
+import { RateTier } from "@datonfly-assistant/chat-server";
 
 import { Public } from "../guards/jwt-auth.guard.js";
 
@@ -18,6 +19,7 @@ export class AuthController {
     }
 
     @Public()
+    @RateTier("auth")
     @Get("login")
     async login(@Query("fakeid") fakeidRaw: string | undefined, @Res() res: Response): Promise<void> {
         if (this.authService.authMode === "fake") {
@@ -34,6 +36,7 @@ export class AuthController {
     }
 
     @Public()
+    @RateTier("auth")
     @Get("callback")
     async callback(@Req() req: Request, @Res() res: Response): Promise<void> {
         const callbackUrl = this.authService.buildCallbackUrl(req.originalUrl);
@@ -65,6 +68,7 @@ export class AuthController {
     }
 
     @Public()
+    @RateTier("auth")
     @Post("logout")
     @HttpCode(200)
     logout(@Res({ passthrough: true }) res: Response): object {

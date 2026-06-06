@@ -22,6 +22,7 @@ export type ErrorCode =
     | "attachment_not_found"
     | "unsupported_attachment_type"
     | "attachment_too_large"
+    | "rate_limited"
     | "client_error"
     | "unspecified";
 
@@ -49,6 +50,7 @@ export const ERROR_CODES = {
     attachment_not_found: "attachment_not_found",
     unsupported_attachment_type: "unsupported_attachment_type",
     attachment_too_large: "attachment_too_large",
+    rate_limited: "rate_limited",
     client_error: "client_error",
     unspecified: "unspecified",
 } as const satisfies Record<ErrorCode, ErrorCode>;

@@ -117,4 +117,36 @@ describe("loadBackendConfig", () => {
         expect(config.mcp.servers).toHaveLength(1);
         expect(config.mcp.servers[0]).toMatchObject({ transport: "stdio", name: "local", command: "node" });
     });
+
+    describe("rate limiting", () => {
+        it("defaults to enabled with no factor or expected-users override", () => {
+            const config = loadBackendConfig(validEnv());
+            expect(config.rateLimit).toEqual({ enabled: true, factor: undefined, expectedUsers: undefined });
+        });
+
+        it("can be disabled", () => {
+            const config = loadBackendConfig(validEnv({ DF_RATE_LIMIT_ENABLED: "false" }));
+            expect(config.rateLimit.enabled).toBe(false);
+        });
+
+        it("parses the factor and expected-users knobs", () => {
+            const config = loadBackendConfig(
+                validEnv({ DF_RATE_LIMIT_FACTOR: "2.5", DF_RATE_LIMIT_EXPECTED_USERS: "100" }),
+            );
+            expect(config.rateLimit.factor).toBe(2.5);
+            expect(config.rateLimit.expectedUsers).toBe(100);
+        });
+
+        it("throws on a non-positive factor", () => {
+            expect(() => loadBackendConfig(validEnv({ DF_RATE_LIMIT_FACTOR: "0" }))).toThrow(
+                'DF_RATE_LIMIT_FACTOR must be a positive number, got "0"',
+            );
+        });
+
+        it("throws on a non-integer expected-users", () => {
+            expect(() => loadBackendConfig(validEnv({ DF_RATE_LIMIT_EXPECTED_USERS: "1.5" }))).toThrow(
+                'DF_RATE_LIMIT_EXPECTED_USERS must be a positive integer, got "1.5"',
+            );
+        });
+    });
 });

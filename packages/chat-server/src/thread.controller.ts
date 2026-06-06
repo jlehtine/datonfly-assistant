@@ -42,6 +42,7 @@ import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER, SEARCH_RECENCY_HALF_LIFE_DAYS } 
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
+import { RateTier } from "./rate-limit/rate-tier.decorator.js";
 
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
@@ -86,6 +87,7 @@ export class ThreadController {
     }
 
     @Get("search")
+    @RateTier("search")
     async search(
         @ResolvedUser() user: User,
         @Query(new ZodValidationPipe(threadSearchQuerySchema)) query: ThreadSearchQuery,

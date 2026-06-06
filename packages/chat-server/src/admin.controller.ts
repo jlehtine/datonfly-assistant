@@ -8,6 +8,7 @@ import { Public } from "./decorators/public.decorator.js";
 import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER } from "./constants.js";
 import { AdminGuard } from "./guards/admin.guard.js";
 import { extractText } from "./messages.js";
+import { RateTier } from "./rate-limit/rate-tier.decorator.js";
 
 @Controller("datonfly-assistant/admin")
 @Public()
@@ -20,6 +21,7 @@ export class AdminController {
     ) {}
 
     @Post("reindex")
+    @RateTier("admin")
     async reindex(@Res() res: Response): Promise<void> {
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
         res.setHeader("Transfer-Encoding", "chunked");

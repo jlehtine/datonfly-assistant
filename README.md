@@ -63,6 +63,11 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   choose between simple or rich text input, and manage profile settings.
 - **Flexible authentication** — Supports OIDC (Google, Azure AD, Keycloak,
   Auth0, etc.) for production and a zero-config fake mode for development.
+- **Rate limiting** — Configurable per-tier request limits protect login,
+  mutations, and expensive LLM-backed operations against brute-force and abuse.
+  Enabled by default with sensible limits, tuned via a single `factor` knob or
+  disabled entirely; keyed per authenticated user (falling back to client IP).
+  See [INSTALL.md](INSTALL.md#rate-limiting).
 - **Embeddable architecture** — All library packages can be embedded
   independently into existing applications, with pluggable AI agent and
   persistence providers.

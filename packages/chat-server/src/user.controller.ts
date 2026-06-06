@@ -8,6 +8,7 @@ import { MEMBER_SEARCH_STRATEGY, PERSISTENCE_PROVIDER } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
+import { RateTier } from "./rate-limit/rate-tier.decorator.js";
 
 const searchQuerySchema = z.object({
     q: z.string().min(1).max(200),
@@ -68,6 +69,7 @@ export class UserController {
     }
 
     @Get("search")
+    @RateTier("search")
     async search(
         @ResolvedUser() user: User,
         @Query(new ZodValidationPipe(searchQuerySchema)) query: SearchQuery,

@@ -134,6 +134,11 @@ async function bootstrap(): Promise<void> {
         adminIps: cfg.adminIps,
         logLevel: cfg.log.level,
         logFormat: cfg.log.format,
+        rateLimit: {
+            enabled: cfg.rateLimit.enabled,
+            factor: cfg.rateLimit.factor,
+            expectedUsers: cfg.rateLimit.expectedUsers,
+        },
     });
 
     const extraModules = [chatModule];

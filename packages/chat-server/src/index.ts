@@ -30,3 +30,8 @@ export { ThreadTitleGenerator } from "./title-generator.js";
 export type { GenerateTitleFn, OnTitleUpdatedFn, ThreadTitleGeneratorConfig } from "./title-generator.js";
 export { threadMessagesToAgentMessages, extractText } from "./messages.js";
 export type { TrustedReverseProxy } from "./trusted-proxy.service.js";
+export { RateTier } from "./rate-limit/rate-tier.decorator.js";
+export { RateLimitService } from "./rate-limit/rate-limit.service.js";
+export type { RateDecision } from "./rate-limit/rate-limit.service.js";
+export { RATE_LIMIT_TIER_DEFAULTS, resolveRateLimitConfig, computeTierLimit } from "./rate-limit/tiers.js";
+export type { RateLimitTier, RateLimitOptions, ResolvedRateLimitConfig, TierLimit } from "./rate-limit/tiers.js";

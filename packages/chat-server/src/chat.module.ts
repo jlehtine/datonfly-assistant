@@ -1,5 +1,7 @@
 import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
+import { APP_GUARD, Reflector } from "@nestjs/core";
+import { ThrottlerModule, type ThrottlerOptions, type ThrottlerStorage } from "@nestjs/throttler";
 import { LoggerModule } from "nestjs-pino";
 
 import type {
@@ -21,6 +23,7 @@ import {
     GENERATE_TITLE_FN,
     MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
+    RATE_LIMIT_CONFIG,
     SEARCH_PROVIDER,
     SEARCH_RECENCY_HALF_LIFE_DAYS,
     TRANSCRIBE_FN,
@@ -29,12 +32,36 @@ import {
 } from "./constants.js";
 import { AdminGuard } from "./guards/admin.guard.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
+import { RateLimitService } from "./rate-limit/rate-limit.service.js";
+import { resolveHttpTier } from "./rate-limit/rate-tier.decorator.js";
+import { TieredThrottlerGuard } from "./rate-limit/throttler.guard.js";
+import {
+    HTTP_TIERS,
+    resolveRateLimitConfig,
+    type RateLimitOptions,
+    type ResolvedRateLimitConfig,
+} from "./rate-limit/tiers.js";
 import { TrustedProxyService, type TrustedReverseProxy } from "./trusted-proxy.service.js";
 import type { GenerateTitleFn } from "./title-generator.js";
 import { ThreadController } from "./thread.controller.js";
 import { TranscriptionController, type TranscribeFn } from "./transcription.controller.js";
 import { UserController } from "./user.controller.js";
 import type { ValidateTokenFn } from "./chat.gateway.js";
+
+/** Build one named throttler per HTTP tier; `skipIf` selects the matching tier. */
+function buildHttpThrottlers(config: ResolvedRateLimitConfig): ThrottlerOptions[] {
+    const reflector = new Reflector();
+    return HTTP_TIERS.map((tier) => {
+        const { ttlMs, limit } = config.tiers[tier];
+        return {
+            name: tier,
+            ttl: ttlMs,
+            limit,
+            blockDuration: ttlMs,
+            skipIf: (context) => context.getType() !== "http" || resolveHttpTier(context, reflector) !== tier,
+        };
+    });
+}
 
 interface RequestLogSource {
     method: string;
@@ -116,6 +143,15 @@ export interface ChatModuleConfig {
      * value (the default) uses human-readable pretty output.
      */
     logFormat?: "json" | "pretty" | undefined;
+    /**
+     * Rate-limiting configuration. Enabled by default with sane per-tier limits.
+     *
+     * Tune the whole deployment up or down with `factor`, optionally bound the
+     * shared expensive-resource pool with `expectedUsers`, or disable entirely
+     * with `enabled: false`. Provide a custom `storage` to share limit state
+     * across multiple instances (defaults to in-memory).
+     */
+    rateLimit?: (RateLimitOptions & { storage?: ThrottlerStorage | undefined }) | undefined;
 }
 
 @Module({})
@@ -134,6 +170,7 @@ export class ChatModule {
      * raw token string to a `UserIdentity`.
      */
     static forRoot(config: ChatModuleConfig): DynamicModule {
+        const rateLimit = resolveRateLimitConfig(config.rateLimit);
         return {
             module: ChatModule,
             imports: [
@@ -157,6 +194,14 @@ export class ChatModule {
                         },
                     },
                 }),
+                ...(rateLimit.enabled
+                    ? [
+                          ThrottlerModule.forRoot({
+                              throttlers: buildHttpThrottlers(rateLimit),
+                              ...(config.rateLimit?.storage ? { storage: config.rateLimit.storage } : {}),
+                          }),
+                      ]
+                    : []),
             ],
             controllers: [
                 ThreadController,
@@ -186,6 +231,9 @@ export class ChatModule {
                               .filter(Boolean)
                         : null,
                 },
+                { provide: RATE_LIMIT_CONFIG, useValue: rateLimit },
+                RateLimitService,
+                ...(rateLimit.enabled ? [{ provide: APP_GUARD, useClass: TieredThrottlerGuard }] : []),
                 RequireUserGuard,
                 AdminGuard,
                 AuditLogger,

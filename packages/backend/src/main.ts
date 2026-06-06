@@ -12,6 +12,7 @@ import { Logger } from "nestjs-pino";
 import pino from "pino";
 
 import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
+import { McpServerSet, type McpServerConfig } from "@datonfly-assistant/agent-mcp";
 import { ChatModule } from "@datonfly-assistant/chat-server";
 import type { ISearchProvider, MemberSearchStrategy, ProviderLogger } from "@datonfly-assistant/core";
 import { createPostgresPersistence } from "@datonfly-assistant/persistence-pg";
@@ -46,6 +47,92 @@ function parseTrustedReverseProxy(value: string | undefined): boolean | number |
         .filter(Boolean);
 
     return addresses.length > 1 ? addresses : raw;
+}
+
+/** Narrow an unknown value to a plain object. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Validate an optional string array field on an MCP server config entry. */
+function parseStringArray(value: unknown, field: string, server: string): string[] | undefined {
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+        throw new Error(`MCP_SERVERS: "${field}" on server "${server}" must be an array of strings`);
+    }
+    return value as string[];
+}
+
+/** Validate an optional string-to-string record field on an MCP server config entry. */
+function parseStringRecord(value: unknown, field: string, server: string): Record<string, string> | undefined {
+    if (value === undefined) return undefined;
+    if (!isRecord(value) || Object.values(value).some((item) => typeof item !== "string")) {
+        throw new Error(`MCP_SERVERS: "${field}" on server "${server}" must be an object of string values`);
+    }
+    return value as Record<string, string>;
+}
+
+/**
+ * Parse the optional `MCP_SERVERS` environment variable into validated MCP
+ * server configurations. Returns an empty array when unset or blank, so the
+ * standalone backend behaves exactly as before unless MCP is configured.
+ *
+ * The value is a JSON array of objects, each either a stdio server
+ * (`{ "name", "command", "args"?, "env"?, "cwd"? }`) or a Streamable HTTP
+ * server (`{ "transport": "http", "name", "url", "headers"? }`).
+ */
+function parseMcpServers(value: string | undefined): McpServerConfig[] {
+    const raw = value?.trim();
+    if (!raw) return [];
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (error) {
+        throw new Error(`MCP_SERVERS must be valid JSON: ${error instanceof Error ? error.message : "parse error"}`, {
+            cause: error,
+        });
+    }
+    if (!Array.isArray(parsed)) {
+        throw new Error("MCP_SERVERS must be a JSON array of server configurations");
+    }
+
+    return parsed.map((entry, index): McpServerConfig => {
+        if (!isRecord(entry)) {
+            throw new Error(`MCP_SERVERS[${index.toString()}] must be an object`);
+        }
+        const name = entry.name;
+        if (typeof name !== "string" || name.trim() === "") {
+            throw new Error(`MCP_SERVERS[${index.toString()}] requires a non-empty "name"`);
+        }
+        const transport = entry.transport ?? "stdio";
+        if (transport !== "stdio" && transport !== "http") {
+            throw new Error(`MCP_SERVERS: "transport" on server "${name}" must be "stdio" or "http"`);
+        }
+
+        if (transport === "http") {
+            if (typeof entry.url !== "string" || entry.url.trim() === "") {
+                throw new Error(`MCP_SERVERS: HTTP server "${name}" requires a non-empty "url"`);
+            }
+            const headers = parseStringRecord(entry.headers, "headers", name);
+            return { transport, name, url: entry.url, ...(headers ? { headers } : {}) };
+        }
+
+        if (typeof entry.command !== "string" || entry.command.trim() === "") {
+            throw new Error(`MCP_SERVERS: stdio server "${name}" requires a non-empty "command"`);
+        }
+        const args = parseStringArray(entry.args, "args", name);
+        const env = parseStringRecord(entry.env, "env", name);
+        const cwd = typeof entry.cwd === "string" ? entry.cwd : undefined;
+        return {
+            transport,
+            name,
+            command: entry.command,
+            ...(args ? { args } : {}),
+            ...(env ? { env } : {}),
+            ...(cwd !== undefined ? { cwd } : {}),
+        };
+    });
 }
 
 async function bootstrap(): Promise<void> {
@@ -168,6 +255,29 @@ async function bootstrap(): Promise<void> {
         },
     }).child({ component: "assistant-api" });
 
+    // Optional: external MCP servers whose tools are exposed to the agent on
+    // every call. Disabled (no behaviour change) unless MCP_SERVERS is set.
+    const mcpConfigs = parseMcpServers(process.env.MCP_SERVERS);
+    const rawMcpTimeout = process.env.MCP_TOOL_TIMEOUT_MS;
+    const mcpToolTimeoutMs = rawMcpTimeout !== undefined ? Number(rawMcpTimeout) : undefined;
+    if (rawMcpTimeout !== undefined && (!Number.isFinite(mcpToolTimeoutMs) || (mcpToolTimeoutMs ?? 0) <= 0)) {
+        throw new Error(`MCP_TOOL_TIMEOUT_MS must be a positive number, got "${rawMcpTimeout}"`);
+    }
+    let mcpServerSet: McpServerSet | undefined;
+    if (mcpConfigs.length > 0) {
+        mcpServerSet = await McpServerSet.connect(mcpConfigs, {
+            clientName: "datonfly-assistant",
+            ...(mcpToolTimeoutMs !== undefined ? { callTimeoutMs: mcpToolTimeoutMs } : {}),
+        });
+        agentLogger.info({ servers: mcpConfigs.length, tools: mcpServerSet.tools.length }, "Connected to MCP servers");
+    }
+
+    const rawMaxToolIterations = process.env.AGENT_MAX_TOOL_ITERATIONS;
+    const maxToolIterations = rawMaxToolIterations !== undefined ? Number(rawMaxToolIterations) : undefined;
+    if (rawMaxToolIterations !== undefined && (!Number.isInteger(maxToolIterations) || (maxToolIterations ?? 0) < 1)) {
+        throw new Error(`AGENT_MAX_TOOL_ITERATIONS must be a positive integer, got "${rawMaxToolIterations}"`);
+    }
+
     const agent = new LangGraphAgent({
         modelName: model,
         apiKey: process.env.ANTHROPIC_API_KEY,
@@ -180,6 +290,8 @@ async function bootstrap(): Promise<void> {
         thinkingDisplay,
         thinkingBudgetTokens,
         thinkingEffort,
+        ...(maxToolIterations !== undefined ? { maxToolIterations } : {}),
+        ...(mcpServerSet ? { defaultTools: mcpServerSet.tools } : {}),
         logger: agentLogger,
     });
 
@@ -294,6 +406,9 @@ async function bootstrap(): Promise<void> {
     const shutdown = async (): Promise<void> => {
         logger.log("Shutting down...");
         await app.close();
+        if (mcpServerSet) {
+            await mcpServerSet.close();
+        }
         await destroyPersistence();
         process.exit(0);
     };

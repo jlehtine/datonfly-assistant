@@ -117,12 +117,25 @@ vendor-neutral `ITool`/`AgentRunOptions` re-exported from `core`; the internal
 
 ### E. Standalone wiring, tests & docs (assistant product — optional)
 
-- [ ] Optionally wire env-configured MCP servers into the standalone chat
+- [x] Optionally wire env-configured MCP servers into the standalone chat
       backend behind a feature flag (no behaviour change when unset).
-- [ ] Update `README.md` / `INSTALL.md` to document tool and MCP configuration
+- [x] Update `README.md` / `INSTALL.md` to document tool and MCP configuration
       (env vars, transports, iteration cap).
-- [ ] Run `pnpm lint:fix`; confirm `pnpm build`, `pnpm lint`, and the affected
+- [x] Run `pnpm lint:fix`; confirm `pnpm build`, `pnpm lint`, and the affected
       unit tests pass.
+
+Decisions: MCP servers are configured via a single `MCP_SERVERS` JSON env var
+(empty/unset → no tools, unchanged behaviour); `MCP_TOOL_TIMEOUT_MS` sets the
+per-call timeout and `AGENT_MAX_TOOL_ITERATIONS` the loop budget. The backend
+connects the `McpServerSet` at startup, passes its tools as the agent's
+`defaultTools`, and closes the set on graceful shutdown. A failed MCP connection
+aborts startup (fail fast).
+
+Manual test: verified end-to-end against a stdio filesystem MCP server
+(`@modelcontextprotocol/server-filesystem`) configured via `MCP_SERVERS`. The
+agent successfully read and updated files through the server's tools. (Adding
+`agent-mcp` raised the persistent `dev` task count to 10, so the root `dev`
+script now runs `turbo run dev --concurrency=20`.)
 
 ## Security
 

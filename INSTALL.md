@@ -119,6 +119,43 @@ ANTHROPIC_TITLE_MODEL=claude-haiku-4-5
 - **`ANTHROPIC_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
   titles. Omit to disable title generation.
 
+## Agent Tools and MCP
+
+The agent can call tools while answering. Anthropic's built-in server-side tools
+(web search, web fetch, code execution) are enabled by default; set the
+corresponding flag to `"false"` to disable any of them:
+
+```env
+ENABLE_COMPACTION=true
+ENABLE_CODE_EXECUTION=true
+ENABLE_WEB_SEARCH=true
+ENABLE_WEB_FETCH=true
+```
+
+Custom tools can additionally be provided through external **MCP (Model Context
+Protocol)** servers. This is disabled by default; when `MCP_SERVERS` is unset
+the agent behaves exactly as before. Set it to a JSON array of server
+configurations:
+
+```env
+# stdio server (a local process)
+MCP_SERVERS=[{"name":"filesystem","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/data"]}]
+
+# remote Streamable HTTP server
+MCP_SERVERS=[{"transport":"http","name":"remote","url":"https://mcp.example.com/mcp","headers":{"Authorization":"Bearer TOKEN"}}]
+```
+
+- **`MCP_SERVERS`** _(optional)_ — JSON array of MCP servers. Each entry is
+  either a stdio server (`{ "name", "command", "args"?, "env"?, "cwd"? }`) or a
+  Streamable HTTP server (`{ "transport": "http", "name", "url", "headers"? }`).
+  The legacy HTTP+SSE transport is not supported. On startup the backend
+  connects to each server, lists its tools, and exposes them to the agent; tool
+  names must be unique across all servers. A connection failure aborts startup.
+- **`MCP_TOOL_TIMEOUT_MS`** _(optional)_ — Per tool-call timeout in
+  milliseconds. Omit to use the MCP SDK default.
+- **`AGENT_MAX_TOOL_ITERATIONS`** _(optional, default: 10)_ — Maximum number of
+  model turns in a tool-calling loop before the agent aborts the request.
+
 ## Audio Input (Transcription)
 
 Users can dictate messages with their microphone. Audio is transcribed

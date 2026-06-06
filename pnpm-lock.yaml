@@ -104,6 +104,9 @@ importers:
       '@datonfly-assistant/agent-langchain':
         specifier: workspace:*
         version: link:../agent-langchain
+      '@datonfly-assistant/agent-mcp':
+        specifier: workspace:*
+        version: link:../agent-mcp
       '@datonfly-assistant/chat-server':
         specifier: workspace:*
         version: link:../chat-server

@@ -52,7 +52,8 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
 - **AI agent tools** — The default implementation uses Claude as the AI model,
   with built-in Claude tools for web search (with source citations), web page
   fetching, and code execution. Application-specific tools can be injected by
-  the host app.
+  the host app, or provided through external MCP (Model Context Protocol)
+  servers via the `MCP_SERVERS` configuration.
 - **Context management** — Long conversations are automatically compacted to
   stay within context limits. Compaction can be handled natively by the AI
   provider (e.g. Claude's built-in compaction) or externally by the gateway

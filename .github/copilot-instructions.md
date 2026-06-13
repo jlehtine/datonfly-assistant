@@ -22,6 +22,13 @@ Stick to the agreed plan. If during implementation you encounter unforeseen
 complications, inconsistencies, or ambiguities — stop, describe the problem and
 the available options to the user, and ask how to proceed before continuing.
 
+If you cannot ask the user questions (e.g. in an autonomous/Autopilot mode where
+no interactive prompt is available), do **not** guess at a significant change of
+plan or work around the blocker on your own. Instead, halt and report: describe
+the blocker, the decision(s) that need to be made, and the options you see, then
+end your turn and wait for the user. Continue autonomously only for changes that
+clearly fall within the agreed plan.
+
 ## Dependency Licensing
 
 Vet the license of any third-party dependency before adding it.

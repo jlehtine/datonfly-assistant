@@ -50,6 +50,11 @@ After code changes, run `pnpm lint:fix` and fix any linting errors caused by the
 changes. Formatting is applied automatically by a commit hook, so there is no
 need to check formatting.
 
+## Version Control
+
+Do not commit changes unless the user explicitly asks you to. Stage and make
+commits only on explicit user permission or instruction.
+
 ## Testing
 
 After implementing a feature, decide whether the feature warrants unit tests or

@@ -10,7 +10,7 @@ import { config } from "dotenv";
 import { Logger } from "nestjs-pino";
 import pino from "pino";
 
-import { createTitleGenerateFn, LangGraphAgent } from "@datonfly-assistant/agent-langchain";
+import { AnthropicAgent, createTitleGenerateFn } from "@datonfly-assistant/agent-langchain";
 import { McpServerSet } from "@datonfly-assistant/agent-mcp";
 import { ChatModule } from "@datonfly-assistant/chat-server";
 import type { ISearchProvider, ProviderLogger } from "@datonfly-assistant/core";
@@ -70,7 +70,7 @@ async function bootstrap(): Promise<void> {
         );
     }
 
-    const agent = new LangGraphAgent({
+    const agent = new AnthropicAgent({
         modelName: cfg.agent.modelName,
         apiKey: cfg.anthropicApiKey,
         triageModelName: cfg.agent.triageModelName,

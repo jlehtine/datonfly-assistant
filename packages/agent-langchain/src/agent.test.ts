@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { AgentMessage, AgentStreamChunk, ITool } from "@datonfly-assistant/core";
 
-import { agentMessagesToBaseMessages, LangGraphAgent } from "./agent.js";
+import { agentMessagesToBaseMessages, AnthropicAgent } from "./agent.js";
 
 /**
  * A stand-in for the bound chat model that replays a fixed sequence of streamed
@@ -33,8 +33,8 @@ class FakeStreamModel {
 }
 
 /** Build an agent and replace its underlying model with a fake streamer. */
-function agentWithFakeModel(fake: FakeStreamModel): LangGraphAgent {
-    const agent = new LangGraphAgent({ modelName: "claude-test", apiKey: "sk-ant-test", maxToolIterations: 3 });
+function agentWithFakeModel(fake: FakeStreamModel): AnthropicAgent {
+    const agent = new AnthropicAgent({ modelName: "claude-test", apiKey: "sk-ant-test", maxToolIterations: 3 });
     // Override both the base model (used when tools are bound per call) and the
     // pre-bound runnable (used on the no-tools path) so no real API call is made.
     (agent as unknown as { model: unknown; runnableModel: unknown }).model = fake;
@@ -46,8 +46,8 @@ function agentWithFakeModel(fake: FakeStreamModel): LangGraphAgent {
 function agentWith(
     fake: FakeStreamModel,
     config: { defaultTools?: ITool[]; defaultSystemPrompt?: string },
-): LangGraphAgent {
-    const agent = new LangGraphAgent({
+): AnthropicAgent {
+    const agent = new AnthropicAgent({
         modelName: "claude-test",
         apiKey: "sk-ant-test",
         maxToolIterations: 3,
@@ -78,7 +78,7 @@ async function collect(stream: AsyncIterable<AgentStreamChunk>): Promise<AgentSt
     return chunks;
 }
 
-describe("LangGraphAgent.stream tool loop", () => {
+describe("AnthropicAgent.stream tool loop", () => {
     it("emits tool-call then tool-result then the final text, in order", async () => {
         let executedWith: { a: number; b: number } | undefined;
         const fake = new FakeStreamModel([
@@ -233,7 +233,7 @@ describe("agentMessagesToBaseMessages tool-part round-trip", () => {
     });
 });
 
-describe("LangGraphAgent default tools and system prompt", () => {
+describe("AnthropicAgent default tools and system prompt", () => {
     it("applies default tools when a call omits its own", async () => {
         let executedWith: { a: number; b: number } | undefined;
         const fake = new FakeStreamModel([

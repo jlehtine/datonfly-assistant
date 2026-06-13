@@ -479,8 +479,8 @@ function deduplicateCitations(citations: RawCitation[]): Citation[] {
     return unique;
 }
 
-/** Configuration options for {@link LangGraphAgent}. */
-export interface LangGraphAgentConfig {
+/** Configuration options for {@link AnthropicAgent}. */
+export interface AnthropicAgentConfig {
     /** Anthropic model identifier (e.g. `"claude-3-5-sonnet-20241022"`). */
     modelName: string;
     /** Anthropic API key. Falls back to the `ANTHROPIC_API_KEY` environment variable when omitted. */
@@ -538,7 +538,7 @@ export interface LangGraphAgentConfig {
 
     /**
      * Maximum number of model turns in a caller-provided tool-calling loop
-     * before {@link LangGraphAgent.run} aborts with an error. Defaults to `10`.
+     * before {@link AnthropicAgent.run} aborts with an error. Defaults to `10`.
      */
     maxToolIterations?: number | undefined;
 
@@ -573,7 +573,7 @@ export interface LangGraphAgentConfig {
  *
  * Implements {@link IAgentProvider} with both one-shot and streaming response modes.
  */
-export class LangGraphAgent implements IAgentProvider {
+export class AnthropicAgent implements IAgentProvider {
     private readonly model: ChatAnthropic;
     /** Model with server tools bound (if any are enabled), or the base model. */
     private readonly runnableModel: Runnable;
@@ -599,7 +599,7 @@ export class LangGraphAgent implements IAgentProvider {
     readonly externalCompaction = false;
 
     /** Create the agent with the given model configuration. */
-    constructor(config: LangGraphAgentConfig) {
+    constructor(config: AnthropicAgentConfig) {
         const enableCompaction = config.enableCompaction !== false;
         const options: ConstructorParameters<typeof ChatAnthropic>[0] = {
             model: config.modelName,
@@ -1008,7 +1008,7 @@ export class LangGraphAgent implements IAgentProvider {
     /**
      * Determine whether the agent should respond in a multi-user thread.
      *
-     * When no {@link LangGraphAgentConfig.triageModelName | triageModelName}
+     * When no {@link AnthropicAgentConfig.triageModelName | triageModelName}
      * is configured the agent always responds.  Otherwise a lightweight
      * classifier model decides based on the recent conversation context.
      */

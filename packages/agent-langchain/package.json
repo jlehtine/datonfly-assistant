@@ -1,8 +1,13 @@
 {
     "name": "@datonfly-assistant/agent-langchain",
     "version": "0.0.1",
-    "private": true,
     "type": "module",
+    "publishConfig": {
+        "registry": "https://npm.jlehtinen.net/"
+    },
+    "files": [
+        "dist"
+    ],
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {

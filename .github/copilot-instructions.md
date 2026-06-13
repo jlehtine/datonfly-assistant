@@ -29,6 +29,15 @@ the blocker, the decision(s) that need to be made, and the options you see, then
 end your turn and wait for the user. Continue autonomously only for changes that
 clearly fall within the agreed plan.
 
+## Planning and Progress
+
+Use [TODO.md](../TODO.md) as the durable record of planned work and completed
+steps. Before starting non-trivial work, record the plan there; as steps land,
+mark them done so the file reflects current progress. Follow the structure and
+progress-tracking rules documented at the top of that file. `TODO.md` is working
+state, not permanent documentation — durable facts belong in the long-lived docs
+(README, CONVENTIONS).
+
 ## Dependency Licensing
 
 Vet the license of any third-party dependency before adding it.

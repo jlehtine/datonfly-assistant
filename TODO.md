@@ -1,5 +1,43 @@
 # TODO
 
+## How to use this file
+
+`TODO.md` is the working record of planned and in-progress work for this
+repository. It captures concrete, sequenced steps and tracks their status; it is
+not permanent documentation.
+
+**Structure.** Group work under `##` sections (features or workstreams) and
+optional `###` subsections. Express individual steps as GitHub-style task list
+items so progress is visible at a glance:
+
+- `- [ ]` — not started or in progress
+- `- [x]` — completed
+
+**Numeric identifiers.** When work is sequenced into phases, number them so they
+sort and read in execution order. Top-level phases are `## Phase N — <title>`
+with an increasing integer `N` (`Phase 0`, `Phase 1`, …); subsections use a
+dotted `### N.M <title>` form where `M` increases within the phase (`0.1`,
+`0.2`, `1.1`, …). Always assign the next unused number to later work — never
+renumber existing phases/steps to insert in the middle. If something must slot
+between existing items, append it with the next free number (or a deeper `N.M.K`
+level) rather than shifting the others.
+
+Keep steps concrete and actionable, ordered by dependency where it matters. Put
+brief context, decisions, or rationale inline under a section when it helps a
+future reader pick the work up.
+
+**Tracking progress.** As work lands, flip its checkbox to `- [x]` in the same
+change. Add newly discovered steps as you go rather than leaving them implicit,
+and split a step that grew too large into smaller checkable items.
+
+**Cleanup.** Do not delete completed steps as part of normal work — leave them
+as `- [x]` so the file shows what has been done. Remove (clean up) completed
+entries only when the user explicitly asks, and only after any durable facts in
+those entries have been migrated into the permanent docs
+([README.md](README.md), [CONVENTIONS.md](CONVENTIONS.md), and related files).
+Cleanup is a documentation step, not a plain deletion: nothing of lasting value
+should be lost when entries are removed.
+
 ## Configuration — environment variable naming convention
 
 Apply a consistent naming convention for environment variables: a **single

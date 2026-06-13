@@ -22,10 +22,26 @@ Stick to the agreed plan. If during implementation you encounter unforeseen
 complications, inconsistencies, or ambiguities — stop, describe the problem and
 the available options to the user, and ask how to proceed before continuing.
 
+## Dependency Licensing
+
+Vet the license of any third-party dependency before adding it.
+
+- **Dependencies that contribute code to the final application** (compiled,
+  bundled, or otherwise linked into shipped artifacts) must use MIT, BSD, Apache
+  2.0, or a similarly permissive license. Do **not** add copyleft-licensed
+  dependencies (e.g. GPL, LGPL, AGPL, MPL) to this category.
+- **Pure runtime dependencies** (platform components invoked as separate
+  processes/services and not linked into the application) may additionally use
+  copyleft licenses.
+
+If a dependency's license is unclear or does not fit these rules, stop and ask
+the user before adding it.
+
 ## Linting
 
 After code changes, run `pnpm lint:fix` and fix any linting errors caused by the
-changes.
+changes. Formatting is applied automatically by a commit hook, so there is no
+need to check formatting.
 
 ## Testing
 

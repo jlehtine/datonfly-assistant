@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-import { composerInput, createThreadViaApi, loginAsFakeUser, sendAndWaitForReply, uniqueTitle } from "./helpers";
+import {
+    composerInput,
+    composerSendButton,
+    createThreadViaApi,
+    loginAsFakeUser,
+    sendAndWaitForReply,
+    threadItemByTitle,
+    uniqueTitle,
+} from "./helpers";
 
 // A well-formed UUID v4 that will never exist in the database.
 const NONEXISTENT_THREAD_ID = "00000000-0000-4000-8000-000000000001";
@@ -66,6 +74,51 @@ test.describe("thread routing", () => {
         await expect(page.locator(".datonfly-message-ai").last()).toContainText("routing render check", {
             timeout: 20_000,
         });
+    });
+
+    test("thinking indicator is shown only in the actively streaming thread", async ({ page }) => {
+        await loginAsFakeUser(page, 1);
+
+        const titleA = uniqueTitle("Route-A");
+        const titleB = uniqueTitle("Route-B");
+        const threadIdA = await createThreadViaApi(page, titleA);
+        const threadIdB = await createThreadViaApi(page, titleB);
+
+        const threadA = threadItemByTitle(page, titleA);
+        const threadB = threadItemByTitle(page, titleB);
+        await expect(threadA).toBeVisible({ timeout: 10_000 });
+        await expect(threadB).toBeVisible({ timeout: 10_000 });
+
+        await threadA.click();
+        await expect(page).toHaveURL(`/threads/${threadIdA}`, { timeout: 5_000 });
+
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            const composer = composerInput(page);
+            await expect(composer).toBeEnabled({ timeout: 10_000 });
+            await composer.fill("Stream and then switch threads quickly.");
+
+            const sendButton = composerSendButton(page);
+            await expect(sendButton).toBeVisible({ timeout: 10_000 });
+            await expect(sendButton).toBeEnabled({ timeout: 10_000 });
+
+            try {
+                await sendButton.click({ timeout: 10_000 });
+                break;
+            } catch (error) {
+                if (attempt === 1) {
+                    throw error;
+                }
+            }
+        }
+
+        const thinkingIndicator = page.locator('[aria-label="Assistant is thinking"]');
+        await expect(thinkingIndicator).toBeVisible({ timeout: 10_000 });
+
+        await threadB.click();
+        await expect(page).toHaveURL(`/threads/${threadIdB}`, { timeout: 5_000 });
+
+        // The pending response belongs to thread A and must not leak to thread B.
+        await expect(thinkingIndicator).toHaveCount(0, { timeout: 5_000 });
     });
 
     test("navigating to a non-existent thread shows a specific error and keeps the URL", async ({ page }) => {

@@ -129,6 +129,7 @@ export function useMessages(
     const [hasMore, setHasMore] = useState(false);
     const streamingIdRef = useRef<string | null>(null);
     const resolvedThreadIdRef = useRef(threadId);
+    const previousThreadIdRef = useRef(threadId);
     // Tracks the createdAt of the oldest loaded message for scroll-up pagination
     const oldestCreatedAtRef = useRef<Date | null>(null);
     // Synchronous loading guard to prevent concurrent history fetches (state updates are async)
@@ -164,17 +165,23 @@ export function useMessages(
 
     // Reset and load history when threadId changes
     useEffect(() => {
+        const previousThreadId = previousThreadIdRef.current;
+        previousThreadIdRef.current = threadId;
+
         setMessages([]);
         setHasMore(false);
         oldestCreatedAtRef.current = null;
         isLoadingHistoryRef.current = false;
         streamingIdRef.current = null;
+        const shouldPreserveStreaming = pendingSendRef.current && previousThreadId == null && threadId != null;
         // When a send is pending and we're transitioning to a thread
         // (null → value, lazy-created thread), preserve isStreaming so the
-        // thinking indicator stays visible.  pendingSendRef is set
+        // thinking indicator stays visible. For any other thread switch,
+        // reset streaming state so the indicator does not leak into
+        // unrelated conversations. pendingSendRef is set
         // synchronously in sendMessage and is never mutated inside effects,
         // so it works correctly with React StrictMode double-invocation.
-        if (!pendingSendRef.current || threadId == null) {
+        if (!shouldPreserveStreaming) {
             setIsStreaming(false);
             setStreamingStatus(null);
         }

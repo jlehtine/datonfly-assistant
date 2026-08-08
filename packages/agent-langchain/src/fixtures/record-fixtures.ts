@@ -11,8 +11,9 @@
  *     pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- plain-text
  *     pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- --all
  *
- * `ANTHROPIC_API_KEY` must be set (the root `.env` is loaded automatically).
- * Scenarios cost real money; record only what you need.
+ * `ANTHROPIC_API_KEY` and the model are read from the environment or the root
+ * `.env`; `--model` overrides the latter. Scenarios cost real money; record only
+ * what you need.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -38,9 +39,6 @@ function findRepoRoot(): string {
 
 const REPO_ROOT = findRepoRoot();
 const FIXTURE_DIR = join(REPO_ROOT, "packages/agent-anthropic/test/fixtures");
-
-/** Model used unless a scenario overrides it; cheap by default. */
-const MODEL = process.env.DF_AGENT_MODEL ?? "claude-haiku-4-5";
 
 /** A 1x1 transparent PNG, so the image scenario needs no binary asset in the repo. */
 const TINY_PNG_BASE64 =
@@ -98,6 +96,12 @@ interface Scenario {
     config?: Partial<AgentConfig>;
     /** Anthropic-only configuration for this scenario. */
     providerOptions?: AnthropicProviderOptions;
+    /**
+     * Needs a model that supports Anthropic's server-side tools.
+     *
+     * Haiku does not, so these scenarios only record on a Sonnet/Opus-class model.
+     */
+    requiresServerTools?: boolean;
     /** Conversation sent to the agent. */
     messages: AgentMessage[];
     /** Abort the stream after this many chunks, instead of draining it. */
@@ -129,18 +133,21 @@ const SCENARIOS: Scenario[] = [
         name: "web-search",
         description: "Server-side web_search tool use, including citation blocks.",
         providerOptions: { enableCodeExecution: true, enableWebSearch: true, webSearchMaxUses: 1 },
+        requiresServerTools: true,
         messages: human("Search the web for the current stable Node.js LTS version and cite your source."),
     },
     {
         name: "web-fetch",
         description: "Server-side web_fetch tool use against a URL given in the prompt.",
         providerOptions: { enableCodeExecution: true, enableWebFetch: true, webFetchMaxUses: 1 },
+        requiresServerTools: true,
         messages: human("Fetch https://example.com and quote its heading."),
     },
     {
         name: "code-execution",
         description: "Server-side code_execution tool use.",
         providerOptions: { enableCodeExecution: true },
+        requiresServerTools: true,
         messages: human("Use code execution to compute the 20th Fibonacci number."),
     },
     {
@@ -215,17 +222,44 @@ async function toolLoopTools(): Promise<AnthropicAgentConfig["defaultTools"]> {
 
 /** Load `ANTHROPIC_API_KEY`, preferring the process environment over the root `.env`. */
 function loadApiKey(): string {
-    const fromEnv = process.env.ANTHROPIC_API_KEY;
+    const value = readSetting("ANTHROPIC_API_KEY");
+    if (!value) {
+        throw new Error("ANTHROPIC_API_KEY is not set (checked the environment and the root .env).");
+    }
+    return value;
+}
+
+/** Read a setting from the process environment, falling back to the root `.env`. */
+function readSetting(name: string): string | undefined {
+    const fromEnv = process.env[name];
     if (fromEnv) return fromEnv;
 
     const envFile = join(REPO_ROOT, ".env");
-    if (existsSync(envFile)) {
-        for (const line of readFileSync(envFile, "utf-8").split("\n")) {
-            const match = /^\s*ANTHROPIC_API_KEY\s*=\s*(.+?)\s*$/.exec(line);
-            if (match?.[1]) return match[1].replace(/^["']|["']$/g, "");
-        }
+    if (!existsSync(envFile)) return undefined;
+    for (const line of readFileSync(envFile, "utf-8").split("\n")) {
+        const match = new RegExp(`^\\s*${name}\\s*=\\s*(.+?)\\s*$`).exec(line);
+        if (match?.[1]) return match[1].replace(/^["']|["']$/g, "");
     }
-    throw new Error("ANTHROPIC_API_KEY is not set (checked the environment and the root .env).");
+    return undefined;
+}
+
+/**
+ * Resolve the model to record with.
+ *
+ * There is deliberately no default: the fixtures are a regression baseline for a
+ * specific deployment, and the cheap models do not support every scenario.
+ */
+function resolveModel(args: string[]): string {
+    const flagIndex = args.indexOf("--model");
+    const fromFlag = flagIndex >= 0 ? args[flagIndex + 1] : undefined;
+    if (flagIndex >= 0 && !fromFlag) {
+        throw new Error("--model requires a model name.");
+    }
+    const model = fromFlag ?? readSetting("DF_AGENT_MODEL");
+    if (!model) {
+        throw new Error("No model selected. Pass --model <name> or set DF_AGENT_MODEL in the environment or .env.");
+    }
+    return model;
 }
 
 /** Drain a stream, optionally aborting it after a number of chunks. */
@@ -244,12 +278,12 @@ async function drain(
 }
 
 /** Run one scenario and write its fixture. */
-async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string): Promise<void> {
+async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string, model: string): Promise<void> {
     process.stdout.write(`▶ ${scenario.name}\n`);
     proxy.setScenario(scenario.name);
 
     const config: AnthropicAgentConfig = {
-        modelName: MODEL,
+        modelName: model,
         apiKey,
         baseUrl: proxy.url,
         maxTokens: 1024,
@@ -272,6 +306,19 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string)
         process.stdout.write(`  ${expected ? "·" : "!"} ${message}\n`);
     }
 
+    // An unexpected error response would enshrine a broken baseline (e.g. a model
+    // that does not support the server tools this scenario needs).
+    const rejected = proxy.pending(scenario.name).filter((exchange) => exchange.response.status >= 400);
+    if (rejected.length > 0 && scenario.expectFailure !== true) {
+        const statuses = rejected.map((exchange) => exchange.response.status.toString()).join(", ");
+        process.stdout.write(`  ! not recorded: the API rejected the request (${statuses})\n`);
+        if (scenario.requiresServerTools) {
+            process.stdout.write(`    "${model}" may not support Anthropic's server-side tools.\n`);
+        }
+        proxy.discard(scenario.name);
+        return;
+    }
+
     const written = await proxy.flush(scenario.name, FIXTURE_DIR);
     for (const file of written) {
         process.stdout.write(`  → ${file.replace(`${REPO_ROOT}/`, "")}\n`);
@@ -286,20 +333,27 @@ async function main(): Promise<void> {
 
     if (args.length === 0 || args.includes("--help")) {
         process.stdout.write(
-            "Usage: record:fixtures -- [--list] [--all] [scenario...]\n" +
-                "Records raw Anthropic SSE fixtures. Each scenario is a real, billable API call.\n",
+            "Usage: record:fixtures -- [--list] [--all] [--model <name>] [scenario...]\n" +
+                "Records raw Anthropic SSE fixtures. Each scenario is a real, billable API call.\n" +
+                "The model comes from --model or DF_AGENT_MODEL; scenarios marked as needing\n" +
+                "server-side tools do not record on Haiku.\n",
         );
         return;
     }
     if (args.includes("--list")) {
         for (const scenario of SCENARIOS) {
-            process.stdout.write(`${scenario.name.padEnd(20)} ${scenario.description}\n`);
+            const note = scenario.requiresServerTools ? " [needs server-tool support]" : "";
+            process.stdout.write(`${scenario.name.padEnd(20)} ${scenario.description}${note}\n`);
         }
         return;
     }
 
-    const selected = args.includes("--all") ? SCENARIOS : SCENARIOS.filter((s) => args.includes(s.name));
-    const unknown = args.filter((arg) => !arg.startsWith("--") && !SCENARIOS.some((s) => s.name === arg));
+    const model = resolveModel(args);
+    const flagIndex = args.indexOf("--model");
+    const modelValueIndex = flagIndex >= 0 ? flagIndex + 1 : -1;
+    const positional = args.filter((arg, index) => !arg.startsWith("--") && index !== modelValueIndex);
+    const selected = args.includes("--all") ? SCENARIOS : SCENARIOS.filter((s) => positional.includes(s.name));
+    const unknown = positional.filter((arg) => !SCENARIOS.some((s) => s.name === arg));
     if (unknown.length > 0) {
         throw new Error(`Unknown scenario(s): ${unknown.join(", ")}. Use --list to see the available names.`);
     }
@@ -309,10 +363,10 @@ async function main(): Promise<void> {
 
     const apiKey = loadApiKey();
     const proxy = await startRecordingProxy({ apiKey });
-    process.stdout.write(`Recording ${selected.length.toString()} scenario(s) via ${proxy.url}\n`);
+    process.stdout.write(`Recording ${selected.length.toString()} scenario(s) with ${model} via ${proxy.url}\n`);
     try {
         for (const scenario of selected) {
-            await record(scenario, proxy, apiKey);
+            await record(scenario, proxy, apiKey, model);
         }
     } finally {
         await proxy.close();

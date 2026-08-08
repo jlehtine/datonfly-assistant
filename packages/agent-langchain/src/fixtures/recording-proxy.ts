@@ -99,6 +99,10 @@ export interface RecordingProxy {
     readonly url: string;
     /** Name applied to exchanges recorded from now on. */
     setScenario(name: string): void;
+    /** Exchanges recorded for `scenario` so far, so a caller can vet them before writing. */
+    pending(scenario: string): RecordedExchange[];
+    /** Forget every exchange recorded for `scenario` without writing it. */
+    discard(scenario: string): void;
     /** Write every exchange recorded for `scenario`, then forget them. */
     flush(scenario: string, outputDir: string): Promise<string[]>;
     close(): Promise<void>;
@@ -183,6 +187,14 @@ export async function startRecordingProxy(options: RecordingProxyOptions): Promi
         url: `http://127.0.0.1:${address.port.toString()}`,
         setScenario(name: string): void {
             scenario = name;
+        },
+        pending(name: string): RecordedExchange[] {
+            return exchanges.filter((exchange) => exchange.scenario === name);
+        },
+        discard(name: string): void {
+            for (let i = exchanges.length - 1; i >= 0; i--) {
+                if (exchanges[i]?.scenario === name) exchanges.splice(i, 1);
+            }
         },
         async flush(name: string, outputDir: string): Promise<string[]> {
             const recorded = exchanges.filter((exchange) => exchange.scenario === name);

@@ -32,8 +32,7 @@ for (const candidate of [".env", "../../.env"]) {
 }
 
 async function bootstrap(): Promise<void> {
-    const deprecationWarnings: string[] = [];
-    const cfg = loadBackendConfig(process.env, (message) => deprecationWarnings.push(message));
+    const cfg = loadBackendConfig(process.env);
 
     // ─── Persistence ───
     const pg = await createPostgresPersistence({ connectionString: cfg.databaseUrl });
@@ -51,10 +50,6 @@ async function bootstrap(): Promise<void> {
             censor: "[REDACTED]",
         },
     }).child({ component: "assistant-api" });
-
-    for (const message of deprecationWarnings) {
-        agentLogger.warn({}, message);
-    }
 
     // Optional: external MCP servers whose tools are exposed to the agent on
     // every call. Disabled (no behaviour change) unless DF_MCP_SERVERS is set.
@@ -74,14 +69,14 @@ async function bootstrap(): Promise<void> {
         modelName: cfg.agent.modelName,
         apiKey: cfg.anthropicApiKey,
         triageModelName: cfg.agent.triageModelName,
-        enableCompaction: cfg.agent.enableCompaction,
-        enableCodeExecution: cfg.agent.enableCodeExecution,
-        enableWebSearch: cfg.agent.enableWebSearch,
-        enableWebFetch: cfg.agent.enableWebFetch,
-        thinkingType: cfg.agent.thinkingType,
-        thinkingDisplay: cfg.agent.thinkingDisplay,
-        thinkingBudgetTokens: cfg.agent.thinkingBudgetTokens,
-        thinkingEffort: cfg.agent.thinkingEffort,
+        enableCompaction: cfg.agent.anthropic.enableCompaction,
+        enableCodeExecution: cfg.agent.anthropic.enableCodeExecution,
+        enableWebSearch: cfg.agent.anthropic.enableWebSearch,
+        enableWebFetch: cfg.agent.anthropic.enableWebFetch,
+        thinkingType: cfg.agent.anthropic.thinkingType,
+        thinkingDisplay: cfg.agent.anthropic.thinkingDisplay,
+        thinkingBudgetTokens: cfg.agent.anthropic.thinkingBudgetTokens,
+        thinkingEffort: cfg.agent.anthropic.thinkingEffort,
         debugApiContent: cfg.agent.debugApiContent,
         ...(cfg.agent.maxToolIterations !== undefined ? { maxToolIterations: cfg.agent.maxToolIterations } : {}),
         ...(mcpServerSet ? { defaultTools: mcpServerSet.tools } : {}),

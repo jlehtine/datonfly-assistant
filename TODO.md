@@ -48,13 +48,13 @@ the standalone assistant and the wider Datonfly suite (`datonfly-autocode`),
 behaves identically whether shared library packages run standalone or embedded,
 and still "just works" for the provider SDKs.
 
-Status: implemented, closing out. All reads go through `EnvReader` in
-`packages/backend/src/config.ts`, which currently resolves `DF_*` with a legacy
-unprefixed fallback. What remains is to drop the legacy fallbacks and, in the
-same change, make the model/agent variables vendor-neutral (see below). Test
-deployments are few and operator-managed, so this ships as a **hard rename with
-no deprecation window and no backwards compatibility** — only the permanent
-`PORT` / `DATABASE_URL` canonical fallbacks survive.
+Status: implemented and closed out. All reads go through `EnvReader` in
+`packages/backend/src/config.ts`, which resolves `DF_*` only — the legacy
+unprefixed fallback and its deprecation warning are gone, and the model/agent
+variables are vendor-neutral (see below). Test deployments are few and
+operator-managed, so this shipped as a **hard rename with no deprecation window
+and no backwards compatibility** — only the permanent `PORT` / `DATABASE_URL`
+canonical fallbacks survive, via `EnvReader.prefixedWithCanonicalFallback()`.
 
 ### Decisions (resolved)
 
@@ -163,30 +163,30 @@ misleading. `ANTHROPIC_API_KEY` stays canonical and unprefixed as before.
       including the deprecation window and warning behaviour.
 - [x] Add a unit test for the config loader: prefixed name wins, legacy fallback
       works and warns, validation errors are raised for malformed values.
-- [ ] Remove the legacy fallback from `EnvReader`: drop the `LegacyMode` type,
+- [x] Remove the legacy fallback from `EnvReader`: drop the `LegacyMode` type,
       the `"deprecated"` branch, the `warnedKeys` set, and the `warn`
       constructor parameter. Keep the permanent `PORT` / `DATABASE_URL` fallback
       as an explicit, separately named method (e.g.
       `prefixedWithCanonicalFallback(name)`) so the surviving exception is
       self-documenting rather than a mode flag.
-- [ ] Apply the vendor-neutral renames above in
+- [x] Apply the vendor-neutral renames above in
       `packages/backend/src/config.ts`. Rename the corresponding `BackendConfig`
       fields where they still read as vendor-specific, and keep the
       Anthropic-only knobs grouped so they map cleanly onto the provider options
       object introduced in Phase 1.3.
-- [ ] Update `packages/backend/src/config.test.ts`: delete the legacy-fallback
+- [x] Update `packages/backend/src/config.test.ts`: delete the legacy-fallback
       and deprecation-warning cases, add cases asserting that an unprefixed
       legacy name is now **ignored** (and that a missing required variable
       throws naming the `DF_*` name), and cover the renamed variables.
-- [ ] Update `.env.example`, `README.md`, `INSTALL.md`, `docker-compose.yml`,
+- [x] Update `.env.example`, `README.md`, `INSTALL.md`, `docker-compose.yml`,
       and any deployment manifests to the new names.
-- [ ] Rewrite `ENV_MIGRATION.md` for the final state: the deprecation window is
+- [x] Rewrite `ENV_MIGRATION.md` for the final state: the deprecation window is
       closed, unprefixed legacy names are no longer read, and a second mapping
       table documents the `DF_ANTHROPIC_*` → `DF_AGENT_*` / `DF_ENABLE_*` →
       `DF_ANTHROPIC_ENABLE_*` renames as a hard cutover with no fallback.
       Preserve the historical mapping so operators upgrading from a pre-`DF_`
       deployment can still follow both hops.
-- [ ] Grep the repository for stragglers (`ANTHROPIC_MODEL`, `ENABLE_WEB_`,
+- [x] Grep the repository for stragglers (`ANTHROPIC_MODEL`, `ENABLE_WEB_`,
       `ENABLE_CODE_`, `ENABLE_COMPACTION`, …) across code, tests, docs, and
       compose/deployment files to confirm no unprefixed or stale name remains.
 

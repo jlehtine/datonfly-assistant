@@ -55,9 +55,9 @@ Datonfly Assistant supports two authentication modes, controlled by the
 
 > All Datonfly configuration variables use the `DF_` prefix. The only exceptions
 > are `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, which keep their canonical names
-> because the vendor SDKs read them directly. Legacy unprefixed names are still
-> accepted during a deprecation window — see
-> [ENV_MIGRATION.md](ENV_MIGRATION.md).
+> because the vendor SDKs read them directly, and `PORT` / `DATABASE_URL`, whose
+> unprefixed forms remain accepted as a fallback. Unprefixed legacy names are no
+> longer read — see [ENV_MIGRATION.md](ENV_MIGRATION.md).
 
 ### Fake Mode (`DF_AUTH_MODE=fake`)
 
@@ -116,15 +116,15 @@ title generation model:
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
-DF_ANTHROPIC_MODEL=claude-opus-4-6
-DF_ANTHROPIC_TITLE_MODEL=claude-haiku-4-5
+DF_AGENT_MODEL=claude-opus-4-6
+DF_AGENT_TITLE_MODEL=claude-haiku-4-5
 ```
 
 - **`ANTHROPIC_API_KEY`** — Required. Your Anthropic API key (canonical name,
   read by the SDK — no `DF_` prefix).
-- **`DF_ANTHROPIC_MODEL`** _(optional, default: claude-opus-4-6)_ — The model
-  used for chat responses.
-- **`DF_ANTHROPIC_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
+- **`DF_AGENT_MODEL`** _(optional, default: claude-opus-4-6)_ — The model used
+  for chat responses.
+- **`DF_AGENT_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
   titles. Omit to disable title generation.
 
 ## Agent Tools and MCP
@@ -134,10 +134,10 @@ The agent can call tools while answering. Anthropic's built-in server-side tools
 corresponding flag to `"false"` to disable any of them:
 
 ```env
-DF_ENABLE_COMPACTION=true
-DF_ENABLE_CODE_EXECUTION=true
-DF_ENABLE_WEB_SEARCH=true
-DF_ENABLE_WEB_FETCH=true
+DF_ANTHROPIC_ENABLE_COMPACTION=true
+DF_ANTHROPIC_ENABLE_CODE_EXECUTION=true
+DF_ANTHROPIC_ENABLE_WEB_SEARCH=true
+DF_ANTHROPIC_ENABLE_WEB_FETCH=true
 ```
 
 Custom tools can additionally be provided through external **MCP (Model Context

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { EnvReader, loadBackendConfig, type EnvSource } from "./config.js";
 
@@ -6,38 +6,30 @@ import { EnvReader, loadBackendConfig, type EnvSource } from "./config.js";
 function validEnv(overrides: Record<string, string | undefined> = {}): EnvSource {
     return {
         DF_DATABASE_URL: "postgres://localhost/test",
-        DF_ANTHROPIC_MODEL: "claude-test",
+        DF_AGENT_MODEL: "claude-test",
         ...overrides,
     };
 }
 
 describe("EnvReader", () => {
-    it("prefers the DF_-prefixed value over the legacy name", () => {
-        const reader = new EnvReader({ DF_FOO: "new", FOO: "old" });
+    it("reads the DF_-prefixed value", () => {
+        const reader = new EnvReader({ DF_FOO: "new" });
         expect(reader.prefixed("FOO")).toBe("new");
     });
 
-    it("falls back to the legacy name and warns once", () => {
-        const warn = vi.fn();
-        const reader = new EnvReader({ FOO: "old" }, warn);
-        expect(reader.prefixed("FOO")).toBe("old");
-        expect(reader.prefixed("FOO")).toBe("old");
-        expect(warn).toHaveBeenCalledTimes(1);
-        expect(warn).toHaveBeenCalledWith('Environment variable "FOO" is deprecated; use "DF_FOO" instead.');
+    it("ignores the unprefixed name", () => {
+        const reader = new EnvReader({ FOO: "old" });
+        expect(reader.prefixed("FOO")).toBeUndefined();
     });
 
-    it("does not warn for permanent legacy fallbacks", () => {
-        const warn = vi.fn();
-        const reader = new EnvReader({ PORT: "8080" }, warn);
-        expect(reader.prefixed("PORT", "permanent")).toBe("8080");
-        expect(warn).not.toHaveBeenCalled();
+    it("falls back to the unprefixed name only where a canonical fallback is declared", () => {
+        const reader = new EnvReader({ PORT: "8080" });
+        expect(reader.prefixedWithCanonicalFallback("PORT")).toBe("8080");
     });
 
-    it("does not warn when the prefixed name is present", () => {
-        const warn = vi.fn();
-        const reader = new EnvReader({ DF_FOO: "new", FOO: "old" }, warn);
-        expect(reader.prefixed("FOO")).toBe("new");
-        expect(warn).not.toHaveBeenCalled();
+    it("prefers the prefixed name over the canonical fallback", () => {
+        const reader = new EnvReader({ DF_PORT: "9090", PORT: "8080" });
+        expect(reader.prefixedWithCanonicalFallback("PORT")).toBe("9090");
     });
 
     it("reads canonical names without a prefix", () => {
@@ -61,32 +53,75 @@ describe("loadBackendConfig", () => {
         expect(config.anthropicApiKey).toBe("sk-test");
     });
 
-    it("accepts legacy unprefixed names and warns", () => {
-        const warn = vi.fn();
+    it("reads the vendor-neutral agent model variables", () => {
         const config = loadBackendConfig(
-            { DATABASE_URL: "postgres://localhost/legacy", ANTHROPIC_MODEL: "claude-legacy" },
-            warn,
+            validEnv({ DF_AGENT_TRIAGE_MODEL: "claude-triage", DF_AGENT_TITLE_MODEL: "claude-title" }),
         );
-        expect(config.databaseUrl).toBe("postgres://localhost/legacy");
-        expect(config.agent.modelName).toBe("claude-legacy");
-        // ANTHROPIC_MODEL is deprecated and warns; DATABASE_URL is permanent and does not.
-        expect(warn).toHaveBeenCalledWith(
-            'Environment variable "ANTHROPIC_MODEL" is deprecated; use "DF_ANTHROPIC_MODEL" instead.',
+        expect(config.agent.triageModelName).toBe("claude-triage");
+        expect(config.titleModelName).toBe("claude-title");
+    });
+
+    it("reads the Anthropic-namespaced server-tool toggles", () => {
+        const config = loadBackendConfig(
+            validEnv({
+                DF_ANTHROPIC_ENABLE_COMPACTION: "false",
+                DF_ANTHROPIC_ENABLE_CODE_EXECUTION: "false",
+                DF_ANTHROPIC_ENABLE_WEB_SEARCH: "false",
+                DF_ANTHROPIC_ENABLE_WEB_FETCH: "false",
+            }),
         );
-        expect(warn).not.toHaveBeenCalledWith(
-            'Environment variable "DATABASE_URL" is deprecated; use "DF_DATABASE_URL" instead.',
-        );
+        expect(config.agent.anthropic).toMatchObject({
+            enableCompaction: false,
+            enableCodeExecution: false,
+            enableWebSearch: false,
+            enableWebFetch: false,
+        });
+    });
+
+    it("defaults the Anthropic server-tool toggles to enabled", () => {
+        const config = loadBackendConfig(validEnv());
+        expect(config.agent.anthropic).toMatchObject({
+            enableCompaction: true,
+            enableCodeExecution: true,
+            enableWebSearch: true,
+            enableWebFetch: true,
+        });
+    });
+
+    it("ignores unprefixed legacy names", () => {
+        expect(() =>
+            loadBackendConfig({ DATABASE_URL: "postgres://localhost/legacy", AGENT_MODEL: "claude-legacy" }),
+        ).toThrow("DF_AGENT_MODEL environment variable is required");
+    });
+
+    it("ignores the pre-rename Anthropic model name", () => {
+        expect(() =>
+            loadBackendConfig({ DF_DATABASE_URL: "postgres://localhost/test", DF_ANTHROPIC_MODEL: "claude-old" }),
+        ).toThrow("DF_AGENT_MODEL environment variable is required");
+    });
+
+    it("accepts the unprefixed DATABASE_URL as a permanent fallback", () => {
+        const config = loadBackendConfig({
+            DATABASE_URL: "postgres://localhost/platform",
+            DF_AGENT_MODEL: "claude-test",
+        });
+        expect(config.databaseUrl).toBe("postgres://localhost/platform");
+    });
+
+    it("accepts the unprefixed PORT as a permanent fallback", () => {
+        const config = loadBackendConfig(validEnv({ PORT: "8080" }));
+        expect(config.port).toBe(8080);
     });
 
     it("throws when the database URL is missing", () => {
-        expect(() => loadBackendConfig({ DF_ANTHROPIC_MODEL: "claude-test" })).toThrow(
+        expect(() => loadBackendConfig({ DF_AGENT_MODEL: "claude-test" })).toThrow(
             "DF_DATABASE_URL environment variable is required",
         );
     });
 
     it("throws when the model name is missing", () => {
         expect(() => loadBackendConfig({ DF_DATABASE_URL: "postgres://localhost/test" })).toThrow(
-            "DF_ANTHROPIC_MODEL environment variable is required",
+            "DF_AGENT_MODEL environment variable is required",
         );
     });
 

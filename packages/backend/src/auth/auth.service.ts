@@ -85,7 +85,7 @@ export class AuthService {
         if (this.config.mode === "oidc") {
             const oidc = this.config.oidc;
             if (!oidc) {
-                throw new Error("OIDC config is required when AUTH_MODE=oidc");
+                throw new Error("OIDC config is required when DF_AUTH_MODE=oidc");
             }
             this.oidcConfig = await client.discovery(new URL(oidc.issuerUrl), oidc.clientId, oidc.clientSecret);
         }
@@ -245,7 +245,7 @@ export class AuthService {
         const oidc = this.config.oidc;
         const config = this.oidcConfig;
         if (!oidc || !config) {
-            throw new Error("OIDC config is required when AUTH_MODE=oidc");
+            throw new Error("OIDC config is required when DF_AUTH_MODE=oidc");
         }
 
         const codeVerifier = client.randomPKCECodeVerifier();
@@ -271,7 +271,7 @@ export class AuthService {
     private async performOidcCallback(callbackUrl: URL): Promise<{ accessToken: string; user: UserIdentity }> {
         const config = this.oidcConfig;
         if (!config) {
-            throw new Error("OIDC config is required when AUTH_MODE=oidc");
+            throw new Error("OIDC config is required when DF_AUTH_MODE=oidc");
         }
 
         const state = callbackUrl.searchParams.get("state");

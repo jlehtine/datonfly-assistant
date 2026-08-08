@@ -20,6 +20,40 @@ Strict TypeScript everywhere. All packages use strict compiler settings.
 - **`backend`** and **`frontend`** are thin standalone shims — keep them
   minimal.
 
+## Configuration
+
+All environment variables owned by Datonfly use a single suite-wide **`DF_`
+prefix**, giving one unambiguous namespace shared by the standalone assistant
+and the wider Datonfly suite. Three exceptions:
+
+- **`ANTHROPIC_API_KEY` and `OPENAI_API_KEY`** keep their canonical, unprefixed
+  names — the official SDKs read them directly from the environment and secret
+  scanners recognise them.
+- **`PORT` and `DATABASE_URL`** are read as `DF_X ?? X`, because hosting
+  platforms and database tooling inject the unprefixed forms. No other
+  unprefixed name is read.
+- **Frontend build-time variables** keep Vite's mandatory `VITE_` prefix.
+
+Name variables after what they configure, not after the current vendor:
+
+- Knobs describing the agent itself are neutral: `DF_AGENT_MODEL`,
+  `DF_AGENT_MAX_TOOL_ITERATIONS`.
+- Knobs enabling a vendor-specific capability are namespaced under that vendor:
+  `DF_ANTHROPIC_ENABLE_WEB_SEARCH`, `DF_ANTHROPIC_THINKING_TYPE`. Another
+  provider's equivalents would not be interchangeable, so a shared name would be
+  misleading.
+
+**Only the standalone entrypoint reads the environment.** Every `process.env`
+access lives in `packages/backend/src/config.ts`, which centralises the prefix,
+validation, and defaults behind `EnvReader` and hands the result to the rest of
+the application as plain config objects. Library packages (`core`,
+`agent-langchain`, `chat-server`, `agent-mcp`, …) must never read `process.env`:
+they are also consumed as libraries by other Datonfly products, where the
+embedding application is the composition root and supplies config itself.
+
+[`ENV_MIGRATION.md`](ENV_MIGRATION.md) records the historical old → new mapping
+for deployments upgrading across the renames.
+
 ## Code Formatting
 
 **Prettier** handles all code formatting. Configuration lives in

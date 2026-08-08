@@ -74,6 +74,27 @@ function sanitizeResponseHeaders(headers: Headers): Record<string, string> {
     return result;
 }
 
+/**
+ * Headers that describe the upstream *transfer* rather than the payload.
+ *
+ * `fetch` decodes and re-frames the body, so relaying these would describe
+ * bytes the caller never receives — a `content-encoding: gzip` on a body that
+ * has already been decompressed fails the caller's gunzip with
+ * `Z_DATA_ERROR`, surfacing as an opaque `TypeError: terminated`.
+ */
+const TRANSFER_HEADERS = new Set(["content-encoding", "content-length", "transfer-encoding", "connection"]);
+
+/** Copy upstream response headers for the caller, dropping transfer framing. */
+function relayResponseHeaders(headers: Headers): Record<string, string> {
+    const result: Record<string, string> = {};
+    headers.forEach((value, name) => {
+        if (!TRANSFER_HEADERS.has(name)) {
+            result[name] = value;
+        }
+    });
+    return result;
+}
+
 /** Read a request body fully into a string. */
 async function readBody(req: IncomingMessage): Promise<string> {
     const chunks: Buffer[] = [];
@@ -99,6 +120,8 @@ export interface RecordingProxy {
     readonly url: string;
     /** Name applied to exchanges recorded from now on. */
     setScenario(name: string): void;
+    /** Resolve once every in-flight request has finished recording. */
+    idle(): Promise<void>;
     /** Exchanges recorded for `scenario` so far, so a caller can vet them before writing. */
     pending(scenario: string): RecordedExchange[];
     /** Forget every exchange recorded for `scenario` without writing it. */
@@ -118,6 +141,7 @@ export interface RecordingProxy {
 export async function startRecordingProxy(options: RecordingProxyOptions): Promise<RecordingProxy> {
     const { apiKey, upstream: upstreamBase = UPSTREAM } = options;
     const exchanges: RecordedExchange[] = [];
+    const inFlight = new Set<Promise<void>>();
     let scenario = "unnamed";
 
     const proxyRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -131,49 +155,64 @@ export async function startRecordingProxy(options: RecordingProxyOptions): Promi
         }
         headers.set("x-api-key", apiKey);
 
+        // Without this the proxy would keep draining upstream after the caller
+        // disconnects, so an aborted scenario would never record its partial stream.
+        const clientGone = new AbortController();
+        res.on("close", () => {
+            clientGone.abort();
+        });
+
         const upstream = await fetch(`${upstreamBase}${path}`, {
             method: req.method ?? "POST",
             headers,
+            signal: clientGone.signal,
             ...(requestBody === "" ? {} : { body: requestBody }),
         });
 
-        res.writeHead(upstream.status, Object.fromEntries(upstream.headers.entries()));
+        res.writeHead(upstream.status, relayResponseHeaders(upstream.headers));
 
         const captured: string[] = [];
-        if (upstream.body) {
-            const decoder = new TextDecoder();
-            for await (const chunk of upstream.body) {
-                const bytes = chunk as Uint8Array;
-                captured.push(decoder.decode(bytes, { stream: true }));
-                res.write(bytes);
+        // Recorded in `finally`: an abort mid-stream is a scenario in its own
+        // right, and its partial capture is exactly what must be kept.
+        try {
+            if (upstream.body) {
+                const decoder = new TextDecoder();
+                for await (const chunk of upstream.body) {
+                    const bytes = chunk as Uint8Array;
+                    captured.push(decoder.decode(bytes, { stream: true }));
+                    if (!res.writableEnded) res.write(bytes);
+                }
+                captured.push(decoder.decode());
             }
-            captured.push(decoder.decode());
+        } finally {
+            if (!res.writableEnded) res.end();
+            exchanges.push({
+                scenario,
+                request: {
+                    method: req.method ?? "POST",
+                    path,
+                    headers: sanitizeRequestHeaders(req.headers),
+                    body: parseBody(scrubSecrets(requestBody)),
+                },
+                response: {
+                    status: upstream.status,
+                    headers: sanitizeResponseHeaders(upstream.headers),
+                    body: scrubSecrets(captured.join("")),
+                },
+            });
         }
-        res.end();
-
-        exchanges.push({
-            scenario,
-            request: {
-                method: req.method ?? "POST",
-                path,
-                headers: sanitizeRequestHeaders(req.headers),
-                body: parseBody(scrubSecrets(requestBody)),
-            },
-            response: {
-                status: upstream.status,
-                headers: sanitizeResponseHeaders(upstream.headers),
-                body: scrubSecrets(captured.join("")),
-            },
-        });
     };
 
     const server: Server = createServer((req, res) => {
-        proxyRequest(req, res).catch((error: unknown) => {
+        const settled = proxyRequest(req, res).catch((error: unknown) => {
+            if (res.writableEnded) return;
             if (!res.headersSent) {
                 res.writeHead(502, { "content-type": "application/json" });
             }
             res.end(JSON.stringify({ error: error instanceof Error ? error.message : "proxy failure" }));
         });
+        inFlight.add(settled);
+        void settled.finally(() => inFlight.delete(settled));
     });
     await new Promise<void>((resolve) => {
         server.listen(0, "127.0.0.1", resolve);
@@ -187,6 +226,13 @@ export async function startRecordingProxy(options: RecordingProxyOptions): Promi
         url: `http://127.0.0.1:${address.port.toString()}`,
         setScenario(name: string): void {
             scenario = name;
+        },
+        async idle(): Promise<void> {
+            // A caller that aborts mid-stream returns before the proxy finishes
+            // recording, so wait for teardown rather than racing it.
+            while (inFlight.size > 0) {
+                await Promise.allSettled([...inFlight]);
+            }
         },
         pending(name: string): RecordedExchange[] {
             return exchanges.filter((exchange) => exchange.scenario === name);

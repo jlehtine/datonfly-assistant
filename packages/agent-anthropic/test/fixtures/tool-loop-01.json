@@ -1,0 +1,75 @@
+{
+    "scenario": "tool-loop",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": {
+            "connection": "keep-alive",
+            "accept": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-timeout": "600",
+            "x-stainless-lang": "js",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-os": "Linux",
+            "x-stainless-arch": "x64",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v24.12.0",
+            "anthropic-dangerous-direct-browser-access": "true",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "accept-language": "*",
+            "sec-fetch-mode": "cors",
+            "accept-encoding": "gzip, deflate",
+            "content-length": "519"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "stream": true,
+            "max_tokens": 1024,
+            "tools": [
+                {
+                    "name": "adder",
+                    "description": "Adds two numbers and returns the sum.",
+                    "input_schema": {
+                        "$schema": "http://json-schema.org/draft-07/schema#",
+                        "type": "object",
+                        "properties": {
+                            "a": {
+                                "type": "number"
+                            },
+                            "b": {
+                                "type": "number"
+                            }
+                        },
+                        "required": ["a", "b"]
+                    }
+                }
+            ],
+            "thinking": {
+                "type": "disabled"
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Add 2 and 3 using the adder tool, then add 10 to that result using the same tool.",
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-opus-5\",\"id\":\"msg_011Cdqwax3VijUfj6jGX58xt\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":435,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":1,\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}           }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}               }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"I\"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"'ll do this in two steps since the second call depends on the first result.\"}           }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0            }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_01CDt5fjVtJd9Ui5Bnm31mvt\",\"name\":\"adder\",\"input\":{},\"caller\":{\"type\":\"direct\"}}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\"}         }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"a\\\": 2\"}   }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\", \\\"b\\\":\"}  }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\" 3}\"}      }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1     }\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"stop_details\":null},\"usage\":{\"input_tokens\":435,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":88,\"output_tokens_details\":{\"thinking_tokens\":0}}               }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"     }\n\n"
+    }
+}

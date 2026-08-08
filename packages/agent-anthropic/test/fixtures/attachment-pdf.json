@@ -1,0 +1,64 @@
+{
+    "scenario": "attachment-pdf",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": {
+            "connection": "keep-alive",
+            "accept": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-timeout": "600",
+            "x-stainless-lang": "js",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-os": "Linux",
+            "x-stainless-arch": "x64",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v24.12.0",
+            "anthropic-dangerous-direct-browser-access": "true",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "accept-language": "*",
+            "sec-fetch-mode": "cors",
+            "accept-encoding": "gzip, deflate",
+            "content-length": "822"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "stream": true,
+            "max_tokens": 1024,
+            "thinking": {
+                "type": "disabled"
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What word appears in this PDF?"
+                        },
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgMjAwIDEwMF0vQ29udGVudHMgNCAwIFIvUmVzb3VyY2VzPDwvRm9udDw8L0YxIDUgMCBSPj4+Pj4+ZW5kb2JqCjQgMCBvYmo8PC9MZW5ndGggNDY+PnN0cmVhbQpCVCAvRjEgMTggVGYgMjAgNDAgVGQgKERhdG9uZmx5KSBUaiBFVAplbmRzdHJlYW0gZW5kb2JqCjUgMCBvYmo8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2E+PmVuZG9iagp0cmFpbGVyPDwvUm9vdCAxIDAgUj4+CiUlRU9G"
+                            },
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-opus-5\",\"id\":\"msg_011CdqwbY5Nr9ZowpANwTbwe\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":2,\"cache_creation_input_tokens\":1635,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":1635,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":1,\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}  }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}     }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"The\"}              }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" word\"}           }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" in the\"}         }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" PDF is **\"}    }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"\\\"Dat\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"onfly\\\"**.\"}     }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0            }\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null},\"usage\":{\"input_tokens\":2,\"cache_creation_input_tokens\":1635,\"cache_read_input_tokens\":0,\"output_tokens\":20,\"output_tokens_details\":{\"thinking_tokens\":0}}      }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"          }\n\n"
+    }
+}

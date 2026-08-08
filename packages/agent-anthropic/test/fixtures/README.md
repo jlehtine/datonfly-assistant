@@ -101,7 +101,7 @@ personal content that does not belong in the repository.
 | ------------------- | -------------------------------------------------------------------------- |
 | `plain-text`        | Plain streamed text; no tools, no thinking.                                |
 | `thinking-adaptive` | Adaptive thinking with summarized reasoning blocks.                        |
-| `thinking-enabled`  | Manual thinking with an explicit `budget_tokens`.                          |
+| `thinking-enabled`  | Manual thinking with `budget_tokens`. **Not captured** — see below.        |
 | `web-search`        | Server-side `web_search`, including citation blocks. Needs server tools.   |
 | `web-fetch`         | Server-side `web_fetch` against a URL from the prompt. Needs server tools. |
 | `code-execution`    | Server-side `code_execution`. Needs server tools.                          |
@@ -109,11 +109,30 @@ personal content that does not belong in the repository.
 | `attachment-image`  | Image attachment → `image` block.                                          |
 | `attachment-pdf`    | PDF attachment → `document` block.                                         |
 | `attachment-text`   | Text attachment decoded and inlined as a text block.                       |
-| `compaction`        | Provider-side compaction, trigger lowered so it fires cheaply.             |
+| `compaction`        | Provider-side compaction. **Not captured** — see below.                    |
 | `abort-mid-stream`  | Caller aborts partway through the response.                                |
 | `error-400`         | Invalid request rejected by the API.                                       |
 | `error-429`         | Rate limit. **Synthetic** — see below.                                     |
 | `error-529`         | Overloaded. **Synthetic** — see below.                                     |
+
+### Verification
+
+A 200 is not proof that a capture is useful: the model can answer without
+calling the tool, and compaction can be configured without ever firing. Each
+scenario therefore carries a `verify` predicate, and a capture that fails it is
+reported and **not written** rather than becoming a misleading baseline.
+
+### Not captured
+
+- **`thinking-enabled`** — Opus 5 rejects `thinking.type: "enabled"`: _"Use
+  `thinking.type.adaptive` and `output_config.effort` to control thinking
+  behavior."_ Needs a model that still supports manual thinking budgets.
+- **`compaction`** — the request is valid (`trigger.value` must be at least
+  50000), but the agent sets `cache_control: { type: "ephemeral" }` on every
+  invoke, so a 180 kB prompt is billed as `cache_creation_input_tokens: 60059`
+  with `input_tokens: 44`. An `input_tokens` trigger cannot fire while every
+  token is attributed to cache creation, and `applied_edits` comes back empty.
+  Blocked on the deliberate cache breakpoints planned in Phase 2.6.
 
 ### Synthetic fixtures
 

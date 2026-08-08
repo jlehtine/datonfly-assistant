@@ -1,0 +1,67 @@
+{
+    "scenario": "web-fetch",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": {
+            "connection": "keep-alive",
+            "accept": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-timeout": "600",
+            "x-stainless-lang": "js",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-os": "Linux",
+            "x-stainless-arch": "x64",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v24.12.0",
+            "anthropic-dangerous-direct-browser-access": "true",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "accept-language": "*",
+            "sec-fetch-mode": "cors",
+            "accept-encoding": "gzip, deflate",
+            "content-length": "371"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "stream": true,
+            "max_tokens": 1024,
+            "tools": [
+                {
+                    "type": "code_execution_20260120",
+                    "name": "code_execution"
+                },
+                {
+                    "type": "web_fetch_20260209",
+                    "name": "web_fetch",
+                    "max_uses": 1
+                }
+            ],
+            "thinking": {
+                "type": "disabled"
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Fetch https://example.com and quote its heading.",
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-opus-5\",\"id\":\"msg_011CdqwZfYnRGUVZLnT5VGPs\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":2,\"cache_creation_input_tokens\":4556,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":4556,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":1,\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}              }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"I\"}   }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"'ll fetch that\"} }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" UR\"}           }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"L for you.\"}       }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_01NZR69zioPtHQVbc65AXmdd\",\"name\":\"code_execution\",\"input\":{}}         }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\"}            }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"code\\\": \\\"import json\\\\nr = await web_fetch({\\\\\\\"url\\\\\\\": \\\\\\\"https://example.com\\\\\\\"})\\\\nprint(json.dumps(r, indent=2)[:2000])\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"}\"}             }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1              }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_011zDrmDmdxjj4RwK39RT79u\",\"name\":\"web_fetch\",\"input\":{\"url\":\"https://example.com\"},\"caller\":{\"type\":\"code_execution_20260120\",\"tool_id\":\"srvtoolu_01NZR69zioPtHQVbc65AXmdd\"}}            }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":2           }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":3,\"content_block\":{\"type\":\"web_fetch_tool_result\",\"tool_use_id\":\"srvtoolu_011zDrmDmdxjj4RwK39RT79u\",\"content\":{\"type\":\"web_fetch_result\",\"url\":\"https://example.com\",\"retrieved_at\":\"2026-08-08T17:16:10.235000+00:00\",\"content\":{\"type\":\"document\",\"source\":{\"type\":\"text\",\"media_type\":\"text/plain\",\"data\":\"---\\nmeta-viewport: width=device-width, initial-scale=1\\ntitle: Example Domain\\n---\\n\\n# Example Domain\\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\\n\\n[Learn more](https://iana.org/domains/example)\"},\"title\":\"Example Domain\"}},\"caller\":{\"type\":\"code_execution_20260120\",\"tool_id\":\"srvtoolu_01NZR69zioPtHQVbc65AXmdd\"}}  }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":3}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":4,\"content_block\":{\"type\":\"code_execution_tool_result\",\"tool_use_id\":\"srvtoolu_01NZR69zioPtHQVbc65AXmdd\",\"content\":{\"type\":\"code_execution_result\",\"stdout\":\"\\\"{\\\\\\\"type\\\\\\\": \\\\\\\"web_fetch_result\\\\\\\", \\\\\\\"url\\\\\\\": \\\\\\\"https://example.com\\\\\\\", \\\\\\\"retrieved_at\\\\\\\": \\\\\\\"2026-08-08T17:16:10.235000+00:00\\\\\\\", \\\\\\\"content\\\\\\\": {\\\\\\\"type\\\\\\\": \\\\\\\"document\\\\\\\", \\\\\\\"source\\\\\\\": {\\\\\\\"type\\\\\\\": \\\\\\\"text\\\\\\\", \\\\\\\"media_type\\\\\\\": \\\\\\\"text/plain\\\\\\\", \\\\\\\"data\\\\\\\": \\\\\\\"---\\\\\\\\nmeta-viewport: width=device-width, initial-scale=1\\\\\\\\ntitle: Example Domain\\\\\\\\n---\\\\\\\\n\\\\\\\\n# Example Domain\\\\\\\\n\\\\\\\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\\\\\\\\n\\\\\\\\n[Learn more](https://iana.org/domains/example)\\\\\\\"}, \\\\\\\"title\\\\\\\": \\\\\\\"Example Domain\\\\\\\"}}\\\"\\n\",\"stderr\":\"\",\"return_code\":0,\"content\":[],\"abort_reason\":null}}     }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":4    }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":5,\"content_block\":{\"type\":\"text\",\"text\":\"\"}      }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"The\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" f\"}   }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"etch succeeded.\"}          }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" Here's the heading:\\n\\n>\"}    }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" **#\"}          }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" Example Domain**\\n\\nFor context, the full page content is quite short:\\n\\n- **Title (metadata):** Example Domain\\n- **Heading (H1):** Example Domain\\n- **Body:** \\\"This domain is for use in documentation examples without needing\"} }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" permission. Avoid use in operations.\\\"\\n- **Link:** [Learn more](https://iana.org/domains/example)\\n\\nRetrieved at 2026-08-08T17:16:10Z.\"}       }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":5             }\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"container\":{\"id\":\"container_01WEf1SAAYgBc8mymnSkvZGi\",\"expires_at\":\"2026-08-08T21:50:39.266684Z\"}},\"usage\":{\"input_tokens\":4,\"cache_creation_input_tokens\":4927,\"cache_read_input_tokens\":4556,\"output_tokens\":260,\"output_tokens_details\":{\"thinking_tokens\":0},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":1}} }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\" }\n\n"
+    }
+}

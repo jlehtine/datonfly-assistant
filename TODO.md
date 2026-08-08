@@ -213,9 +213,30 @@ regression baseline for the rewrite.
       committing. Automated in the proxy (credential headers dropped, response
       headers reduced to an allowlist, `sk-ant-…` / `Bearer …` redacted) and
       covered by `recording-proxy.test.ts`.
-- [ ] **Run the captures.** Each scenario is a real, billable Anthropic call, so
-      the recording run is left to the operator. Record with `--all` (or a
-      subset), re-read each fixture before committing, then tick this off.
+- [x] **Run the captures.** Recorded against `claude-opus-5`. Eleven of thirteen
+      scenarios landed; each scenario now carries a `verify` predicate so a
+      capture that does not exercise its claim is rejected instead of written.
+- [ ] Record the `thinking-enabled` fixture. Opus 5 rejects
+      `thinking.type: "enabled"` outright — _"Use `thinking.type.adaptive` and
+      `output_config.effort`"_ — so this needs a model that still supports
+      manual thinking budgets, or the scenario should be dropped. **Note the
+      product implication:** `DF_ANTHROPIC_THINKING_TYPE=enabled` (with
+      `DF_ANTHROPIC_THINKING_BUDGET_TOKENS`) is a configuration that cannot work
+      on the deployed model, and the config loader still accepts it.
+- [ ] Record the `compaction` fixture. Blocked on the caching interaction below;
+      the request is valid (trigger must be ≥ 50000, not the 1000 first tried)
+      but compaction never fires.
+
+**Finding — blanket prompt caching defeats provider-side compaction.** The agent
+sets `cache_control: { type: "ephemeral" }` on every invoke (`agent.ts` lines
+706 and 760). A 180 kB prompt was therefore billed as
+`cache_creation_input_tokens: 60059` with `input_tokens: 44`, and
+`context_management` reported `applied_edits: []`. Since the compaction trigger
+is `trigger.type: "input_tokens"`, it cannot fire while every token is
+attributed to cache creation — so `DF_ANTHROPIC_ENABLE_COMPACTION=true` is
+effectively inert today. This corroborates the Phase 2.6 note that the cache
+setting's effect is unverified, and should be resolved there (deliberate cache
+breakpoints) before the compaction fixture can be captured.
 
 ### 1.2 Replace `externalCompaction` with a capabilities descriptor
 

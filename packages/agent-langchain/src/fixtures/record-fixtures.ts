@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import type { AgentConfig, AgentMessage, AgentStreamChunk } from "@datonfly-assistant/core";
 
 import { AnthropicAgent, type AnthropicAgentConfig, type AnthropicProviderOptions } from "../agent.js";
-import { startRecordingProxy, type RecordingProxy } from "./recording-proxy.js";
+import { startRecordingProxy, type RecordedExchange, type RecordingProxy } from "./recording-proxy.js";
 
 /** Walk up from this module until the workspace root is found. */
 function findRepoRoot(): string {
@@ -61,6 +61,12 @@ const TINY_PDF_BASE64 = Buffer.from(
     "utf-8",
 ).toString("base64");
 
+/** Smallest `trigger.value` the compaction API accepts. */
+const COMPACTION_MIN_TRIGGER_TOKENS = 50_000;
+
+/** Filler sized to exceed {@link COMPACTION_MIN_TRIGGER_TOKENS}, so compaction actually fires. */
+const LOG_ABOVE_TRIGGER = "log line\n".repeat(20_000);
+
 /** Build a single human message with the given text. */
 function human(text: string): AgentMessage[] {
     return [{ role: "human", content: [{ type: "text", text }] }];
@@ -86,6 +92,14 @@ function humanWithAttachment(text: string, name: string, mimeType: string, base6
     ];
 }
 
+/** Require a marker somewhere in the recorded response bodies. */
+function bodyContains(token: string): (exchanges: RecordedExchange[]) => string | undefined {
+    return (exchanges) =>
+        exchanges.some((exchange) => exchange.response.body.includes(token))
+            ? undefined
+            : `no "${token}" in the response`;
+}
+
 /** How a scenario drives the agent once the proxy is in place. */
 interface Scenario {
     /** Fixture file base name. */
@@ -97,11 +111,20 @@ interface Scenario {
     /** Anthropic-only configuration for this scenario. */
     providerOptions?: AnthropicProviderOptions;
     /**
-     * Needs a model that supports Anthropic's server-side tools.
+     * Model capability this scenario depends on, described for the operator.
      *
-     * Haiku does not, so these scenarios only record on a Sonnet/Opus-class model.
+     * Printed by `--list` and when the API rejects the request, so an
+     * unsupported combination explains itself instead of looking like a bug.
      */
-    requiresServerTools?: boolean;
+    requires?: string;
+    /**
+     * Confirm the capture actually exercises what the scenario claims.
+     *
+     * A 200 is not enough: a model can answer without calling the tool, and
+     * compaction can be configured without ever firing. Returns a description of
+     * the problem, or `undefined` when the capture is good.
+     */
+    verify?: (exchanges: RecordedExchange[]) => string | undefined;
     /** Conversation sent to the agent. */
     messages: AgentMessage[];
     /** Abort the stream after this many chunks, instead of draining it. */
@@ -114,12 +137,14 @@ const SCENARIOS: Scenario[] = [
     {
         name: "plain-text",
         description: "Plain streamed text response with no tools or thinking.",
+        verify: bodyContains("text_delta"),
         messages: human("Say exactly: hello from the fixture."),
     },
     {
         name: "thinking-adaptive",
         description: "Adaptive thinking: summarized reasoning blocks interleaved with the answer.",
         providerOptions: { thinkingType: "adaptive", thinkingDisplay: "summarized", thinkingEffort: "low" },
+        verify: bodyContains("thinking"),
         messages: human("A farmer has 17 sheep; all but 9 run away. How many are left? Think it through."),
     },
     {
@@ -127,33 +152,39 @@ const SCENARIOS: Scenario[] = [
         description: "Manual thinking with an explicit token budget.",
         config: { maxTokens: 4096 },
         providerOptions: { thinkingType: "enabled", thinkingBudgetTokens: 1024 },
+        requires: 'thinking.type "enabled"; Opus 5 accepts only "adaptive" with output_config.effort',
         messages: human("What is 17 * 23? Show your reasoning."),
     },
     {
         name: "web-search",
         description: "Server-side web_search tool use, including citation blocks.",
         providerOptions: { enableCodeExecution: true, enableWebSearch: true, webSearchMaxUses: 1 },
-        requiresServerTools: true,
+        requires: "server-side tools; Haiku does not support them",
+        verify: bodyContains("web_search"),
         messages: human("Search the web for the current stable Node.js LTS version and cite your source."),
     },
     {
         name: "web-fetch",
         description: "Server-side web_fetch tool use against a URL given in the prompt.",
         providerOptions: { enableCodeExecution: true, enableWebFetch: true, webFetchMaxUses: 1 },
-        requiresServerTools: true,
+        requires: "server-side tools; Haiku does not support them",
+        verify: bodyContains("web_fetch"),
         messages: human("Fetch https://example.com and quote its heading."),
     },
     {
         name: "code-execution",
         description: "Server-side code_execution tool use.",
         providerOptions: { enableCodeExecution: true },
-        requiresServerTools: true,
+        requires: "server-side tools; Haiku does not support them",
+        verify: bodyContains("code_execution"),
         messages: human("Use code execution to compute the 20th Fibonacci number."),
     },
     {
         name: "tool-loop",
         description: "Multi-iteration local tool loop: two dependent calls before the final answer.",
         config: { maxToolIterations: 5 },
+        verify: (exchanges) =>
+            exchanges.length >= 2 ? undefined : "the model answered without looping (a single API call)",
         messages: human("Add 2 and 3 using the adder tool, then add 10 to that result using the same tool."),
     },
     {
@@ -184,16 +215,30 @@ const SCENARIOS: Scenario[] = [
     {
         name: "compaction",
         description:
-            "Provider-side context compaction. The trigger is lowered so it fires on a cheap prompt " +
-            "instead of the ~120k input tokens the production default would need.",
-        providerOptions: { enableCompaction: true, compactionTriggerTokens: 1000 },
+            "Provider-side context compaction. Uses the API's minimum trigger of 50k input tokens, " +
+            "rather than the ~120k the production default would need.",
+        providerOptions: { enableCompaction: true, compactionTriggerTokens: COMPACTION_MIN_TRIGGER_TOKENS },
+        requires:
+            "input tokens counted as input_tokens; the agent's blanket cache_control routes them to " +
+            "cache_creation_input_tokens instead, so the trigger never fires (see TODO Phase 2.6)",
+        verify: (exchanges) =>
+            exchanges.some((exchange) => /"applied_edits":\[\s*\{/.test(exchange.response.body))
+                ? undefined
+                : "context_management reported no applied_edits, so compaction never fired",
         messages: [
-            { role: "human", content: [{ type: "text", text: `Summarise this log:\n${"log line\n".repeat(400)}` }] },
+            {
+                role: "human",
+                content: [{ type: "text", text: `Summarise this log in one sentence:\n${LOG_ABOVE_TRIGGER}` }],
+            },
         ],
     },
     {
         name: "abort-mid-stream",
         description: "Stream aborted by the caller partway through the response.",
+        verify: (exchanges) =>
+            exchanges.some((exchange) => exchange.response.body.includes("message_stop"))
+                ? "the stream ran to completion, so nothing was aborted"
+                : undefined,
         messages: human("Count slowly from 1 to 200, one number per line."),
         abortAfterChunks: 5,
     },
@@ -262,6 +307,22 @@ function resolveModel(args: string[]): string {
     return model;
 }
 
+/** Pull Anthropic's human-readable message out of a recorded error body. */
+function apiErrorMessage(body: string): string {
+    try {
+        const parsed: unknown = JSON.parse(body);
+        if (typeof parsed === "object" && parsed !== null && "error" in parsed) {
+            const inner = (parsed as { error: unknown }).error;
+            if (typeof inner === "object" && inner !== null && "message" in inner) {
+                return String((inner as { message: unknown }).message);
+            }
+        }
+    } catch {
+        // Fall through to the raw body.
+    }
+    return body.slice(0, 300);
+}
+
 /** Drain a stream, optionally aborting it after a number of chunks. */
 async function drain(
     stream: AsyncIterable<AgentStreamChunk>,
@@ -306,14 +367,29 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string,
         process.stdout.write(`  ${expected ? "·" : "!"} ${message}\n`);
     }
 
+    await proxy.idle();
+
     // An unexpected error response would enshrine a broken baseline (e.g. a model
-    // that does not support the server tools this scenario needs).
+    // that does not support what this scenario needs).
     const rejected = proxy.pending(scenario.name).filter((exchange) => exchange.response.status >= 400);
     if (rejected.length > 0 && scenario.expectFailure !== true) {
-        const statuses = rejected.map((exchange) => exchange.response.status.toString()).join(", ");
-        process.stdout.write(`  ! not recorded: the API rejected the request (${statuses})\n`);
-        if (scenario.requiresServerTools) {
-            process.stdout.write(`    "${model}" may not support Anthropic's server-side tools.\n`);
+        for (const exchange of rejected) {
+            process.stdout.write(
+                `  ! not recorded: HTTP ${exchange.response.status.toString()} ${apiErrorMessage(exchange.response.body)}\n`,
+            );
+        }
+        if (scenario.requires) {
+            process.stdout.write(`    requires ${scenario.requires}\n`);
+        }
+        proxy.discard(scenario.name);
+        return;
+    }
+
+    const problem = scenario.verify?.(proxy.pending(scenario.name));
+    if (problem) {
+        process.stdout.write(`  ! not recorded: ${problem}\n`);
+        if (scenario.requires) {
+            process.stdout.write(`    requires ${scenario.requires}\n`);
         }
         proxy.discard(scenario.name);
         return;
@@ -342,7 +418,7 @@ async function main(): Promise<void> {
     }
     if (args.includes("--list")) {
         for (const scenario of SCENARIOS) {
-            const note = scenario.requiresServerTools ? " [needs server-tool support]" : "";
+            const note = scenario.requires ? ` [requires ${scenario.requires}]` : "";
             process.stdout.write(`${scenario.name.padEnd(20)} ${scenario.description}${note}\n`);
         }
         return;

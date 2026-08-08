@@ -5,9 +5,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
-import type { ITool } from "@datonfly-assistant/core";
-
-import { jsonSchemaToZod } from "./json-schema-to-zod.js";
+import type { ITool, JsonSchema } from "@datonfly-assistant/core";
 
 /** Connection parameters for an MCP server reached over the **stdio** transport. */
 export interface McpStdioServerConfig {
@@ -86,7 +84,13 @@ interface McpToolDescription {
     inputSchema: unknown;
 }
 
-/** Wrap one MCP tool as an {@link ITool} that proxies calls to the server. */
+/**
+ * Wrap one MCP tool as an {@link ITool} that proxies calls to the server.
+ *
+ * The server's published `inputSchema` is passed through verbatim, and no
+ * `validate` is set: the server is the authority on its own inputs, so
+ * re-validating here could only narrow the schema and strip arguments.
+ */
 function createProxyTool(
     client: Client,
     serverName: string,
@@ -97,7 +101,7 @@ function createProxyTool(
     return {
         name: mcpTool.name,
         description: mcpTool.description ?? "",
-        schema: jsonSchemaToZod(mcpTool.inputSchema),
+        inputSchema: isRecord(mcpTool.inputSchema) ? (mcpTool.inputSchema as JsonSchema) : { type: "object" },
         execute: async (input) => {
             let result: Awaited<ReturnType<Client["callTool"]>>;
             try {

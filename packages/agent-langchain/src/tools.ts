@@ -1,6 +1,6 @@
 import { ToolMessage, type AIMessage, type BaseMessage } from "@langchain/core/messages";
 
-import type { ContentPart, ITool } from "@datonfly-assistant/core";
+import type { ContentPart, ITool, JsonSchema } from "@datonfly-assistant/core";
 
 /** A tool invocation requested by the model, normalised from the provider format. */
 export interface LoopToolCall {
@@ -51,8 +51,8 @@ export interface RunToolLoopResult {
 }
 
 /** Convert an {@link ITool} into a LangChain tool-binding definition. */
-export function toLangChainToolDef(tool: ITool): { name: string; description: string; schema: ITool["schema"] } {
-    return { name: tool.name, description: tool.description, schema: tool.schema };
+export function toLangChainToolDef(tool: ITool): { name: string; description: string; schema: JsonSchema } {
+    return { name: tool.name, description: tool.description, schema: tool.inputSchema };
 }
 
 /** Render a tool's return value as the string content of a tool result. */
@@ -81,8 +81,8 @@ export function readToolCalls(message: AIMessage): LoopToolCall[] {
 }
 
 /**
- * Execute a single tool call: validate its arguments against the tool's schema,
- * run the tool, and stringify the result.
+ * Execute a single tool call: validate its arguments when the tool opts into
+ * pre-dispatch validation, run the tool, and stringify the result.
  *
  * Never throws for tool-side failures — a missing tool, invalid arguments, or a
  * thrown error are all returned as `isError: true` results so the model can
@@ -99,7 +99,7 @@ export async function executeToolCall(
 
     let parsed: unknown;
     try {
-        parsed = tool.schema.parse(call.args);
+        parsed = tool.validate?.(call.args) ?? call.args;
     } catch (error) {
         return { resultContent: `Invalid arguments for tool "${call.name}": ${errorMessage(error)}`, isError: true };
     }

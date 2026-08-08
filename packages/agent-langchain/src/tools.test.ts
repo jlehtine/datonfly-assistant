@@ -2,9 +2,9 @@ import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messag
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import type { ContentPart, ITool } from "@datonfly-assistant/core";
+import { zodTool, type ContentPart, type ITool } from "@datonfly-assistant/core";
 
-import { executeToolCall, runToolLoop, type ToolLoopModel } from "./tools.js";
+import { executeToolCall, runToolLoop, toLangChainToolDef, type ToolLoopModel } from "./tools.js";
 
 /** Build a fake model that replays a fixed sequence of responses. */
 function fakeModel(responses: AIMessage[]): { model: ToolLoopModel; calls: BaseMessage[][] } {
@@ -35,15 +35,15 @@ function findPart<T extends ContentPart["type"]>(parts: ContentPart[], type: T):
 describe("runToolLoop", () => {
     it("executes a tool and feeds its result back for a follow-up turn", async () => {
         let executed: { a: number; b: number } | undefined;
-        const adder: ITool = {
+        const adder = zodTool({
             name: "adder",
             description: "Adds two numbers.",
             schema: z.object({ a: z.number(), b: z.number() }),
-            execute: (input: { a: number; b: number }) => {
+            execute: (input) => {
                 executed = input;
                 return Promise.resolve(String(input.a + input.b));
             },
-        };
+        });
         const { model, calls } = fakeModel([
             toolCallMessage("adder", { a: 1, b: 2 }, "call_1"),
             new AIMessage("The sum is 3."),
@@ -78,7 +78,7 @@ describe("runToolLoop", () => {
 
     it("returns a schema-validation failure as an error result without executing the tool", async () => {
         let wasExecuted = false;
-        const adder: ITool = {
+        const adder = zodTool({
             name: "adder",
             description: "Adds two numbers.",
             schema: z.object({ a: z.number(), b: z.number() }),
@@ -86,7 +86,7 @@ describe("runToolLoop", () => {
                 wasExecuted = true;
                 return Promise.resolve("unreachable");
             },
-        };
+        });
         const { model } = fakeModel([
             toolCallMessage("adder", { a: "not-a-number", b: 2 }, "call_1"),
             new AIMessage("Sorry, I could not add those."),
@@ -106,12 +106,12 @@ describe("runToolLoop", () => {
     });
 
     it("aborts with an error once the iteration cap is exceeded", async () => {
-        const looper: ITool = {
+        const looper = zodTool({
             name: "looper",
             description: "Always asks to be called again.",
             schema: z.object({}),
             execute: () => Promise.resolve("again"),
-        };
+        });
         // The model always requests another tool call, never settling.
         const { model } = fakeModel([toolCallMessage("looper", {}, "call_loop")]);
 
@@ -127,7 +127,7 @@ describe("runToolLoop", () => {
 
     it("honours an abort signal triggered mid-loop", async () => {
         const controller = new AbortController();
-        const aborter: ITool = {
+        const aborter = zodTool({
             name: "aborter",
             description: "Aborts the loop when executed.",
             schema: z.object({}),
@@ -135,7 +135,7 @@ describe("runToolLoop", () => {
                 controller.abort(new Error("cancelled by caller"));
                 return Promise.resolve("done");
             },
-        };
+        });
         const { model } = fakeModel([toolCallMessage("aborter", {}, "call_abort")]);
 
         await expect(
@@ -158,13 +158,13 @@ describe("executeToolCall", () => {
     });
 
     it("stringifies object results as JSON", async () => {
-        const tool: ITool = {
+        const tool = zodTool({
             name: "echo",
             description: "Echoes an object.",
             schema: z.object({ value: z.string() }),
-            execute: (input: { value: string }) => Promise.resolve({ echoed: input.value }),
-        };
-        const result = await executeToolCall(new Map([[tool.name, tool]]), {
+            execute: (input) => Promise.resolve({ echoed: input.value }),
+        });
+        const result = await executeToolCall(new Map([[tool.name, tool as ITool]]), {
             name: "echo",
             args: { value: "hi" },
         });
@@ -173,14 +173,55 @@ describe("executeToolCall", () => {
     });
 
     it("captures a thrown tool error as an error result", async () => {
-        const tool: ITool = {
+        const tool = zodTool({
             name: "boom",
             description: "Always throws.",
             schema: z.object({}),
             execute: () => Promise.reject(new Error("kaboom")),
-        };
-        const result = await executeToolCall(new Map([[tool.name, tool]]), { name: "boom", args: {} });
+        });
+        const result = await executeToolCall(new Map([[tool.name, tool as ITool]]), { name: "boom", args: {} });
         expect(result.isError).toBe(true);
         expect(result.resultContent).toContain("kaboom");
+    });
+
+    it("dispatches unvalidated arguments verbatim when the tool omits validate", async () => {
+        let received: unknown;
+        const tool: ITool = {
+            name: "passthrough",
+            description: "Records what it receives.",
+            inputSchema: { type: "object", additionalProperties: false },
+            execute: (input) => {
+                received = input;
+                return Promise.resolve("ok");
+            },
+        };
+        const args = { extra: "kept", nested: { deep: true } };
+
+        const result = await executeToolCall(new Map([[tool.name, tool]]), { name: "passthrough", args });
+
+        expect(result.isError).toBe(false);
+        expect(received).toEqual(args);
+    });
+});
+
+describe("toLangChainToolDef", () => {
+    it("passes the tool's JSON Schema through as the binding schema", () => {
+        const inputSchema = {
+            type: "object" as const,
+            properties: { selector: { oneOf: [{ type: "string" }, { type: "number" }] } },
+            additionalProperties: false,
+        };
+        const tool: ITool = {
+            name: "inspect",
+            description: "Inspects a target.",
+            inputSchema,
+            execute: () => Promise.resolve("ok"),
+        };
+
+        expect(toLangChainToolDef(tool)).toEqual({
+            name: "inspect",
+            description: "Inspects a target.",
+            schema: inputSchema,
+        });
     });
 });

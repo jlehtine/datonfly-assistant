@@ -54,6 +54,26 @@ embedding application is the composition root and supplies config itself.
 [`ENV_MIGRATION.md`](ENV_MIGRATION.md) records the historical old → new mapping
 for deployments upgrading across the renames.
 
+## Agent Tools
+
+`ITool` in `core` describes a tool the agent may invoke. **JSON Schema is
+canonical**: `inputSchema` is handed to the model provider as authored. Every
+wire protocol in this space speaks JSON Schema (MCP `inputSchema`, Anthropic
+`input_schema`, OpenAI `function.parameters`), so anything else has to be
+compiled down at the boundary and loses fidelity on the way.
+
+- **Authoring a tool in TypeScript:** use `zodTool()`. It derives the JSON
+  Schema from a Zod schema and sets `validate`, so `execute()` receives a typed,
+  validated input.
+- **Proxying a tool that owns its own schema** (e.g. an MCP server): build the
+  `ITool` directly, pass the published JSON Schema through untouched, and **omit
+  `validate`**. A reconstructed schema can only narrow the published one — it
+  hides constraints from the model and silently strips arguments the backend
+  understands. The backend is the authority and reports better errors.
+
+`validate` is optional precisely so the second case is expressible; do not add
+it "for safety" where a downstream service already validates.
+
 ## Code Formatting
 
 **Prettier** handles all code formatting. Configuration lives in

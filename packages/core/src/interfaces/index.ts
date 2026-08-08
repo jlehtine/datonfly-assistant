@@ -37,5 +37,7 @@ export type {
     SemanticSearchOptions,
 } from "./search.js";
 export type { IEmbeddingsProvider } from "./embeddings.js";
-export type { ITool } from "./tool.js";
+export type { ITool, JsonSchema } from "./tool.js";
+export type { ZodToolDefinition } from "./zod-tool.js";
+export { zodTool } from "./zod-tool.js";
 export type { IMemoryProvider, SaveMemoryOptions, SearchMemoryOptions, ListMemoryOptions } from "./memory.js";

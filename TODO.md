@@ -123,10 +123,10 @@ step that LangChain currently hides, per provider dialect.
 
 ### 0.1 Redefine `ITool` in `core`
 
-- [ ] Add `@types/json-schema` (MIT, types-only) and export a `JsonSchema` alias
+- [x] Add `@types/json-schema` (MIT, types-only) and export a `JsonSchema` alias
       based on `JSONSchema7` from `packages/core`. Keep it loose — each provider
       subsets JSON Schema differently; do not over-constrain.
-- [ ] Rewrite `packages/core/src/interfaces/tool.ts` to the shape below.
+- [x] Rewrite `packages/core/src/interfaces/tool.ts` to the shape below.
 
 ```ts
 export interface ITool<TInput = unknown> {
@@ -142,44 +142,48 @@ export interface ITool<TInput = unknown> {
 
 ### 0.2 Add the `zodTool()` authoring helper to `core`
 
-- [ ] Implement
+- [x] Implement
       `zodTool<S extends z.ZodType>({ name, description, schema, execute })`
       returning `ITool<z.infer<S>>`, preserving full type inference for
       app-authored tools.
-- [ ] Convert with
+- [x] Convert with
       `z.toJSONSchema(schema, { io: "input", target: "draft-7", unrepresentable: "any" })`.
       `io: "input"` so `.default()` and transforms are described on the input
       side; `unrepresentable: "any"` so constructs like `z.date()` degrade
       instead of throwing. Zod 4 is already the workspace-wide version, so no
       new runtime dependency.
-- [ ] Set `validate` to the schema's `parse`.
-- [ ] Unit-test the helper: inference holds, emitted schema shape is correct,
+- [x] Set `validate` to the schema's `parse`.
+- [x] Unit-test the helper: inference holds, emitted schema shape is correct,
       unrepresentable constructs degrade rather than throw.
 
 ### 0.3 Pass MCP schemas through untouched
 
-- [ ] In `packages/agent-mcp/src/mcp-client.ts`, have `createProxyTool()` assign
+- [x] In `packages/agent-mcp/src/mcp-client.ts`, have `createProxyTool()` assign
       `mcpTool.inputSchema` directly to `ITool.inputSchema`.
-- [ ] Omit `validate` for MCP tools: the server is the authority on its own
+- [x] Omit `validate` for MCP tools: the server is the authority on its own
       inputs and returns better errors than a reconstructed schema. This also
       removes the lossy double-validation.
-- [ ] Delete `packages/agent-mcp/src/json-schema-to-zod.ts` and
+- [x] Delete `packages/agent-mcp/src/json-schema-to-zod.ts` and
       `json-schema-to-zod.test.ts` (~110 LOC plus tests). Drop the `zod`
-      dependency from `agent-mcp` if nothing else uses it.
-- [ ] Add a regression test: an MCP tool declaring `oneOf`, `$ref`, `format`,
+      dependency from `agent-mcp` if nothing else uses it. (Moved to
+      `devDependencies`: production code no longer imports it, but the tests
+      still build mock MCP servers with Zod shapes.)
+- [x] Add a regression test: an MCP tool declaring `oneOf`, `$ref`, `format`,
       and `additionalProperties` reaches the provider tool definition
       unmodified, and arguments outside the converter's old subset are no longer
       stripped before dispatch.
 
 ### 0.4 Update consumers of the old contract
 
-- [ ] Update `packages/agent-langchain/src/tools.ts`: `toLangChainToolDef()`
+- [x] Update `packages/agent-langchain/src/tools.ts`: `toLangChainToolDef()`
       passes JSON Schema (LangChain accepts it for tool definitions), and
       `executeToolCall()` uses `tool.validate?.(call.args) ?? call.args`. This
       is interim work on a package Phase 3 deletes, so keep it minimal.
-- [ ] Update `packages/agent-langchain/src/tools.test.ts` for the new contract.
-- [ ] Update any host-app/example tool definitions to `zodTool()`.
-- [ ] Document the tool contract in `CONVENTIONS.md`: JSON Schema is canonical,
+- [x] Update `packages/agent-langchain/src/tools.test.ts` for the new contract.
+- [x] Update any host-app/example tool definitions to `zodTool()`. (Only the
+      `agent-langchain` test fixtures construct tools directly; the backend
+      wires MCP tools through, so nothing else needed changing.)
+- [x] Document the tool contract in `CONVENTIONS.md`: JSON Schema is canonical,
       `zodTool()` is the ergonomic path, `validate` is optional and should be
       omitted when the tool's own backend validates.
 

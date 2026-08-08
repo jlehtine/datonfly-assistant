@@ -2,7 +2,7 @@ import { AIMessage, AIMessageChunk, SystemMessage, ToolMessage, type BaseMessage
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import type { AgentMessage, AgentStreamChunk, ITool } from "@datonfly-assistant/core";
+import { zodTool, type AgentMessage, type AgentStreamChunk, type ITool } from "@datonfly-assistant/core";
 
 import { agentMessagesToBaseMessages, AnthropicAgent } from "./agent.js";
 
@@ -61,15 +61,15 @@ function agentWith(
 const HUMAN_MESSAGE: AgentMessage[] = [{ role: "human", content: [{ type: "text", text: "add 1 and 2" }] }];
 
 function adderTool(onExecute?: (input: { a: number; b: number }) => void): ITool {
-    return {
+    return zodTool({
         name: "adder",
         description: "Adds two numbers.",
         schema: z.object({ a: z.number(), b: z.number() }),
-        execute: (input: { a: number; b: number }) => {
+        execute: (input) => {
             onExecute?.(input);
             return Promise.resolve(String(input.a + input.b));
         },
-    };
+    });
 }
 
 async function collect(stream: AsyncIterable<AgentStreamChunk>): Promise<AgentStreamChunk[]> {
@@ -163,7 +163,7 @@ describe("AnthropicAgent.stream tool loop", () => {
             [new AIMessageChunk({ content: "unreached" })],
         ]);
         const agent = agentWithFakeModel(fake);
-        const tool: ITool = {
+        const tool = zodTool({
             name: "adder",
             description: "Adds and aborts.",
             schema: z.object({ a: z.number(), b: z.number() }),
@@ -171,7 +171,7 @@ describe("AnthropicAgent.stream tool loop", () => {
                 controller.abort(new Error("cancelled by caller"));
                 return Promise.resolve("3");
             },
-        };
+        });
 
         const stream = await agent.stream(HUMAN_MESSAGE, "t1", "u1", controller.signal, { tools: [tool] });
         await expect(collect(stream)).rejects.toThrow(/cancelled by caller/);
@@ -250,7 +250,7 @@ describe("AnthropicAgent default tools and system prompt", () => {
     it("lets a call's tools fully replace the defaults", async () => {
         let defaultRan = false;
         let perCallRan = false;
-        const defaultTool: ITool = {
+        const defaultTool = zodTool({
             name: "adder",
             description: "Default adder.",
             schema: z.object({ a: z.number(), b: z.number() }),
@@ -258,8 +258,8 @@ describe("AnthropicAgent default tools and system prompt", () => {
                 defaultRan = true;
                 return Promise.resolve("default");
             },
-        };
-        const perCallTool: ITool = {
+        });
+        const perCallTool = zodTool({
             name: "adder",
             description: "Per-call adder.",
             schema: z.object({ a: z.number(), b: z.number() }),
@@ -267,7 +267,7 @@ describe("AnthropicAgent default tools and system prompt", () => {
                 perCallRan = true;
                 return Promise.resolve("per-call");
             },
-        };
+        });
         const fake = new FakeStreamModel([
             [new AIMessageChunk({ content: "", tool_calls: [{ name: "adder", args: { a: 1, b: 2 }, id: "c1" }] })],
             [new AIMessageChunk({ content: "done" })],

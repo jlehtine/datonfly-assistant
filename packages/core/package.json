@@ -18,15 +18,18 @@
     },
     "scripts": {
         "clean": "rm -rf dist",
-        "build": "tsc --project tsconfig.json",
-        "dev": "tsc --watch --project tsconfig.json",
+        "build": "tsc --project tsconfig.build.json",
+        "dev": "tsc --watch --project tsconfig.build.json",
+        "test": "vitest run --dir src",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
+        "@types/json-schema": "^7.0.15",
         "zod": "^4.3.6"
     },
     "devDependencies": {
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.2",
+        "vitest": "^4.1.2"
     }
 }

@@ -3,6 +3,7 @@ export { formatLoggedError, NOOP_PROVIDER_LOGGER } from "./logger.js";
 export type {
     IAgentProvider,
     AgentCapabilities,
+    AgentConfig,
     AgentMessage,
     AgentMessageRole,
     AgentRunOptions,

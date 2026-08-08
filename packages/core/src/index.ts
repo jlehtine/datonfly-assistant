@@ -39,6 +39,7 @@ export { formatLoggedError, NOOP_PROVIDER_LOGGER, zodTool } from "./interfaces/i
 export type {
     IAgentProvider,
     AgentCapabilities,
+    AgentConfig,
     ProviderLogger,
     AgentMessage,
     AgentMessageRole,

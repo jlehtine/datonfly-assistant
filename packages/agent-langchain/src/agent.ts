@@ -15,6 +15,7 @@ import {
     classifyAttachmentMimeType,
     NOOP_PROVIDER_LOGGER,
     type AgentCapabilities,
+    type AgentConfig,
     type AgentMessage,
     type AgentRunOptions,
     type AgentStreamChunk,
@@ -480,23 +481,8 @@ function deduplicateCitations(citations: RawCitation[]): Citation[] {
     return unique;
 }
 
-/** Configuration options for {@link AnthropicAgent}. */
-export interface AnthropicAgentConfig {
-    /** Anthropic model identifier (e.g. `"claude-3-5-sonnet-20241022"`). */
-    modelName: string;
-    /** Anthropic API key. Falls back to the `ANTHROPIC_API_KEY` environment variable when omitted. */
-    apiKey?: string | undefined;
-    /**
-     * Override the Anthropic API base URL.
-     *
-     * Points the client at a local pass-through proxy when capturing or
-     * replaying raw SSE; leave unset to talk to the real API.
-     */
-    baseUrl?: string | undefined;
-    /** Sampling temperature in `[0, 1]`. When omitted, the provider/model default is used. */
-    temperature?: number | undefined;
-    /** Maximum number of tokens in the generated response. Defaults to `4096`. */
-    maxTokens?: number | undefined;
+/** Anthropic-specific knobs, kept out of the vendor-neutral {@link AgentConfig}. */
+export interface AnthropicProviderOptions {
     /** Enable the Anthropic server-side code execution tool (`code_execution_20260120`). */
     enableCodeExecution?: boolean | undefined;
     /**
@@ -528,14 +514,6 @@ export interface AnthropicAgentConfig {
     thinkingBudgetTokens?: number | undefined;
     /** Optional output effort level used with adaptive thinking. */
     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
-    /**
-     * Anthropic model used to decide whether the agent should respond in
-     * multi-user threads (e.g. `"claude-haiku-4-5"`).  When omitted the
-     * agent always responds.
-     */
-    triageModelName?: string | undefined;
-    /** Context window size of the model in tokens. Defaults to `200000`. */
-    contextWindowSize?: number | undefined;
     /** Enable Anthropic provider-side context compaction. Defaults to `true`. */
     enableCompaction?: boolean | undefined;
     /**
@@ -543,37 +521,17 @@ export interface AnthropicAgentConfig {
      * Defaults to `contextWindowSize * 0.6`.
      */
     compactionTriggerTokens?: number | undefined;
+}
 
-    /**
-     * Maximum number of model turns in a caller-provided tool-calling loop
-     * before {@link AnthropicAgent.run} aborts with an error. Defaults to `10`.
-     */
-    maxToolIterations?: number | undefined;
-
-    /**
-     * Tools the agent may invoke on every call, unless a call overrides them.
-     *
-     * A call that passes {@link AgentRunOptions.tools} replaces these defaults
-     * for that call; a call that omits `tools` uses these. Single-sourced via
-     * the vendor-neutral {@link ITool} contract.
-     */
-    defaultTools?: ITool[] | undefined;
-
-    /**
-     * System prompt prepended to every call, unless a call overrides it via
-     * {@link AgentRunOptions.systemPrompt}.
-     */
-    defaultSystemPrompt?: string | undefined;
-
-    /**
-     * Emit verbose debug logging of streamed API content gates. Defaults to
-     * `false`. The standalone entrypoint wires this from configuration; library
-     * embedders pass it explicitly (this package does not read `process.env`).
-     */
-    debugApiContent?: boolean | undefined;
-
-    /** Optional logger for assistant API failures. Defaults to a no-op logger when omitted. */
-    logger?: ProviderLogger | undefined;
+/**
+ * Configuration options for {@link AnthropicAgent}.
+ *
+ * The neutral fields come from {@link AgentConfig}; everything Anthropic-only
+ * lives under {@link AnthropicAgentConfig.providerOptions}.
+ */
+export interface AnthropicAgentConfig extends AgentConfig {
+    /** Anthropic-only configuration. */
+    providerOptions?: AnthropicProviderOptions | undefined;
 }
 
 /**
@@ -609,24 +567,25 @@ export class AnthropicAgent implements IAgentProvider {
 
     /** Create the agent with the given model configuration. */
     constructor(config: AnthropicAgentConfig) {
-        const enableCompaction = config.enableCompaction !== false;
+        const provider: AnthropicProviderOptions = config.providerOptions ?? {};
+        const enableCompaction = provider.enableCompaction !== false;
         const options: ConstructorParameters<typeof ChatAnthropic>[0] = {
             model: config.modelName,
             maxTokens: config.maxTokens ?? 4096,
             streamUsage: true,
         };
-        if (config.thinkingType) {
-            const thinking: Record<string, unknown> = { type: config.thinkingType };
-            if (config.thinkingDisplay) {
-                thinking.display = config.thinkingDisplay;
+        if (provider.thinkingType) {
+            const thinking: Record<string, unknown> = { type: provider.thinkingType };
+            if (provider.thinkingDisplay) {
+                thinking.display = provider.thinkingDisplay;
             }
-            if (config.thinkingType === "enabled" && typeof config.thinkingBudgetTokens === "number") {
-                thinking.budget_tokens = config.thinkingBudgetTokens;
+            if (provider.thinkingType === "enabled" && typeof provider.thinkingBudgetTokens === "number") {
+                thinking.budget_tokens = provider.thinkingBudgetTokens;
             }
             (options as { thinking?: unknown }).thinking = thinking;
-            if (config.thinkingEffort) {
+            if (provider.thinkingEffort) {
                 (options as { outputConfig?: unknown }).outputConfig = {
-                    effort: config.thinkingEffort,
+                    effort: provider.thinkingEffort,
                 };
             }
         }
@@ -641,7 +600,7 @@ export class AnthropicAgent implements IAgentProvider {
                         trigger: {
                             type: "input_tokens",
                             value:
-                                config.compactionTriggerTokens ??
+                                provider.compactionTriggerTokens ??
                                 Math.round((config.contextWindowSize ?? 200_000) * 0.6),
                         },
                     },
@@ -663,29 +622,29 @@ export class AnthropicAgent implements IAgentProvider {
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
 
         const serverTools: ServerTool[] = [];
-        if (config.enableCodeExecution) {
+        if (provider.enableCodeExecution) {
             serverTools.push({ type: "code_execution_20260120", name: "code_execution" } as ServerTool);
         }
-        if (config.enableWebSearch) {
+        if (provider.enableWebSearch) {
             const webSearchTool: Record<string, unknown> = {
                 type: "web_search_20260209",
                 name: "web_search",
             };
-            if (config.webSearchMaxUses != null) {
-                webSearchTool.max_uses = config.webSearchMaxUses;
+            if (provider.webSearchMaxUses != null) {
+                webSearchTool.max_uses = provider.webSearchMaxUses;
             }
             serverTools.push(webSearchTool as ServerTool);
         }
-        if (config.enableWebFetch) {
+        if (provider.enableWebFetch) {
             const webFetchTool: Record<string, unknown> = {
                 type: "web_fetch_20260209",
                 name: "web_fetch",
             };
-            if (config.webFetchMaxUses != null) {
-                webFetchTool.max_uses = config.webFetchMaxUses;
+            if (provider.webFetchMaxUses != null) {
+                webFetchTool.max_uses = provider.webFetchMaxUses;
             }
-            if (config.webFetchMaxContentTokens != null) {
-                webFetchTool.max_content_tokens = config.webFetchMaxContentTokens;
+            if (provider.webFetchMaxContentTokens != null) {
+                webFetchTool.max_content_tokens = provider.webFetchMaxContentTokens;
             }
             serverTools.push(webFetchTool as ServerTool);
         }
@@ -698,9 +657,9 @@ export class AnthropicAgent implements IAgentProvider {
         this.capabilities = {
             // Anthropic compacts server-side, so the caller never has to.
             compaction: enableCompaction ? "provider" : "none",
-            webSearch: config.enableWebSearch === true,
-            codeExecution: config.enableCodeExecution === true,
-            thinking: config.thinkingType !== undefined,
+            webSearch: provider.enableWebSearch === true,
+            codeExecution: provider.enableCodeExecution === true,
+            thinking: provider.thinkingType !== undefined,
             attachments: { images: true, pdf: true },
         };
     }

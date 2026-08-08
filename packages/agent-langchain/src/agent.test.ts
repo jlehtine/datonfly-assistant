@@ -320,10 +320,12 @@ describe("AnthropicAgent capabilities", () => {
         const agent = new AnthropicAgent({
             modelName: "claude-test",
             apiKey: "sk-ant-test",
-            enableCompaction: false,
-            enableWebSearch: true,
-            enableCodeExecution: true,
-            thinkingType: "adaptive",
+            providerOptions: {
+                enableCompaction: false,
+                enableWebSearch: true,
+                enableCodeExecution: true,
+                thinkingType: "adaptive",
+            },
         });
 
         expect(agent.capabilities).toMatchObject({

@@ -18,9 +18,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { AgentMessage, AgentStreamChunk } from "@datonfly-assistant/core";
+import type { AgentConfig, AgentMessage, AgentStreamChunk } from "@datonfly-assistant/core";
 
-import { AnthropicAgent, type AnthropicAgentConfig } from "../agent.js";
+import { AnthropicAgent, type AnthropicAgentConfig, type AnthropicProviderOptions } from "../agent.js";
 import { startRecordingProxy, type RecordingProxy } from "./recording-proxy.js";
 
 /** Walk up from this module until the workspace root is found. */
@@ -94,8 +94,10 @@ interface Scenario {
     name: string;
     /** What the fixture exercises, mirrored into the fixtures README. */
     description: string;
-    /** Provider configuration on top of the shared defaults. */
-    config?: Partial<AnthropicAgentConfig>;
+    /** Neutral configuration on top of the shared defaults. */
+    config?: Partial<AgentConfig>;
+    /** Anthropic-only configuration for this scenario. */
+    providerOptions?: AnthropicProviderOptions;
     /** Conversation sent to the agent. */
     messages: AgentMessage[];
     /** Abort the stream after this many chunks, instead of draining it. */
@@ -113,31 +115,32 @@ const SCENARIOS: Scenario[] = [
     {
         name: "thinking-adaptive",
         description: "Adaptive thinking: summarized reasoning blocks interleaved with the answer.",
-        config: { thinkingType: "adaptive", thinkingDisplay: "summarized", thinkingEffort: "low" },
+        providerOptions: { thinkingType: "adaptive", thinkingDisplay: "summarized", thinkingEffort: "low" },
         messages: human("A farmer has 17 sheep; all but 9 run away. How many are left? Think it through."),
     },
     {
         name: "thinking-enabled",
         description: "Manual thinking with an explicit token budget.",
-        config: { thinkingType: "enabled", thinkingBudgetTokens: 1024, maxTokens: 4096 },
+        config: { maxTokens: 4096 },
+        providerOptions: { thinkingType: "enabled", thinkingBudgetTokens: 1024 },
         messages: human("What is 17 * 23? Show your reasoning."),
     },
     {
         name: "web-search",
         description: "Server-side web_search tool use, including citation blocks.",
-        config: { enableCodeExecution: true, enableWebSearch: true, webSearchMaxUses: 1 },
+        providerOptions: { enableCodeExecution: true, enableWebSearch: true, webSearchMaxUses: 1 },
         messages: human("Search the web for the current stable Node.js LTS version and cite your source."),
     },
     {
         name: "web-fetch",
         description: "Server-side web_fetch tool use against a URL given in the prompt.",
-        config: { enableCodeExecution: true, enableWebFetch: true, webFetchMaxUses: 1 },
+        providerOptions: { enableCodeExecution: true, enableWebFetch: true, webFetchMaxUses: 1 },
         messages: human("Fetch https://example.com and quote its heading."),
     },
     {
         name: "code-execution",
         description: "Server-side code_execution tool use.",
-        config: { enableCodeExecution: true },
+        providerOptions: { enableCodeExecution: true },
         messages: human("Use code execution to compute the 20th Fibonacci number."),
     },
     {
@@ -176,7 +179,7 @@ const SCENARIOS: Scenario[] = [
         description:
             "Provider-side context compaction. The trigger is lowered so it fires on a cheap prompt " +
             "instead of the ~120k input tokens the production default would need.",
-        config: { enableCompaction: true, compactionTriggerTokens: 1000 },
+        providerOptions: { enableCompaction: true, compactionTriggerTokens: 1000 },
         messages: [
             { role: "human", content: [{ type: "text", text: `Summarise this log:\n${"log line\n".repeat(400)}` }] },
         ],
@@ -249,10 +252,10 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string)
         modelName: MODEL,
         apiKey,
         baseUrl: proxy.url,
-        enableCompaction: false,
         maxTokens: 1024,
         ...scenario.config,
         ...(scenario.name === "tool-loop" ? { defaultTools: await toolLoopTools() } : {}),
+        providerOptions: { enableCompaction: false, ...scenario.providerOptions },
     };
 
     const agent = new AnthropicAgent(config);

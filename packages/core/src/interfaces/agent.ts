@@ -1,5 +1,6 @@
 import type { ContentPart, MessageRole, OpaqueContentPart } from "../types/message.js";
 import type { StatusCode } from "../types/status-code.js";
+import type { ProviderLogger } from "./logger.js";
 import type { ITool } from "./tool.js";
 
 /** The role of an agent message. Extends {@link MessageRole} with any agent-specific roles. */
@@ -153,6 +154,43 @@ export interface AgentRunOptions {
      * without persisting a system message in the thread.
      */
     systemPrompt?: string | undefined;
+}
+
+/**
+ * Provider-neutral agent configuration.
+ *
+ * Every provider accepts these fields; anything vendor-specific belongs in the
+ * provider's own `providerOptions` bag, so the composition root can assemble
+ * most of an agent's configuration without knowing which provider it targets.
+ */
+export interface AgentConfig {
+    /** Model identifier, in whatever form the provider expects. */
+    modelName: string;
+    /** API key. Providers may fall back to their SDK's own environment variable. */
+    apiKey?: string | undefined;
+    /** Override the provider's API base URL (e.g. to record or replay traffic). */
+    baseUrl?: string | undefined;
+    /** Sampling temperature. When omitted, the provider/model default is used. */
+    temperature?: number | undefined;
+    /** Maximum number of tokens in the generated response. */
+    maxTokens?: number | undefined;
+    /** Context window size of the model in tokens. */
+    contextWindowSize?: number | undefined;
+    /**
+     * Cheaper model used to decide whether the agent should respond in
+     * multi-user threads. When omitted the agent always responds.
+     */
+    triageModelName?: string | undefined;
+    /** Maximum number of model turns in a tool-calling loop before aborting. */
+    maxToolIterations?: number | undefined;
+    /** Tools the agent may invoke on every call, unless a call overrides them. */
+    defaultTools?: ITool[] | undefined;
+    /** System prompt prepended to every call, unless a call overrides it. */
+    defaultSystemPrompt?: string | undefined;
+    /** Emit verbose debug logging of streamed API content. */
+    debugApiContent?: boolean | undefined;
+    /** Logger for provider failures. Defaults to a no-op logger when omitted. */
+    logger?: ProviderLogger | undefined;
 }
 
 /**

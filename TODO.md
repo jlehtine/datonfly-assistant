@@ -241,15 +241,18 @@ readonly capabilities: {
 
 ### 1.3 Split agent config into neutral base and provider options
 
-- [ ] Separate the neutral fields (`modelName`, `apiKey`, `maxTokens`,
+- [x] Separate the neutral fields (`modelName`, `apiKey`, `maxTokens`,
       `temperature`, `maxToolIterations`, `defaultTools`, `defaultSystemPrompt`,
       `contextWindowSize`, `logger`) from vendor-specific ones (thinking, server
-      tools, compaction) under a `providerOptions` bag.
-- [ ] Align `packages/backend/src/config.ts` mapping with the split so the
+      tools, compaction) under a `providerOptions` bag. The neutral half is
+      `AgentConfig` in `core`; `AnthropicAgentConfig` extends it and adds
+      `providerOptions: AnthropicProviderOptions`.
+- [x] Align `packages/backend/src/config.ts` mapping with the split so the
       backend's agent config assembly is mostly provider-agnostic. The
       Anthropic-only knobs are already grouped under
       `BackendConfig.agent.anthropic`, so they should map onto `providerOptions`
-      directly.
+      directly. (`main.ts` now passes `providerOptions: cfg.agent.anthropic`
+      verbatim; `config.ts` needed no change.)
 
 ## Phase 2 — `agent-anthropic` implementation
 

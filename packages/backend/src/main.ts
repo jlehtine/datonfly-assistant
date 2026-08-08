@@ -69,18 +69,11 @@ async function bootstrap(): Promise<void> {
         modelName: cfg.agent.modelName,
         apiKey: cfg.anthropicApiKey,
         triageModelName: cfg.agent.triageModelName,
-        enableCompaction: cfg.agent.anthropic.enableCompaction,
-        enableCodeExecution: cfg.agent.anthropic.enableCodeExecution,
-        enableWebSearch: cfg.agent.anthropic.enableWebSearch,
-        enableWebFetch: cfg.agent.anthropic.enableWebFetch,
-        thinkingType: cfg.agent.anthropic.thinkingType,
-        thinkingDisplay: cfg.agent.anthropic.thinkingDisplay,
-        thinkingBudgetTokens: cfg.agent.anthropic.thinkingBudgetTokens,
-        thinkingEffort: cfg.agent.anthropic.thinkingEffort,
         debugApiContent: cfg.agent.debugApiContent,
         ...(cfg.agent.maxToolIterations !== undefined ? { maxToolIterations: cfg.agent.maxToolIterations } : {}),
         ...(mcpServerSet ? { defaultTools: mcpServerSet.tools } : {}),
         logger: agentLogger,
+        providerOptions: cfg.agent.anthropic,
     });
 
     // Optional: separate (cheaper) model for automatic thread title generation.

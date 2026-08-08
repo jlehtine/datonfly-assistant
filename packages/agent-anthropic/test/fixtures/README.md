@@ -101,7 +101,6 @@ personal content that does not belong in the repository.
 | ------------------- | -------------------------------------------------------------------------- |
 | `plain-text`        | Plain streamed text; no tools, no thinking.                                |
 | `thinking-adaptive` | Adaptive thinking with summarized reasoning blocks.                        |
-| `thinking-enabled`  | Manual thinking with `budget_tokens`. Pinned to Haiku 4.5 — see below.     |
 | `web-search`        | Server-side `web_search`, including citation blocks. Needs server tools.   |
 | `web-fetch`         | Server-side `web_fetch` against a URL from the prompt. Needs server tools. |
 | `code-execution`    | Server-side `code_execution`. Needs server tools.                          |
@@ -131,22 +130,13 @@ reported and **not written** rather than becoming a misleading baseline.
   token is attributed to cache creation, and `applied_edits` comes back empty.
   Blocked on the deliberate cache breakpoints planned in Phase 2.6.
 
-### Pinned models
+### Thinking
 
-Most fixtures are recorded with the deployment's model. `thinking-enabled` is
-pinned to `claude-haiku-4-5`, because both Opus 5 and Sonnet 5 reject
-`thinking.type: "enabled"`:
-
-> "thinking.type.enabled" is not supported for this model. Use
-> "thinking.type.adaptive" and "output_config.effort" to control thinking
-> behavior.
-
-The Claude 5 generation replaced manual thinking budgets with adaptive thinking
-plus an effort level. The fixture therefore documents the
-`thinking.type: "enabled"` **wire format** — which the rewrite must still parse
-for older models — rather than anything the current deployment produces. Both
-thinking fixtures carry `thinking_delta` and `signature_delta`, which is what
-the signature-preserving replay in Phase 2.4 needs.
+Only adaptive thinking is captured, because it is the only mode that exists: the
+Claude 5 generation rejects `thinking.type: "enabled"` outright, and the manual
+budget option was dropped from the product rather than kept for older models.
+`thinking-adaptive` carries `thinking_delta` and `signature_delta`, which is
+what the signature-preserving replay in Phase 2.4 needs.
 
 ### Synthetic fixtures
 

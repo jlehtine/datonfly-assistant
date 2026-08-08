@@ -125,6 +125,19 @@ describe("loadBackendConfig", () => {
         );
     });
 
+    it("rejects the withdrawn manual thinking mode", () => {
+        expect(() => loadBackendConfig(validEnv({ DF_ANTHROPIC_THINKING_TYPE: "enabled" }))).toThrow(
+            'DF_ANTHROPIC_THINKING_TYPE must be one of adaptive, got "enabled"',
+        );
+    });
+
+    it("accepts adaptive thinking with an effort level", () => {
+        const config = loadBackendConfig(
+            validEnv({ DF_ANTHROPIC_THINKING_TYPE: "adaptive", DF_ANTHROPIC_THINKING_EFFORT: "high" }),
+        );
+        expect(config.agent.anthropic).toMatchObject({ thinkingType: "adaptive", thinkingEffort: "high" });
+    });
+
     it("throws on a malformed port", () => {
         expect(() => loadBackendConfig(validEnv({ DF_PORT: "not-a-port" }))).toThrow(
             'DF_PORT must be an integer between 1 and 65535, got "not-a-port"',

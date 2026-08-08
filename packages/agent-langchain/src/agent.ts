@@ -506,12 +506,16 @@ export interface AnthropicProviderOptions {
     webFetchMaxUses?: number | undefined;
     /** Maximum content length (in tokens) for fetched pages. Defaults to unlimited when omitted. */
     webFetchMaxContentTokens?: number | undefined;
-    /** Anthropic thinking mode (`adaptive` or `enabled`). When omitted, thinking stays disabled. */
-    thinkingType?: "adaptive" | "enabled" | undefined;
+    /**
+     * Anthropic thinking mode. When omitted, thinking stays disabled.
+     *
+     * Only `"adaptive"` exists: the Claude 5 generation dropped the manual
+     * `"enabled"` budget mode in favour of adaptive thinking plus
+     * {@link AnthropicProviderOptions.thinkingEffort}.
+     */
+    thinkingType?: "adaptive" | undefined;
     /** Anthropic thinking display mode. */
     thinkingDisplay?: "summarized" | "omitted" | undefined;
-    /** Budget tokens for manual thinking mode (`enabled`). */
-    thinkingBudgetTokens?: number | undefined;
     /** Optional output effort level used with adaptive thinking. */
     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
     /** Enable Anthropic provider-side context compaction. Defaults to `true`. */
@@ -578,9 +582,6 @@ export class AnthropicAgent implements IAgentProvider {
             const thinking: Record<string, unknown> = { type: provider.thinkingType };
             if (provider.thinkingDisplay) {
                 thinking.display = provider.thinkingDisplay;
-            }
-            if (provider.thinkingType === "enabled" && typeof provider.thinkingBudgetTokens === "number") {
-                thinking.budget_tokens = provider.thinkingBudgetTokens;
             }
             (options as { thinking?: unknown }).thinking = thinking;
             if (provider.thinkingEffort) {

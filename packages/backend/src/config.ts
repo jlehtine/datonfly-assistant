@@ -232,9 +232,8 @@ export interface BackendConfig {
             enableCodeExecution: boolean;
             enableWebSearch: boolean;
             enableWebFetch: boolean;
-            thinkingType: "adaptive" | "enabled" | undefined;
+            thinkingType: "adaptive" | undefined;
             thinkingDisplay: "summarized" | "omitted" | undefined;
-            thinkingBudgetTokens: number | undefined;
             thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
         };
     };
@@ -407,17 +406,13 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
                 enableWebFetch: reader.prefixed("ANTHROPIC_ENABLE_WEB_FETCH") !== "false",
                 thinkingType: parseEnum(
                     reader.prefixed("ANTHROPIC_THINKING_TYPE"),
-                    ["adaptive", "enabled"] as const,
+                    ["adaptive"] as const,
                     "DF_ANTHROPIC_THINKING_TYPE",
                 ),
                 thinkingDisplay: parseEnum(
                     reader.prefixed("ANTHROPIC_THINKING_DISPLAY"),
                     ["summarized", "omitted"] as const,
                     "DF_ANTHROPIC_THINKING_DISPLAY",
-                ),
-                thinkingBudgetTokens: parsePositiveNumber(
-                    reader.prefixed("ANTHROPIC_THINKING_BUDGET_TOKENS"),
-                    "DF_ANTHROPIC_THINKING_BUDGET_TOKENS",
                 ),
                 thinkingEffort: parseEnum(
                     reader.prefixed("ANTHROPIC_THINKING_EFFORT"),

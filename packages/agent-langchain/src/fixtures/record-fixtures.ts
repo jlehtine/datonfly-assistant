@@ -108,13 +108,6 @@ interface Scenario {
     description: string;
     /** Neutral configuration on top of the shared defaults. */
     config?: Partial<AgentConfig>;
-    /**
-     * Force a specific model, overriding the selected one.
-     *
-     * Only for scenarios the selected model cannot express at all; the fixture
-     * then documents the wire format rather than the deployment.
-     */
-    model?: string;
     /** Anthropic-only configuration for this scenario. */
     providerOptions?: AnthropicProviderOptions;
     /**
@@ -153,17 +146,6 @@ const SCENARIOS: Scenario[] = [
         providerOptions: { thinkingType: "adaptive", thinkingDisplay: "summarized", thinkingEffort: "low" },
         verify: bodyContains("thinking"),
         messages: human("A farmer has 17 sheep; all but 9 run away. How many are left? Think it through."),
-    },
-    {
-        name: "thinking-enabled",
-        description: "Manual thinking with an explicit token budget.",
-        config: { maxTokens: 4096 },
-        providerOptions: { thinkingType: "enabled", thinkingBudgetTokens: 1024 },
-        // The Claude 5 generation dropped this mode for adaptive + output_config.effort.
-        model: "claude-haiku-4-5",
-        requires: 'thinking.type "enabled", which Claude 5 models reject',
-        verify: bodyContains("thinking_delta"),
-        messages: human("What is 17 * 23? Show your reasoning."),
     },
     {
         name: "web-search",
@@ -350,12 +332,11 @@ async function drain(
 
 /** Run one scenario and write its fixture. */
 async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string, model: string): Promise<void> {
-    const scenarioModel = scenario.model ?? model;
-    process.stdout.write(`▶ ${scenario.name}${scenario.model ? ` (pinned to ${scenario.model})` : ""}\n`);
+    process.stdout.write(`▶ ${scenario.name}\n`);
     proxy.setScenario(scenario.name);
 
     const config: AnthropicAgentConfig = {
-        modelName: scenarioModel,
+        modelName: model,
         apiKey,
         baseUrl: proxy.url,
         maxTokens: 1024,
@@ -430,8 +411,7 @@ async function main(): Promise<void> {
     if (args.includes("--list")) {
         for (const scenario of SCENARIOS) {
             const note = scenario.requires ? ` [requires ${scenario.requires}]` : "";
-            const pinned = scenario.model ? ` [pinned to ${scenario.model}]` : "";
-            process.stdout.write(`${scenario.name.padEnd(20)} ${scenario.description}${note}${pinned}\n`);
+            process.stdout.write(`${scenario.name.padEnd(20)} ${scenario.description}${note}\n`);
         }
         return;
     }

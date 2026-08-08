@@ -61,47 +61,47 @@ The unprefixed names in this table are **no longer read**.
 
 ### Renamed (unprefixed name no longer read)
 
-| Old name                           | New name                              |
-| ---------------------------------- | ------------------------------------- |
-| `AUTH_MODE`                        | `DF_AUTH_MODE`                        |
-| `JWT_SECRET`                       | `DF_JWT_SECRET`                       |
-| `SESSION_TTL_SECONDS`              | `DF_SESSION_TTL_SECONDS`              |
-| `FRONTEND_URL`                     | `DF_FRONTEND_URL`                     |
-| `OIDC_ISSUER_URL`                  | `DF_OIDC_ISSUER_URL`                  |
-| `OIDC_CLIENT_ID`                   | `DF_OIDC_CLIENT_ID`                   |
-| `OIDC_CLIENT_SECRET`               | `DF_OIDC_CLIENT_SECRET`               |
-| `OIDC_REDIRECT_URI`                | `DF_OIDC_REDIRECT_URI`                |
-| `OIDC_ALLOWED_EMAIL_DOMAIN`        | `DF_OIDC_ALLOWED_EMAIL_DOMAIN`        |
-| `OIDC_ALLOWED_EMAILS`              | `DF_OIDC_ALLOWED_EMAILS`              |
-| `FAKE_USER_EMAIL`                  | `DF_FAKE_USER_EMAIL`                  |
-| `FAKE_USER_NAME`                   | `DF_FAKE_USER_NAME`                   |
-| `ANTHROPIC_MODEL`                  | `DF_ANTHROPIC_MODEL` → see hop 2      |
-| `ANTHROPIC_TRIAGE_MODEL`           | `DF_ANTHROPIC_TRIAGE_MODEL` → hop 2   |
-| `ANTHROPIC_TITLE_MODEL`            | `DF_ANTHROPIC_TITLE_MODEL` → hop 2    |
-| `ANTHROPIC_THINKING_TYPE`          | `DF_ANTHROPIC_THINKING_TYPE`          |
-| `ANTHROPIC_THINKING_DISPLAY`       | `DF_ANTHROPIC_THINKING_DISPLAY`       |
-| `ANTHROPIC_THINKING_BUDGET_TOKENS` | `DF_ANTHROPIC_THINKING_BUDGET_TOKENS` |
-| `ANTHROPIC_THINKING_EFFORT`        | `DF_ANTHROPIC_THINKING_EFFORT`        |
-| `ENABLE_COMPACTION`                | `DF_ENABLE_COMPACTION` → see hop 2    |
-| `ENABLE_CODE_EXECUTION`            | `DF_ENABLE_CODE_EXECUTION` → hop 2    |
-| `ENABLE_WEB_SEARCH`                | `DF_ENABLE_WEB_SEARCH` → hop 2        |
-| `ENABLE_WEB_FETCH`                 | `DF_ENABLE_WEB_FETCH` → hop 2         |
-| `AGENT_MAX_TOOL_ITERATIONS`        | `DF_AGENT_MAX_TOOL_ITERATIONS`        |
-| `DEBUG_API_CONTENT`                | `DF_DEBUG_API_CONTENT`                |
-| `MCP_SERVERS`                      | `DF_MCP_SERVERS`                      |
-| `MCP_TOOL_TIMEOUT_MS`              | `DF_MCP_TOOL_TIMEOUT_MS`              |
-| `OPENAI_TRANSCRIBE_MODEL`          | `DF_OPENAI_TRANSCRIBE_MODEL`          |
-| `MEMBER_SEARCH_STRATEGY`           | `DF_MEMBER_SEARCH_STRATEGY`           |
-| `QDRANT_URL`                       | `DF_QDRANT_URL`                       |
-| `INFINITY_URL`                     | `DF_INFINITY_URL`                     |
-| `SEARCH_STEMMER_LANGUAGE`          | `DF_SEARCH_STEMMER_LANGUAGE`          |
-| `EMBEDDINGS_TIMEOUT_MS`            | `DF_EMBEDDINGS_TIMEOUT_MS`            |
-| `SEARCH_RECENCY_HALF_LIFE_DAYS`    | `DF_SEARCH_RECENCY_HALF_LIFE_DAYS`    |
-| `LOG_LEVEL`                        | `DF_LOG_LEVEL`                        |
-| `LOG_FORMAT`                       | `DF_LOG_FORMAT`                       |
-| `TRUSTED_REVERSE_PROXY`            | `DF_TRUSTED_REVERSE_PROXY`            |
-| `ADMIN_SECRET`                     | `DF_ADMIN_SECRET`                     |
-| `ADMIN_IPS`                        | `DF_ADMIN_IPS`                        |
+| Old name                           | New name                                              |
+| ---------------------------------- | ----------------------------------------------------- |
+| `AUTH_MODE`                        | `DF_AUTH_MODE`                                        |
+| `JWT_SECRET`                       | `DF_JWT_SECRET`                                       |
+| `SESSION_TTL_SECONDS`              | `DF_SESSION_TTL_SECONDS`                              |
+| `FRONTEND_URL`                     | `DF_FRONTEND_URL`                                     |
+| `OIDC_ISSUER_URL`                  | `DF_OIDC_ISSUER_URL`                                  |
+| `OIDC_CLIENT_ID`                   | `DF_OIDC_CLIENT_ID`                                   |
+| `OIDC_CLIENT_SECRET`               | `DF_OIDC_CLIENT_SECRET`                               |
+| `OIDC_REDIRECT_URI`                | `DF_OIDC_REDIRECT_URI`                                |
+| `OIDC_ALLOWED_EMAIL_DOMAIN`        | `DF_OIDC_ALLOWED_EMAIL_DOMAIN`                        |
+| `OIDC_ALLOWED_EMAILS`              | `DF_OIDC_ALLOWED_EMAILS`                              |
+| `FAKE_USER_EMAIL`                  | `DF_FAKE_USER_EMAIL`                                  |
+| `FAKE_USER_NAME`                   | `DF_FAKE_USER_NAME`                                   |
+| `ANTHROPIC_MODEL`                  | `DF_ANTHROPIC_MODEL` → see hop 2                      |
+| `ANTHROPIC_TRIAGE_MODEL`           | `DF_ANTHROPIC_TRIAGE_MODEL` → hop 2                   |
+| `ANTHROPIC_TITLE_MODEL`            | `DF_ANTHROPIC_TITLE_MODEL` → hop 2                    |
+| `ANTHROPIC_THINKING_TYPE`          | `DF_ANTHROPIC_THINKING_TYPE`                          |
+| `ANTHROPIC_THINKING_DISPLAY`       | `DF_ANTHROPIC_THINKING_DISPLAY`                       |
+| `ANTHROPIC_THINKING_BUDGET_TOKENS` | `DF_ANTHROPIC_THINKING_BUDGET_TOKENS` (since removed) |
+| `ANTHROPIC_THINKING_EFFORT`        | `DF_ANTHROPIC_THINKING_EFFORT`                        |
+| `ENABLE_COMPACTION`                | `DF_ENABLE_COMPACTION` → see hop 2                    |
+| `ENABLE_CODE_EXECUTION`            | `DF_ENABLE_CODE_EXECUTION` → hop 2                    |
+| `ENABLE_WEB_SEARCH`                | `DF_ENABLE_WEB_SEARCH` → hop 2                        |
+| `ENABLE_WEB_FETCH`                 | `DF_ENABLE_WEB_FETCH` → hop 2                         |
+| `AGENT_MAX_TOOL_ITERATIONS`        | `DF_AGENT_MAX_TOOL_ITERATIONS`                        |
+| `DEBUG_API_CONTENT`                | `DF_DEBUG_API_CONTENT`                                |
+| `MCP_SERVERS`                      | `DF_MCP_SERVERS`                                      |
+| `MCP_TOOL_TIMEOUT_MS`              | `DF_MCP_TOOL_TIMEOUT_MS`                              |
+| `OPENAI_TRANSCRIBE_MODEL`          | `DF_OPENAI_TRANSCRIBE_MODEL`                          |
+| `MEMBER_SEARCH_STRATEGY`           | `DF_MEMBER_SEARCH_STRATEGY`                           |
+| `QDRANT_URL`                       | `DF_QDRANT_URL`                                       |
+| `INFINITY_URL`                     | `DF_INFINITY_URL`                                     |
+| `SEARCH_STEMMER_LANGUAGE`          | `DF_SEARCH_STEMMER_LANGUAGE`                          |
+| `EMBEDDINGS_TIMEOUT_MS`            | `DF_EMBEDDINGS_TIMEOUT_MS`                            |
+| `SEARCH_RECENCY_HALF_LIFE_DAYS`    | `DF_SEARCH_RECENCY_HALF_LIFE_DAYS`                    |
+| `LOG_LEVEL`                        | `DF_LOG_LEVEL`                                        |
+| `LOG_FORMAT`                       | `DF_LOG_FORMAT`                                       |
+| `TRUSTED_REVERSE_PROXY`            | `DF_TRUSTED_REVERSE_PROXY`                            |
+| `ADMIN_SECRET`                     | `DF_ADMIN_SECRET`                                     |
+| `ADMIN_IPS`                        | `DF_ADMIN_IPS`                                        |
 
 > Note: the frontend's `VITE_`-prefixed build-time variables (if any are added
 > in future) are owned by the Vite tooling convention and keep their `VITE_`
@@ -140,6 +140,17 @@ neutralised — another provider's equivalents would not be interchangeable.
 
 The `DF_ANTHROPIC_THINKING_*` variables were already vendor-namespaced and are
 unchanged. `ANTHROPIC_API_KEY` remains canonical and unprefixed.
+
+## Removed variables
+
+| Variable                              | Why it was removed                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `DF_ANTHROPIC_THINKING_BUDGET_TOKENS` | Only applied to `DF_ANTHROPIC_THINKING_TYPE=enabled`, which the Claude 5 generation no longer supports. |
+
+`DF_ANTHROPIC_THINKING_TYPE` now accepts only `adaptive`; use
+`DF_ANTHROPIC_THINKING_EFFORT` to control how much the model thinks. Setting it
+to `enabled` fails at startup with an explicit error rather than 400-ing on
+every request.
 
 ## How to migrate a deployment
 

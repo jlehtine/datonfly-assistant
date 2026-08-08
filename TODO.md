@@ -213,28 +213,22 @@ regression baseline for the rewrite.
       committing. Automated in the proxy (credential headers dropped, response
       headers reduced to an allowlist, `sk-ant-…` / `Bearer …` redacted) and
       covered by `recording-proxy.test.ts`.
-- [x] **Run the captures.** Recorded against `claude-opus-5`. Twelve of thirteen
-      scenarios landed; each scenario now carries a `verify` predicate so a
-      capture that does not exercise its claim is rejected instead of written.
-- [x] Record the `thinking-enabled` fixture. Pinned to `claude-haiku-4-5`: both
-      Opus 5 and Sonnet 5 reject `thinking.type: "enabled"` with _"Use
-      `thinking.type.adaptive` and `output_config.effort`"_. Both thinking
-      fixtures carry `thinking_delta` and `signature_delta`, which is what the
-      Phase 2.4 signature-preserving replay needs.
+- [x] **Run the captures.** Recorded against `claude-opus-5`. Eleven of twelve
+      remaining scenarios landed; each scenario now carries a `verify` predicate
+      so a capture that does not exercise its claim is rejected instead of
+      written.
 - [ ] Record the `compaction` fixture. Blocked on the caching interaction below;
       the request is valid (trigger must be ≥ 50000, not the 1000 first tried)
       but compaction never fires.
 
-**Finding — Claude 5 dropped manual thinking budgets.**
-`thinking.type: "enabled"` (with `budget_tokens`) is rejected by both Opus 5 and
-Sonnet 5, and survives only on the 4.x generation (verified on
-`claude-haiku-4-5`). The replacement is `thinking.type: "adaptive"` plus
-`output_config.effort`. `packages/backend/src/config.ts` still accepts
-`DF_ANTHROPIC_THINKING_TYPE=enabled`, so that setting now produces a 400 on
-every request against a Claude 5 model. Decide whether to reject the combination
-at config load, drop the mode entirely, or keep it for older models — the
-rewrite must parse the wire format either way, which is why the fixture was
-still captured.
+**Resolved — manual thinking budgets dropped.** `thinking.type: "enabled"` (with
+`budget_tokens`) is rejected by both Opus 5 and Sonnet 5, surviving only on the
+4.x generation (verified on `claude-haiku-4-5`). Since the 4.x models are used
+only for titles and triage — neither of which passes thinking configuration —
+the mode was unreachable in this product. `thinkingType` is now `"adaptive"`
+only, `thinkingBudgetTokens` / `DF_ANTHROPIC_THINKING_BUDGET_TOKENS` are gone,
+and `DF_ANTHROPIC_THINKING_TYPE=enabled` fails at startup instead of 400-ing on
+every request. Use `DF_ANTHROPIC_THINKING_EFFORT` to control thinking depth.
 
 **Finding — blanket prompt caching defeats provider-side compaction.** The agent
 sets `cache_control: { type: "ephemeral" }` on every invoke (`agent.ts` lines

@@ -156,6 +156,32 @@ export interface AgentRunOptions {
 }
 
 /**
+ * What an {@link IAgentProvider} supports.
+ *
+ * Lets callers adapt to a provider without naming one. Providers report this
+ * for the configuration they were constructed with, so a capability that is
+ * available but switched off reads as unsupported.
+ */
+export interface AgentCapabilities {
+    /**
+     * Where conversation compaction happens.
+     *
+     * - `"provider"` — the provider compacts internally.
+     * - `"external"` — the caller must compact (e.g. via a compaction service).
+     * - `"none"` — no compaction; the caller is responsible for staying in budget.
+     */
+    compaction: "provider" | "external" | "none";
+    /** Provider-side web search is enabled. */
+    webSearch: boolean;
+    /** Provider-side code execution is enabled. */
+    codeExecution: boolean;
+    /** The model emits reasoning/thinking content. */
+    thinking: boolean;
+    /** Attachment kinds the provider accepts. */
+    attachments: { images: boolean; pdf: boolean };
+}
+
+/**
  * Agent service provider that processes messages and produces responses.
  *
  * Implementations wrap an LLM (or chain/graph) and expose both
@@ -200,12 +226,6 @@ export interface IAgentProvider {
     /** Return the context window size (in tokens) of the underlying model. */
     getContextWindowSize(): number;
 
-    /**
-     * Whether the gateway should run external compaction (e.g. {@link CompactionService})
-     * after each response from this provider.
-     *
-     * - `true` — provider lacks built-in compaction; the gateway manages it.
-     * - `false` — provider handles compaction internally or does not compact.
-     */
-    readonly externalCompaction: boolean;
+    /** What this provider supports, so callers can adapt without naming a vendor. */
+    readonly capabilities: AgentCapabilities;
 }

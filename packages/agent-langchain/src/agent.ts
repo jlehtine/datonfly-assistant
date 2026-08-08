@@ -14,6 +14,7 @@ import { concat } from "@langchain/core/utils/stream";
 import {
     classifyAttachmentMimeType,
     NOOP_PROVIDER_LOGGER,
+    type AgentCapabilities,
     type AgentMessage,
     type AgentRunOptions,
     type AgentStreamChunk,
@@ -604,7 +605,7 @@ export class AnthropicAgent implements IAgentProvider {
     private readonly logger: ProviderLogger;
 
     /** @inheritdoc */
-    readonly externalCompaction = false;
+    readonly capabilities: AgentCapabilities;
 
     /** Create the agent with the given model configuration. */
     constructor(config: AnthropicAgentConfig) {
@@ -694,6 +695,14 @@ export class AnthropicAgent implements IAgentProvider {
         this.defaultTools = config.defaultTools ?? [];
         this.defaultSystemPrompt = config.defaultSystemPrompt;
         this.debugApiContent = config.debugApiContent ?? false;
+        this.capabilities = {
+            // Anthropic compacts server-side, so the caller never has to.
+            compaction: enableCompaction ? "provider" : "none",
+            webSearch: config.enableWebSearch === true,
+            codeExecution: config.enableCodeExecution === true,
+            thinking: config.thinkingType !== undefined,
+            attachments: { images: true, pdf: true },
+        };
     }
 
     /**

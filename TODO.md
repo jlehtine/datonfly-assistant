@@ -219,12 +219,14 @@ regression baseline for the rewrite.
 
 ### 1.2 Replace `externalCompaction` with a capabilities descriptor
 
-- [ ] Extend `IAgentProvider` in `packages/core/src/interfaces/agent.ts` with
+- [x] Extend `IAgentProvider` in `packages/core/src/interfaces/agent.ts` with
       the descriptor below, replacing `externalCompaction`.
-- [ ] Update the two `agent.externalCompaction` reads in
+- [x] Update the two `agent.externalCompaction` reads in
       `packages/chat-server/src/chat.gateway.ts` and the provider wiring in
-      `chat.module.ts`.
-- [ ] Update `agent-langchain` to report the descriptor so the seam change lands
+      `chat.module.ts`. (`chat.module.ts` passes the provider through as
+      `IAgentProvider` and needed no change; both reads are now
+      `capabilities.compaction === "external"`.)
+- [x] Update `agent-langchain` to report the descriptor so the seam change lands
       independently of the rewrite.
 
 ```ts

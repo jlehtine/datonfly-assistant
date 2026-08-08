@@ -446,7 +446,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         // Load full history and convert to AgentMessage[]
         const history = await this.persistence.loadMessages({
             threadId,
-            excludeCompacted: this.agent.externalCompaction,
+            excludeCompacted: this.agent.capabilities.compaction === "external",
         });
         const members = await this.persistence.listMembersWithUser(threadId);
         const authorAliases = buildAuthorAliases(members);
@@ -718,7 +718,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 }
 
                 // Fire-and-forget compaction check (only for external compaction providers).
-                if (this.compactionService && this.agent.externalCompaction && streamState.usage) {
+                if (this.compactionService && this.agent.capabilities.compaction === "external" && streamState.usage) {
                     void this.compactionService.maybeCompact(threadId, streamState.usage.inputTokens);
                 }
             } finally {

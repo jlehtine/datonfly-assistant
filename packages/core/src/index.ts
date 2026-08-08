@@ -38,6 +38,7 @@ export {
 export { formatLoggedError, NOOP_PROVIDER_LOGGER, zodTool } from "./interfaces/index.js";
 export type {
     IAgentProvider,
+    AgentCapabilities,
     ProviderLogger,
     AgentMessage,
     AgentMessageRole,

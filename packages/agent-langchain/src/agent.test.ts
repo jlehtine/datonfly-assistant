@@ -302,3 +302,35 @@ describe("AnthropicAgent default tools and system prompt", () => {
         expect(first?.content).toBe("Override prompt.");
     });
 });
+
+describe("AnthropicAgent capabilities", () => {
+    it("reports provider-side compaction and no optional features by default", () => {
+        const agent = new AnthropicAgent({ modelName: "claude-test", apiKey: "sk-ant-test" });
+
+        expect(agent.capabilities).toEqual({
+            compaction: "provider",
+            webSearch: false,
+            codeExecution: false,
+            thinking: false,
+            attachments: { images: true, pdf: true },
+        });
+    });
+
+    it("reports the features the configuration actually switched on", () => {
+        const agent = new AnthropicAgent({
+            modelName: "claude-test",
+            apiKey: "sk-ant-test",
+            enableCompaction: false,
+            enableWebSearch: true,
+            enableCodeExecution: true,
+            thinkingType: "adaptive",
+        });
+
+        expect(agent.capabilities).toMatchObject({
+            compaction: "none",
+            webSearch: true,
+            codeExecution: true,
+            thinking: true,
+        });
+    });
+});

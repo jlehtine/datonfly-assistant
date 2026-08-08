@@ -227,3 +227,358 @@ not a new pattern):
       reserved for small/permanent data like compaction, and note the
       purge-safety property so a future storage-reclamation feature doesn't have
       to re-derive it.
+
+## Search — hybrid dense + sparse retrieval overhaul
+
+Thread search currently performs poorly. Add a real lexical (BM25) retrieval
+channel computed **in Node**, and fuse it with the existing dense channel using
+weighted Reciprocal Rank Fusion inside Qdrant. Infinity and `BAAI/bge-m3` stay
+exactly as they are, so this adds no containers and no meaningful resource cost.
+
+Status: planned, not started. Phases 0–4 are the agreed scope; phases 5 and 6
+are deferred and undecided pending operational verification of phases 0–4.
+
+### Why the current implementation underperforms
+
+Diagnosis of `semanticSearch()` in
+[packages/search-qdrant/src/qdrant-search.ts](packages/search-qdrant/src/qdrant-search.ts):
+
+- The "hybrid" query is not hybrid. **Both** RRF prefetches use the same dense
+  `queryVector`; the second merely adds a full-text _filter_. There is no
+  lexical _scoring_ anywhere in the pipeline.
+- Qdrant's `match: { text: ... }` requires **all** tokens to be present (AND
+  semantics), so multi-word queries usually make that second prefetch empty and
+  RRF degenerates to plain dense search.
+- There are no sparse vectors at all, so rare tokens — names, ticket IDs, error
+  codes — are effectively invisible to retrieval.
+- `group_size: 1` collapses each thread to a single hit, and the snippet is a
+  raw 400-character prefix produced in `thread.controller.ts` rather than the
+  region that actually matched.
+- Recency decay is applied app-side _after_ Qdrant already truncated to `limit`,
+  so decay can never surface an older-but-better result that fell outside the
+  window.
+- When embedding fails, the message is not indexed at all — there is no sparse
+  fallback, and the gap persists silently until a full reindex.
+
+### Decisions (resolved)
+
+- **Dense stays primary** (semantic, `BAAI/bge-m3` via Infinity). Sparse is
+  added for names, identifiers and exact words that semantic search misses.
+- **No new infrastructure.** Infinity and its model are unchanged; the sparse
+  vectors are computed in Node and scored by Qdrant. Net infra change: none.
+- **Languages:** Finnish and English must both work well; broader multilingual
+  support is a bonus.
+- **Stemmer:** `snowball-stemmers` plus `@types/snowball-stemmers` — see the
+  vetting notes below.
+- **No language detection.** Every configured language's stemmer runs over every
+  token, at index time _and_ query time (rationale in step 1.3).
+- **Full reindex is acceptable.** Postgres is the source of truth and
+  `POST /datonfly-assistant/admin/reindex` already drops and rebuilds.
+- **Agent search tool is out of scope** here, but `ISearchProvider` should be
+  shaped so a future tool can reuse it without another interface change.
+
+### Dependency vetting — `snowball-stemmers`
+
+- GitHub Advisory Database: 0 advisories. Snyk: no known security issues on
+  either published version.
+- **Zero runtime dependencies**, so there is no transitive supply-chain surface.
+  This is why it was chosen over `@nlpjs/lang-fi` / `@nlpjs/lang-en`, which pull
+  in `@nlpjs/core`, ship no types, and whose newest release is a two-year-old
+  alpha.
+- Pure string manipulation: no I/O, no network, no `eval`. Transpiled from the
+  official Java Snowball implementations.
+- Ships 20+ languages (including `finnish` and `english`) in one prebuilt
+  bundle.
+- Licence: npm metadata says ISC, the repository `LICENSE` says BSD-3-Clause.
+  Both are permissive and acceptable — record the discrepancy accurately rather
+  than trusting the npm field.
+- Frozen since 2016. Acceptable because the Snowball algorithms are themselves
+  stable; there is nothing to keep up with.
+
+### Qdrant capabilities this plan relies on
+
+`docker-compose.yml` pins `qdrant/qdrant:v1.17`, which covers all of these:
+
+- Sparse vectors with `modifier: "idf"` — server-side BM25 IDF (v1.10+).
+- Weighted RRF, `query: { rrf: { k, weights: [...] } }` (v1.17).
+- Formula queries with `exp_decay` over a `datetime_key` (v1.14).
+- Constraint: a main query cannot be both a fusion and a formula, so the fusion
+  is nested in a prefetch and the formula becomes the main query. This is only
+  correct on a **single shard**, which matches the current single-node
+  deployment. Revisit if the collection is ever sharded.
+
+## Phase 0 — Interfaces and wire schema
+
+Blocking prerequisite for every later phase.
+
+### 0.1 Core search interfaces
+
+- [ ] In
+      [packages/core/src/interfaces/search.ts](packages/core/src/interfaces/search.ts),
+      add `id: string` and `highlights?: [number, number][]` to
+      `SearchDocument`.
+- [ ] Extend `SemanticSearchOptions` with `hitsPerThread?: number`,
+      `snippetChars?: number` and
+      `recency?: { halfLifeDays: number; weight: number }`.
+- [ ] Introduce
+      `SearchResultGroup { threadId: string; score: number; hits: SearchDocument[] }`
+      and change the provider method to return `SearchResultGroup[]`.
+- [ ] Rename `ISearchProvider.semanticSearch` to `search`. The name no longer
+      describes the operation now that it is hybrid, and inter-package API
+      compatibility is not maintained during initial development.
+
+### 0.2 Wire schema
+
+- [ ] Reshape `threadSearchResultWireSchema` in
+      `packages/core/src/endpoints/schemas.ts` to
+      `{ threadId, title, updatedAt, score, hits: [{ messageId, createdAt, snippet, highlights, score }] }`.
+- [ ] Define `highlights` as `[start, end]` offset pairs **relative to the
+      snippet**. Never return HTML or pre-marked text — the frontend builds the
+      marks from offsets, which keeps message content from becoming an injection
+      vector.
+
+## Phase 1 — Lexical BM25 sparse channel
+
+New module `packages/search-qdrant/src/bm25.ts`. Can be developed in parallel
+with the Phase 2 design, but Phase 2 depends on it.
+
+### 1.1 Dependencies
+
+- [ ] Add `snowball-stemmers` as a dependency and `@types/snowball-stemmers` as
+      a devDependency of `packages/search-qdrant`.
+- [ ] Import it with a **default import**
+      (`import snowball from "snowball-stemmers"`). It is a 2016 UMD build and
+      this workspace is `"type": "module"`, so named ESM imports may not
+      resolve. Verify at build time and fall back to `createRequire` if needed.
+
+### 1.2 Tokenizer
+
+- [ ] Split on whitespace first and emit lowercased **identifier-like** chunks
+      verbatim — those containing a digit, `_`, `-`, `.`, `/`, `@`, or mixed
+      case. This keeps `ABC-1234`, `getUserById` and `user@example.com` intact,
+      which is the whole point of the sparse channel.
+- [ ] Segment the full text with
+      `Intl.Segmenter(locale, { granularity: "word" })` — built into Node,
+      multilingual, no dependency — keeping word-like segments only, lowercased,
+      with optional ASCII folding.
+- [ ] Do **not** build stopword lists. Qdrant's IDF modifier drives common terms
+      to near-zero weight automatically.
+
+### 1.3 Stemming without language detection
+
+- [ ] Run every configured language's stemmer over every word token, and emit
+      each stem as an additional term alongside the always-present surface form.
+      Neither Snowball nor this code detects language: `newStemmer(lang)` is a
+      fixed rule set that will happily apply Finnish rules to English text.
+- [ ] **Namespace stems by language** in the hash input (`fi:kissa`, `en:cat`),
+      leaving the surface form un-namespaced. Without this, two unrelated words
+      could collapse to the same junk stem across languages, and because such a
+      term would be rare, IDF would score the spurious match _highly_.
+      Namespacing removes the risk at zero cost — same term count, different
+      hash input.
+- [ ] Construct stemmers once and cache them per language.
+
+Rationale for rejecting per-message detection, recorded so it is not
+relitigated: chat messages are short, which is where detectors are least
+reliable; mixed-language and code-heavy messages are common in this product; a
+misdetection at index time silently breaks that message until a reindex; and the
+query would need detection too, so any index/query mismatch breaks retrieval
+outright. Emitting all variants on both sides means the two always agree.
+
+### 1.4 Vector construction
+
+- [ ] `documentVector(tokens)` → `{ indices, values }` carrying only the BM25
+      **term-frequency** component, since Qdrant supplies IDF:
+      `w = tf * (k1 + 1) / (tf + k1 * (1 - b + b * len / avgLen))` with
+      `k1 = 1.5`, `b = 0.75`, and `avgLen` a configurable constant (default
+      `256`, matching FastEmbed's `Bm25` reference implementation).
+- [ ] `queryVector(tokens)` → weight `1.0` per distinct term.
+- [ ] Map tokens to `u32` indices with an inline 32-bit FNV-1a hash — no
+      dependency. Collisions across a 2^32 space are negligible at this
+      vocabulary size.
+
+## Phase 2 — Qdrant collection schema and hybrid query
+
+Depends on Phase 1. All changes in
+[packages/search-qdrant/src/qdrant-search.ts](packages/search-qdrant/src/qdrant-search.ts).
+
+### 2.1 Collection schema
+
+- [ ] Move to **named** vectors:
+      `vectors: { dense: { size: 1024, distance: "Cosine" } }`. The collection
+      currently uses the unnamed default vector, so this is a breaking schema
+      change and is the main reason a full reindex is required.
+- [ ] Add `sparse_vectors: { lexical: { modifier: "idf" } }`.
+- [ ] **Drop** the `content` full-text payload index. Once real BM25 scoring
+      exists nothing filters on it, and dropping it frees Qdrant memory. Keep
+      `content` in the payload — snippets are generated from it.
+- [ ] Keep the keyword indexes on `threadId` and `memberIds` and the datetime
+      index on `createdAt` (now required by the formula query). Set
+      `enable_hnsw: false` on `memberIds`, which is only ever used to filter.
+
+### 2.2 Indexing
+
+- [ ] Upsert both vectors as `{ vector: { dense, lexical } }` in `index()` and
+      `indexBatch()`.
+- [ ] On embedding failure, **still upsert the sparse vector** and log the
+      degradation. Today the message is dropped entirely and is unfindable by
+      any means until someone reindexes.
+
+### 2.3 Query
+
+- [ ] Replace the query with a nested fusion plus a formula rescore, issued via
+      `queryGroups`:
+
+      ```
+      prefetch: {                       // fusion nested in a prefetch
+        prefetch: [
+          { query: denseVec,  using: "dense",   limit: K },
+          { query: sparseVec, using: "lexical", limit: K },
+        ],
+        query: { rrf: { weights: [wDense, wSparse] } },
+        limit: K,
+      },
+      query: { formula: { sum: [ "$score",
+               { mult: [ recencyWeight,
+                 { exp_decay: { x: { datetime_key: "createdAt" },
+                                target: { datetime: now },
+                                scale: halfLifeDays * 86400,
+                                midpoint: 0.5 } } ] } ] } },
+      filter: membershipFilter,
+      group_by: "threadId", group_size: hitsPerThread, limit,
+      ```
+
+- [ ] Calibrate `recencyWeight` against RRF magnitude. RRF scores are sums of
+      `1/(k + rank)` and peak near `1.0` with `k = 2`, whereas `exp_decay`
+      returns `[0, 1]`; an unweighted decay term would dominate the fused score.
+      Default to roughly `0.15`.
+- [ ] Degrade instead of failing: if the embeddings call errors, run the query
+      **sparse-only** rather than throwing. Search staying up without Infinity
+      is a meaningful availability win.
+
+### 2.4 Snippets and highlights
+
+- [ ] Generate snippets in the provider, which owns the analyzer: reuse the
+      Phase 1 tokenizer to locate the densest match window in `content`, cut
+      `snippetChars` around it, and return highlight offsets relative to the
+      snippet.
+- [ ] Because the tokenizer is shared, Finnish inflections highlight correctly —
+      a query for `Helsinki` marks `Helsingissä` in the snippet.
+
+## Phase 3 — Server, client and UI
+
+Depends on phases 0 and 2.
+
+### 3.1 Server
+
+- [ ] Delete the app-side decay, sort and dedup block from
+      [packages/chat-server/src/thread.controller.ts](packages/chat-server/src/thread.controller.ts);
+      Qdrant now does all of it.
+- [ ] Keep the read-time `persistence.isMember` check as an ACL safety net even
+      though the query filters on `memberIds`.
+- [ ] Map provider groups to the new wire shape. Keep `@RateTier("search")`.
+- [ ] Pass the recency half-life **and** the new recency weight through
+      `packages/chat-server/src/chat.module.ts` to the provider rather than the
+      controller.
+
+### 3.2 Client and UI
+
+- [ ] Update types in `packages/chat-client/src/search.ts` and
+      `packages/chat-client/src/react/useThreadSearch.ts` — no behavioural
+      change, the hook is a passthrough.
+- [ ] Update `SearchResultItem` in
+      [packages/chat-ui-mui/src/ThreadListPanel.tsx](packages/chat-ui-mui/src/ThreadListPanel.tsx)
+      to render the first hit's snippet with mark spans built from the offsets,
+      and to list the thread's remaining hits in the tooltip.
+- [ ] Add `datonfly-*` marker classes for the E2E selectors.
+- [ ] Keep this minimal — a broader search-UI redesign is out of scope.
+
+## Phase 4 — Configuration, docs, tests and migration
+
+### 4.1 Configuration
+
+- [ ] In [packages/backend/src/config.ts](packages/backend/src/config.ts),
+      replace the singular `DF_SEARCH_STEMMER_LANGUAGE` with
+      `DF_SEARCH_LANGUAGES`, a comma-separated list defaulting to `english`.
+      This supersedes the `SEARCH_STEMMER_LANGUAGE` entry in the environment
+      variable naming section above.
+- [ ] Add `DF_SEARCH_DENSE_WEIGHT` (default `1.0`), `DF_SEARCH_SPARSE_WEIGHT`
+      (default `1.0`), `DF_SEARCH_RECENCY_WEIGHT` (default `0.15`) and
+      `DF_SEARCH_HITS_PER_THREAD` (default `3`).
+- [ ] Keep `DF_SEARCH_RECENCY_HALF_LIFE_DAYS` (default `360`), now consumed by
+      the provider rather than the controller.
+
+### 4.2 Packaging
+
+- [ ] Add `"test": "vitest run --dir src"` and a `vitest` devDependency to
+      `packages/search-qdrant/package.json`, matching the other packages.
+- [ ] Bump `@qdrant/js-client-rest` from `^1.14.0` to `^1.17` for typed sparse
+      vectors and weighted RRF.
+
+### 4.3 Tests
+
+- [ ] `bm25.test.ts` — identifier preservation (`ABC-1234` survives intact),
+      Finnish inflections sharing a stem (`Helsingissä` / `Helsinki`), stem
+      language namespacing, TF weight maths, and hash determinism.
+- [ ] `snippet.test.ts` — densest-window selection and offset correctness,
+      including a multi-byte/accented case.
+- [ ] `tests/thread-search.spec.ts` — index a message containing a rare
+      identifier, assert it is found by exact token and that the snippet
+      highlights it. Run **only** this spec file; the full suite trips LLM rate
+      limits.
+
+### 4.4 Documentation and migration
+
+- [ ] Update `.env.example`, [INSTALL.md](INSTALL.md), [README.md](README.md)
+      and [ENV_MIGRATION.md](ENV_MIGRATION.md) for the new variables.
+- [ ] Document in README that search degrades to sparse-only when Infinity is
+      unavailable, and that the formula-plus-fusion query assumes a single
+      shard.
+- [ ] Migrate deployments with `POST /datonfly-assistant/admin/reindex`, which
+      drops and rebuilds the collection under the new schema.
+
+### 4.5 Operational verification
+
+- [ ] Confirm via the Qdrant collection info endpoint that the rebuilt
+      collection has both a `dense` and a `lexical` vector and that the sparse
+      vector carries `modifier: idf`.
+- [ ] Search for a rare identifier appearing in exactly one old message and
+      confirm it ranks first. Dense-only search misses this today, so it is the
+      clearest signal the overhaul worked.
+- [ ] Stop the Infinity container and confirm search still returns sparse
+      results instead of erroring.
+- [ ] Sanity-check that recency ordering still looks reasonable now that decay
+      runs inside Qdrant, and adjust `DF_SEARCH_RECENCY_WEIGHT` if recent noise
+      outranks older strong matches.
+
+## Phase 5 — Long-message chunking (deferred, undecided)
+
+Do not start before phases 0–4 are verified in operation.
+
+Messages become a single point truncated at 10 000 characters, so long tails are
+unsearchable and BM25 length normalisation is skewed by outliers.
+
+- [ ] Decide whether to do this at all, based on how often long messages turn up
+      in real searches.
+- [ ] Split long messages into overlapping chunks.
+- [ ] Derive point IDs as `UUIDv5(messageId + chunkIndex)`. Qdrant point IDs
+      must be a UUID or an unsigned integer, so `messageId#0` is not usable.
+- [ ] Store `messageId` in the payload and convert `delete()` to a filter-based
+      delete on it, since one message will map to several points.
+
+## Phase 6 — Relevance evaluation and metering (deferred, undecided)
+
+Do not start before phases 0–4 are verified in operation.
+
+This overhaul introduces knobs that cannot be tuned by intuition — RRF dense and
+sparse weights, recency weight and half-life, `k1` / `b` / `avgLen`, stemming on
+or off, and `hitsPerThread`. Relevance also regresses quietly rather than
+crashing, so a future model swap, chunking change or agent search tool could
+degrade results with no visible signal.
+
+- [ ] Decide scope after tuning the deployed system by hand, when it is clear
+      which knobs actually matter.
+- [ ] Build a fixture corpus with `(query, expectedMessageIds)` pairs seeded
+      into a throwaway Qdrant collection, reporting recall@k and MRR.
+- [ ] Add runtime metering: query latency, dense-versus-sparse contribution to
+      the final ranking, and zero-result rate.

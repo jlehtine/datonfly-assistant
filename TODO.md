@@ -194,17 +194,28 @@ export interface ITool<TInput = unknown> {
 Must happen **while `agent-langchain` still runs** — these fixtures are the
 regression baseline for the rewrite.
 
-- [ ] Stand up a local pass-through recording proxy and point the existing
+- [x] Stand up a local pass-through recording proxy and point the existing
       client at it via `ChatAnthropic`'s `anthropicApiUrl` option, so raw SSE is
       captured despite LangChain wrapping the transport.
-- [ ] Record representative scenarios: plain text; thinking (adaptive and
+      (`packages/agent-langchain/src/fixtures/recording-proxy.ts`; the base URL
+      is plumbed through as `AnthropicAgentConfig.baseUrl`.)
+- [x] Record representative scenarios: plain text; thinking (adaptive and
       `enabled`); `web_search` with citations; `web_fetch`; `code_execution`; a
       multi-iteration local tool loop; attachments (image, PDF, text);
       compaction trigger; abort mid-stream; and error responses (400, 429, 529).
-- [ ] Store fixtures under `packages/agent-anthropic/test/fixtures/` with a
+      The scenario matrix is implemented in `record-fixtures.ts`
+      (`pnpm --filter @datonfly-assistant/agent-langchain record:fixtures`);
+      429/529 ship as hand-written synthetic fixtures because they cannot be
+      triggered on demand.
+- [x] Store fixtures under `packages/agent-anthropic/test/fixtures/` with a
       short README describing what each one exercises.
-- [ ] Scrub API keys and any deployment-specific content from recordings before
-      committing.
+- [x] Scrub API keys and any deployment-specific content from recordings before
+      committing. Automated in the proxy (credential headers dropped, response
+      headers reduced to an allowlist, `sk-ant-…` / `Bearer …` redacted) and
+      covered by `recording-proxy.test.ts`.
+- [ ] **Run the captures.** Each scenario is a real, billable Anthropic call, so
+      the recording run is left to the operator. Record with `--all` (or a
+      subset), re-read each fixture before committing, then tick this off.
 
 ### 1.2 Replace `externalCompaction` with a capabilities descriptor
 

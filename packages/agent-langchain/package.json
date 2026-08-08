@@ -21,6 +21,7 @@
         "build": "tsc --project tsconfig.build.json",
         "dev": "tsc --watch --project tsconfig.build.json",
         "test": "vitest run --dir src",
+        "record:fixtures": "pnpm run build && node dist/fixtures/record-fixtures.js",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },
@@ -33,6 +34,7 @@
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
+        "@types/node": "^25.5.2",
         "typescript": "^6.0.2",
         "vitest": "^4.1.2",
         "zod": "^4.3.6"

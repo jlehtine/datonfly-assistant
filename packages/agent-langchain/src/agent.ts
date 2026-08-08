@@ -485,6 +485,13 @@ export interface AnthropicAgentConfig {
     modelName: string;
     /** Anthropic API key. Falls back to the `ANTHROPIC_API_KEY` environment variable when omitted. */
     apiKey?: string | undefined;
+    /**
+     * Override the Anthropic API base URL.
+     *
+     * Points the client at a local pass-through proxy when capturing or
+     * replaying raw SSE; leave unset to talk to the real API.
+     */
+    baseUrl?: string | undefined;
     /** Sampling temperature in `[0, 1]`. When omitted, the provider/model default is used. */
     temperature?: number | undefined;
     /** Maximum number of tokens in the generated response. Defaults to `4096`. */
@@ -591,6 +598,7 @@ export class AnthropicAgent implements IAgentProvider {
     private triageModel: ChatAnthropic | null = null;
     private readonly triageModelName: string | undefined;
     private readonly triageApiKey: string | undefined;
+    private readonly triageBaseUrl: string | undefined;
     private readonly modelName: string;
     private readonly contextWindowSize: number;
     private readonly logger: ProviderLogger;
@@ -642,11 +650,15 @@ export class AnthropicAgent implements IAgentProvider {
         if (config.apiKey) {
             options.anthropicApiKey = config.apiKey;
         }
+        if (config.baseUrl) {
+            options.anthropicApiUrl = config.baseUrl;
+        }
         this.model = new ChatAnthropic(options);
         this.modelName = config.modelName;
         this.contextWindowSize = config.contextWindowSize ?? 200_000;
         this.triageModelName = config.triageModelName;
         this.triageApiKey = config.apiKey;
+        this.triageBaseUrl = config.baseUrl;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
 
         const serverTools: ServerTool[] = [];
@@ -1026,6 +1038,9 @@ export class AnthropicAgent implements IAgentProvider {
             };
             if (this.triageApiKey) {
                 opts.anthropicApiKey = this.triageApiKey;
+            }
+            if (this.triageBaseUrl) {
+                opts.anthropicApiUrl = this.triageBaseUrl;
             }
             this.triageModel = new ChatAnthropic(opts);
         }

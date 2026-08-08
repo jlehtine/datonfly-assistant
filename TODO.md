@@ -48,8 +48,11 @@ the standalone assistant and the wider Datonfly suite (`datonfly-autocode`),
 behaves identically whether shared library packages run standalone or embedded,
 and still "just works" for the provider SDKs.
 
-Status: not started. This is an operational/breaking change for existing test
-deployments, so it must ship with a deprecation window, not a hard rename.
+Status: implemented, deprecation window open. All reads go through `EnvReader`
+in `packages/backend/src/config.ts`, which resolves `DF_*` with a legacy
+unprefixed fallback. Only the final cleanup step (dropping the legacy fallbacks
+and their deprecation warnings) remains, pending migration of existing test
+deployments.
 
 ### Decisions (resolved)
 

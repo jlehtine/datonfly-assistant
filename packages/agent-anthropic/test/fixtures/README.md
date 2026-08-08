@@ -101,7 +101,7 @@ personal content that does not belong in the repository.
 | ------------------- | -------------------------------------------------------------------------- |
 | `plain-text`        | Plain streamed text; no tools, no thinking.                                |
 | `thinking-adaptive` | Adaptive thinking with summarized reasoning blocks.                        |
-| `thinking-enabled`  | Manual thinking with `budget_tokens`. **Not captured** — see below.        |
+| `thinking-enabled`  | Manual thinking with `budget_tokens`. Pinned to Haiku 4.5 — see below.     |
 | `web-search`        | Server-side `web_search`, including citation blocks. Needs server tools.   |
 | `web-fetch`         | Server-side `web_fetch` against a URL from the prompt. Needs server tools. |
 | `code-execution`    | Server-side `code_execution`. Needs server tools.                          |
@@ -124,15 +124,29 @@ reported and **not written** rather than becoming a misleading baseline.
 
 ### Not captured
 
-- **`thinking-enabled`** — Opus 5 rejects `thinking.type: "enabled"`: _"Use
-  `thinking.type.adaptive` and `output_config.effort` to control thinking
-  behavior."_ Needs a model that still supports manual thinking budgets.
 - **`compaction`** — the request is valid (`trigger.value` must be at least
   50000), but the agent sets `cache_control: { type: "ephemeral" }` on every
   invoke, so a 180 kB prompt is billed as `cache_creation_input_tokens: 60059`
   with `input_tokens: 44`. An `input_tokens` trigger cannot fire while every
   token is attributed to cache creation, and `applied_edits` comes back empty.
   Blocked on the deliberate cache breakpoints planned in Phase 2.6.
+
+### Pinned models
+
+Most fixtures are recorded with the deployment's model. `thinking-enabled` is
+pinned to `claude-haiku-4-5`, because both Opus 5 and Sonnet 5 reject
+`thinking.type: "enabled"`:
+
+> "thinking.type.enabled" is not supported for this model. Use
+> "thinking.type.adaptive" and "output_config.effort" to control thinking
+> behavior.
+
+The Claude 5 generation replaced manual thinking budgets with adaptive thinking
+plus an effort level. The fixture therefore documents the
+`thinking.type: "enabled"` **wire format** — which the rewrite must still parse
+for older models — rather than anything the current deployment produces. Both
+thinking fixtures carry `thinking_delta` and `signature_delta`, which is what
+the signature-preserving replay in Phase 2.4 needs.
 
 ### Synthetic fixtures
 

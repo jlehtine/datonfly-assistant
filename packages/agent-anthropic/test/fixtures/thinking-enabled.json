@@ -1,0 +1,57 @@
+{
+    "scenario": "thinking-enabled",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": {
+            "connection": "keep-alive",
+            "accept": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-timeout": "600",
+            "x-stainless-lang": "js",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-os": "Linux",
+            "x-stainless-arch": "x64",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v24.12.0",
+            "anthropic-dangerous-direct-browser-access": "true",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "accept-language": "*",
+            "sec-fetch-mode": "cors",
+            "accept-encoding": "gzip, deflate",
+            "content-length": "252"
+        },
+        "body": {
+            "model": "claude-haiku-4-5",
+            "stream": true,
+            "max_tokens": 4096,
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 1024
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What is 17 * 23? Show your reasoning.",
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011CdqxYPcvA7PNcqM1SfTVd\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":49,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":8,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\"}}           }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}   }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"I need to calculate 17 *\"}     }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" 23.\"}     }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"\\n\\nLet\"}  }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" me break\"}     }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" this down:\\n17 * \"} }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"23 = 17 * (20 + 3)\\n       = 17 * 20 + 17 * 3\\n       = 340 + 51\\n       = 391\\n\\nLet me verify this another way:\\n17 * 23 = (20 - 3) * 23\\n        \"}           }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"= 20 * 23 - 3 * 23\\n        = 460 - 69\\n        = 391\\n\\nBoth methods give 391, so I'm confident that's correct.\"}  }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"EqsECpMBCBAYAipAXBU7JPgDCDEG+8XXBcgWsxFe1HcE5RwBJpHRuX0iBTouFWEXrJuVsyic/EXuhX7BRGdIDNE0gGSXPoKvJAUiOjIZY2xhdWRlLWhhaWt1LTQtNS0yMDI1MTAwMTgAQgh0aGlua2luZ1okNzc4Y2NjY2QtNGUxMi00NjU0LTlmMGQtMzA4NGZhN2VjM2YzEgxknm9lgxXkbRc03xcaDFtPaIgaiu6vDPvHYyIwrx3X8jWTolqCnsBDkY8/DaRZ+2Od/N+IcEhub2hO9rlwj5bLNYoVbEYErejNy4AnKsQCmEXQZzGXSzRwQ6jQlp+Qkr2qqFwN4770RodKGdteOMQmDyyQyW4RmvKzNdHMl+DtpHSu2b2zlXxGEmlycXGRNMlp6DheEG7FI/A87B54eRaw5IzwylRPHU6Hw2K2cYRPau56N7FyIRxsPDBy+6CWRkYceHwojGHInUCLC7+JHbkCmgH40p8ngYBp3yPFoAlLHk8mPHov2QTiPum+4YhV5XXvJ2fyKsrbOCHdT834pxtpNdktY48dJWD/kvH19c1oOv98qnypdJZQAQmG9bIJJ/3rPShOhtdzumt+GXeb8ASAJIDtd9LTUswu2Cv0TQzM+Bq/Jj9zwG/PDRnTpU0wb+UOp9aPhruZev3OVJs58oXEU8NnoZQM+/hBKEJ7O6yf4+Aqw55sOQfTpnDGfTSiMn5OZW9vfLirBf7PkTBbhWMZpoeLGAE=\"}              }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"# 17 × 23\\n\\n**\"}       }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"Method: Break it down using the distributive property**\\n\\n17 × 23 = 17 × (20 + 3)\\n\\n= (17 × 20) + (17 × 3)\\n\\n= 340 + 51\\n\\n=\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\" **391**\"}             }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null},\"usage\":{\"input_tokens\":49,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":220,\"output_tokens_details\":{\"thinking_tokens\":145}}              }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"               }\n\n"
+    }
+}

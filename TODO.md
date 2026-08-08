@@ -213,19 +213,28 @@ regression baseline for the rewrite.
       committing. Automated in the proxy (credential headers dropped, response
       headers reduced to an allowlist, `sk-ant-…` / `Bearer …` redacted) and
       covered by `recording-proxy.test.ts`.
-- [x] **Run the captures.** Recorded against `claude-opus-5`. Eleven of thirteen
+- [x] **Run the captures.** Recorded against `claude-opus-5`. Twelve of thirteen
       scenarios landed; each scenario now carries a `verify` predicate so a
       capture that does not exercise its claim is rejected instead of written.
-- [ ] Record the `thinking-enabled` fixture. Opus 5 rejects
-      `thinking.type: "enabled"` outright — _"Use `thinking.type.adaptive` and
-      `output_config.effort`"_ — so this needs a model that still supports
-      manual thinking budgets, or the scenario should be dropped. **Note the
-      product implication:** `DF_ANTHROPIC_THINKING_TYPE=enabled` (with
-      `DF_ANTHROPIC_THINKING_BUDGET_TOKENS`) is a configuration that cannot work
-      on the deployed model, and the config loader still accepts it.
+- [x] Record the `thinking-enabled` fixture. Pinned to `claude-haiku-4-5`: both
+      Opus 5 and Sonnet 5 reject `thinking.type: "enabled"` with _"Use
+      `thinking.type.adaptive` and `output_config.effort`"_. Both thinking
+      fixtures carry `thinking_delta` and `signature_delta`, which is what the
+      Phase 2.4 signature-preserving replay needs.
 - [ ] Record the `compaction` fixture. Blocked on the caching interaction below;
       the request is valid (trigger must be ≥ 50000, not the 1000 first tried)
       but compaction never fires.
+
+**Finding — Claude 5 dropped manual thinking budgets.**
+`thinking.type: "enabled"` (with `budget_tokens`) is rejected by both Opus 5 and
+Sonnet 5, and survives only on the 4.x generation (verified on
+`claude-haiku-4-5`). The replacement is `thinking.type: "adaptive"` plus
+`output_config.effort`. `packages/backend/src/config.ts` still accepts
+`DF_ANTHROPIC_THINKING_TYPE=enabled`, so that setting now produces a 400 on
+every request against a Claude 5 model. Decide whether to reject the combination
+at config load, drop the mode entirely, or keep it for older models — the
+rewrite must parse the wire format either way, which is why the fixture was
+still captured.
 
 **Finding — blanket prompt caching defeats provider-side compaction.** The agent
 sets `cache_control: { type: "ephemeral" }` on every invoke (`agent.ts` lines

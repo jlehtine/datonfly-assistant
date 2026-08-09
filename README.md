@@ -210,17 +210,25 @@ application features that build on assistant functionality.
 Dependencies: `@datonfly-assistant/core`, `@datonfly-assistant/chat-client`,
 React, MUI.
 
-#### `@datonfly-assistant/agent-langchain`
+#### `@datonfly-assistant/agent-anthropic`
 
-Provides an AI agent service implementation based on LangChain. Implements the
-AI agent service API declared by `core` and used by `chat-server`. When using
-Claude, leverages built-in provider compaction for context management; for other
-providers, external compaction via the gateway is used as a fallback.
+Provides an AI agent service implementation backed by Anthropic's Claude models,
+using the official `@anthropic-ai/sdk` directly. Implements the AI agent service
+API declared by `core` and used by `chat-server`. Leverages Claude's built-in
+provider-side compaction for context management, so the gateway does not have to
+compact externally.
 
 Configured and initialized by application specific logic and passed to
-`chat-server` as AI agent service.
+`chat-server` as AI agent service. Anthropic-only settings (server-side tools,
+reasoning, compaction, prompt caching) live under a `providerOptions` bag, so
+the composition root can assemble the vendor-neutral part of the configuration
+without knowing which provider it targets.
 
-Dependencies: `@datonfly-assistant/core`, LangChain.
+Also exports a `./testing` subpath with a fixture replay server and a provider
+conformance suite, so any `IAgentProvider` implementation can be measured
+against the same behavioural contract.
+
+Dependencies: `@datonfly-assistant/core`, `@anthropic-ai/sdk`.
 
 #### `@datonfly-assistant/persistence-pg`
 
@@ -239,7 +247,7 @@ application.
 
 #### `@datonfly-assistant/backend`
 
-Standalone backend using `chat-server`, `agent-langchain` and `persistence-pg`.
+Standalone backend using `chat-server`, `agent-anthropic` and `persistence-pg`.
 Also hosts the static files of `frontend` for web users. Implements
 authentication (OIDC for production, fake mode for development) via a global JWT
 guard that populates `req.user` with a `UserIdentity` expected by `chat-server`.

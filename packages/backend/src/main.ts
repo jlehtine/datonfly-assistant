@@ -10,7 +10,7 @@ import { config } from "dotenv";
 import { Logger } from "nestjs-pino";
 import pino from "pino";
 
-import { AnthropicAgent, createTitleGenerateFn } from "@datonfly-assistant/agent-langchain";
+import { AnthropicAgent, createTitleGenerateFn } from "@datonfly-assistant/agent-anthropic";
 import { McpServerSet } from "@datonfly-assistant/agent-mcp";
 import { ChatModule } from "@datonfly-assistant/chat-server";
 import type { ISearchProvider, ProviderLogger } from "@datonfly-assistant/core";

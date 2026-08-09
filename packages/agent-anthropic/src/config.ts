@@ -151,9 +151,9 @@ export function requiredBetas(options: AnthropicProviderOptions): string[] {
  * reasoning is paid for and never shown. `display` cannot be sent without
  * `type`, which is why the parameter is always present rather than left out.
  *
- * `agent-langchain` sent `{ type: "disabled" }` whenever thinking was
- * unconfigured, so reasoning is on by default here where it used to be off; set
- * `thinkingType: "disabled"` to restore that.
+ * The previous LangChain-based provider sent `{ type: "disabled" }` whenever
+ * thinking was unconfigured, so reasoning is on by default here where it used to
+ * be off; set `thinkingType: "disabled"` to restore that.
  *
  * The SDK does not type `display`, hence the assertion.
  */

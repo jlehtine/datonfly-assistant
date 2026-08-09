@@ -29,7 +29,6 @@
         "react-syntax-highlighter": "^16.0.0"
     },
     "devDependencies": {
-        "@langchain/core": "^1.1.39",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "@types/react-router-dom": "^5.3.3",

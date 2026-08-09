@@ -74,7 +74,6 @@
         "@datonfly-assistant/core": "workspace:*",
         "@emotion/react": "^11.0.0",
         "@emotion/styled": "^11.0.0",
-        "@langchain/core": "^1.1.39",
         "@mui/material": "^7.0.0",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",

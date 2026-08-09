@@ -15,7 +15,7 @@
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
-        "@datonfly-assistant/agent-langchain": "workspace:*",
+        "@datonfly-assistant/agent-anthropic": "workspace:*",
         "@datonfly-assistant/agent-mcp": "workspace:*",
         "@datonfly-assistant/chat-server": "workspace:*",
         "@datonfly-assistant/core": "workspace:*",
@@ -41,7 +41,6 @@
         "rxjs": "^7.8.0"
     },
     "devDependencies": {
-        "@langchain/core": "^1.1.39",
         "@types/cookie-parser": "^1.4.10",
         "@types/express": "^5.0.0",
         "@types/jsonwebtoken": "^9.0.10",

@@ -595,8 +595,9 @@ tests.
       deployment. Done against the local development database instead — see the
       survey below; it turned out to contain no compaction data at all, but it
       did reveal a legacy opaque shape that is now covered by tests.
-- [ ] Swap the `backend` import to `@datonfly-assistant/agent-anthropic` and map
-      `BackendConfig.agent.anthropic` onto `providerOptions`.
+- [x] Swap the `backend` import to `@datonfly-assistant/agent-anthropic` and map
+      `BackendConfig.agent.anthropic` onto `providerOptions`. The mapping was
+      already in place from Phase 1.3, so this was a one-line import change.
 - [x] Decide the prompt-cache defaults to ship. `cacheTailMessages` is **1** and
       `cacheTtl` stays at the API default of 5 minutes. The UI has no restore
       points or branch-from-here editing, so only the incoming user turn is
@@ -610,20 +611,55 @@ tests.
 - [ ] Run the relevant e2e specs individually (not the whole suite — LLM rate
       limits cause spurious failures): `tests/chat-response.spec.ts`,
       `tests/attachment-context.spec.ts`, `tests/multiuser-interrupt.spec.ts`,
-      `tests/thread-history.spec.ts`.
+      `tests/thread-history.spec.ts`. Three of the four pass unchanged;
+      `multiuser-interrupt` fails on a timing budget — see below.
+
+### `multiuser-interrupt` now exceeds its 30 s budget
+
+The spec fails at
+`expect(streamingIndicator).toHaveCount(0, { timeout: 30_000 })` after the
+interrupting question. Nothing is stuck: the response completed normally and
+persisted, it just took about 48 s to produce 9052 characters and 3739 output
+tokens. The stored parts are well-formed — the interrupted turn holds a
+344-character `thinking` part plus an empty `text` part, and the resumed turn a
+single clean `text` part — so the streaming, abort, and restart paths all
+behave.
+
+The cause is the thinking default. The prompt deliberately asks for a long
+answer, the model now reasons before producing it, and the budget was calibrated
+against `agent-langchain`, which sent `{ type: "disabled" }`. Two ways to
+resolve, and this is a decision rather than a fix:
+
+- **Raise the budget** to reflect that a reasoning agent is slower on a prompt
+  written to be verbose. Honest, but bumping a timeout to make a test pass
+  deserves scrutiny.
+- **Reconsider the thinking default.** Reasoning on by default costs latency on
+  every response, not just this one; the e2e suite is simply where it first
+  showed up.
+
+Deliberately not changed unilaterally — raising a timeout is exactly the kind of
+edit that hides a real regression.
+
 - [x] Move the fixture recorder (`recording-proxy.ts` / `record-fixtures.ts`)
       into `agent-anthropic` so re-recording survives the deletion. Recordings
       made from here on are captured through the implementation they test, so
       they document behaviour rather than validate it — noted in the fixtures
       README.
-- [ ] Delete `packages/agent-langchain`.
-- [ ] Remove the dead `@langchain/core` dependencies from `backend`,
-      `chat-client`, `chat-ui-mui`, and `frontend` `package.json`.
-- [ ] Update workspace plumbing: `pnpm-workspace.yaml`, `turbo.json`, tsconfig
-      project references.
-- [ ] Update `README.md`, `CONVENTIONS.md`, and `INSTALL.md` for the package
+- [x] Delete `packages/agent-langchain`. The cross-provider comparison
+      (`conformance.test.ts`, `provider-diff.test.ts`) went with it, having
+      served its purpose; the conformance cases themselves live on in
+      `agent-anthropic`'s `./testing` export and run against that provider.
+- [x] Remove the dead `@langchain/core` dependencies from `backend`,
+      `chat-client`, `chat-ui-mui`, and `frontend` `package.json`. No LangChain
+      package remains anywhere in the lockfile.
+- [x] Update workspace plumbing: `pnpm-workspace.yaml`, `turbo.json`, tsconfig
+      project references. Nothing needed changing — the workspace matches
+      `packages/*`, `turbo.json` lists no packages, and the only project
+      reference is to `tsconfig.tests.json`.
+- [x] Update `README.md`, `CONVENTIONS.md`, and `INSTALL.md` for the package
       rename (`agent-langchain` → `agent-anthropic`), including the
-      pluggable-provider description in `CONVENTIONS.md`.
+      pluggable-provider description in `CONVENTIONS.md`. `INSTALL.md` never
+      named the package, so only the first two changed.
 
 ## Phase 4 — Advanced Anthropic capabilities
 

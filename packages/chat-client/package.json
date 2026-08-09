@@ -49,7 +49,6 @@
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
-        "@langchain/core": "^1.1.39",
         "@types/react": "^19.0.0",
         "react": "^19.0.0",
         "typescript": "^6.0.2"

@@ -14,7 +14,7 @@ Strict TypeScript everywhere. All packages use strict compiler settings.
 - **`core`** declares shared types, interfaces, and the REST/WebSocket endpoint
   contract (paths + Zod schemas). All other packages depend on `core` — never
   duplicate its definitions.
-- **Pluggable providers** — the AI agent (`agent-langchain`) and persistence
+- **Pluggable providers** — the AI agent (`agent-anthropic`) and persistence
   layer (`persistence-pg`) implement generic interfaces from `core`. Keep
   provider-specific details out of `chat-server` and `chat-client`.
 - **`backend`** and **`frontend`** are thin standalone shims — keep them
@@ -47,7 +47,7 @@ Name variables after what they configure, not after the current vendor:
 access lives in `packages/backend/src/config.ts`, which centralises the prefix,
 validation, and defaults behind `EnvReader` and hands the result to the rest of
 the application as plain config objects. Library packages (`core`,
-`agent-langchain`, `chat-server`, `agent-mcp`, …) must never read `process.env`:
+`agent-anthropic`, `chat-server`, `agent-mcp`, …) must never read `process.env`:
 they are also consumed as libraries by other Datonfly products, where the
 embedding application is the composition root and supplies config itself.
 

@@ -150,7 +150,7 @@ export class AnthropicAgent implements IAgentProvider {
             betas: requiredBetas(this.options),
             ...(system ? { system } : {}),
             ...(allTools.length > 0 ? { tools: allTools } : {}),
-            ...(thinking ? { thinking } : {}),
+            thinking,
             ...(outputConfig ? { output_config: outputConfig } : {}),
             ...(contextManagement ? { context_management: contextManagement } : {}),
             ...(typeof this.temperature === "number" ? { temperature: this.temperature } : {}),

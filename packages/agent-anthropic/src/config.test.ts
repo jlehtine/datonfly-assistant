@@ -3,21 +3,18 @@ import { describe, expect, it } from "vitest";
 import { buildThinkingParam, requiredBetas } from "./config.js";
 
 describe("buildThinkingParam", () => {
-    it("omits the parameter when thinking is unconfigured, accepting the API default", () => {
-        expect(buildThinkingParam({})).toBeUndefined();
-    });
-
-    it("switches thinking off when asked explicitly", () => {
-        expect(buildThinkingParam({ thinkingType: "disabled" })).toEqual({ type: "disabled" });
-    });
-
-    // Without `display` the model reasons, bills the tokens, and returns empty
-    // thinking blocks — reasoning paid for and never shown.
+    // Adaptive matches the API default, but `display` does not: omitting it
+    // makes the model reason, bill the tokens, and return nothing.
     it("requests summarized reasoning by default so thinking is visible", () => {
+        expect(buildThinkingParam({})).toEqual({ type: "adaptive", display: "summarized" });
         expect(buildThinkingParam({ thinkingType: "adaptive" })).toEqual({
             type: "adaptive",
             display: "summarized",
         });
+    });
+
+    it("switches thinking off when asked explicitly", () => {
+        expect(buildThinkingParam({ thinkingType: "disabled" })).toEqual({ type: "disabled" });
     });
 
     it("honours an explicit display mode", () => {

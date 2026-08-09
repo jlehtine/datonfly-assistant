@@ -40,15 +40,20 @@ export interface AnthropicProviderOptions {
     /** Maximum content length (in tokens) for fetched pages. Defaults to unlimited when omitted. */
     webFetchMaxContentTokens?: number | undefined;
     /**
-     * Anthropic thinking mode. When omitted, the API default applies, which on
-     * the Claude 5 generation is adaptive thinking.
+     * Anthropic thinking mode. Defaults to `"adaptive"`, matching the API's own
+     * default on the Claude 5 generation.
      *
-     * `"adaptive"` requests it explicitly and `"disabled"` switches it off; the
-     * manual `"enabled"` budget mode was dropped by the Claude 5 generation in
-     * favour of adaptive thinking plus {@link thinkingEffort}.
+     * `"disabled"` switches reasoning off entirely; the manual `"enabled"` budget
+     * mode was dropped by the Claude 5 generation in favour of adaptive thinking
+     * plus {@link thinkingEffort}.
      */
     thinkingType?: "adaptive" | "disabled" | undefined;
-    /** Anthropic thinking display mode. */
+    /**
+     * Anthropic thinking display mode. Defaults to `"summarized"`.
+     *
+     * `"omitted"` still reasons and still bills the tokens, but returns no
+     * reasoning text.
+     */
     thinkingDisplay?: "summarized" | "omitted" | undefined;
     /** Optional output effort level used with adaptive thinking. */
     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
@@ -138,23 +143,21 @@ export function requiredBetas(options: AnthropicProviderOptions): string[] {
 }
 
 /**
- * Build the Anthropic thinking parameter, or `undefined` to accept the default.
+ * Build the Anthropic thinking parameter.
  *
- * Omitting the parameter leaves the API default in force, which on the Claude 5
- * generation is adaptive thinking. `agent-langchain` instead sent
- * `{ type: "disabled" }` whenever thinking was unconfigured, so reasoning is on
- * by default here where it used to be off; set `thinkingType: "disabled"` to
- * restore the old behaviour.
+ * Defaults to adaptive thinking with a summarized display. Adaptive matches the
+ * API's own default, but the display does not: omitting it makes the model
+ * reason, bill the tokens as output, and return empty `thinking` blocks, so the
+ * reasoning is paid for and never shown. `display` cannot be sent without
+ * `type`, which is why the parameter is always present rather than left out.
  *
- * When adaptive thinking is requested explicitly, `display` defaults to
- * `"summarized"`. Without it the model reasons and bills the tokens but returns
- * empty `thinking` blocks, so the reasoning is paid for and never shown. The SDK
- * does not type the field, hence the assertion.
+ * `agent-langchain` sent `{ type: "disabled" }` whenever thinking was
+ * unconfigured, so reasoning is on by default here where it used to be off; set
+ * `thinkingType: "disabled"` to restore that.
+ *
+ * The SDK does not type `display`, hence the assertion.
  */
-export function buildThinkingParam(
-    options: AnthropicProviderOptions,
-): Anthropic.Beta.BetaThinkingConfigParam | undefined {
-    if (!options.thinkingType) return undefined;
+export function buildThinkingParam(options: AnthropicProviderOptions): Anthropic.Beta.BetaThinkingConfigParam {
     if (options.thinkingType === "disabled") return { type: "disabled" };
     return {
         type: "adaptive",

@@ -487,21 +487,19 @@ hard enough to force real reasoning:
 
 `display: "summarized"` is what produces reasoning text, and effort has nothing
 to do with it. The API default therefore reasons, bills the tokens as output,
-and returns nothing — the worst combination. Requesting adaptive thinking now
-defaults `display` to `"summarized"`, so an explicit opt-in is actually visible.
+and returns nothing — the worst combination.
 
-Two traps this leaves:
+**Resolved: the provider always sends a thinking parameter**, defaulting to
+`{ type: "adaptive", display: "summarized" }`. Adaptive matches the API default,
+but the display does not, and `display` cannot be sent without `type` — so
+omitting the parameter is precisely the invisible-but-billed case. Reasoning is
+therefore visible out of the box at the same cost, and
+`DF_ANTHROPIC_THINKING_TYPE=disabled` stops paying for it.
 
-- **The API default path is still invisible.** `display` cannot be sent without
-  also sending `type`, so leaving the configuration unset means paying for
-  hidden reasoning. `.env.example` therefore ships
-  `DF_ANTHROPIC_THINKING_TYPE=adaptive`. **Decide whether the provider should
-  send `{adaptive, summarized}` when unconfigured** rather than omitting the
-  parameter — same cost, visible output — or default to `disabled`.
-- **Short questions produce no summary even when one is requested**, which is
-  what the `thinking-adaptive` fixture captured. There has to be enough
-  reasoning to be worth summarising, so an empty block is not on its own
-  evidence of misconfiguration.
+One trap remains: **short questions produce no summary even when one is
+requested**, which is what the `thinking-adaptive` fixture captured. There has
+to be enough reasoning to be worth summarising, so an empty block is not on its
+own evidence of misconfiguration.
 
 `display` is absent from `BetaThinkingConfigAdaptive` in SDK 0.74 despite being
 honoured by the API, so it needs an assertion — a third instance of the SDK

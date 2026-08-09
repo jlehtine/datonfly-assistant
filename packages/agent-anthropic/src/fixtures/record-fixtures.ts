@@ -1,19 +1,22 @@
 /**
- * Record streaming fixtures from the current `agent-langchain` implementation.
- *
- * These fixtures are the regression baseline for the Anthropic SDK rewrite, so
- * they must be captured while this provider still runs. Every scenario drives a
- * real Anthropic request through {@link startRecordingProxy}.
+ * Record streaming fixtures by driving real Anthropic requests through
+ * {@link startRecordingProxy}.
  *
  * Usage (from the repository root):
  *
- *     pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- --list
- *     pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- plain-text
- *     pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- --all
+ *     pnpm --filter @datonfly-assistant/agent-anthropic record:fixtures -- --list
+ *     pnpm --filter @datonfly-assistant/agent-anthropic record:fixtures -- plain-text
+ *     pnpm --filter @datonfly-assistant/agent-anthropic record:fixtures -- --all
  *
  * `ANTHROPIC_API_KEY` and the model are read from the environment or the root
  * `.env`; `--model` overrides the latter. Scenarios cost real money; record only
  * what you need.
+ *
+ * Note on provenance: the committed fixtures were captured from `agent-langchain`
+ * and are therefore an independent baseline for this provider. Anything recorded
+ * after the move is captured *through* the implementation it tests, so it
+ * documents current behaviour rather than validating it. Useful for adding new
+ * scenarios; not evidence that a rewrite preserved anything.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -21,7 +24,8 @@ import { fileURLToPath } from "node:url";
 
 import type { AgentConfig, AgentMessage, AgentStreamChunk } from "@datonfly-assistant/core";
 
-import { AnthropicAgent, type AnthropicAgentConfig, type AnthropicProviderOptions } from "../agent.js";
+import { AnthropicAgent } from "../agent.js";
+import type { AnthropicAgentConfig, AnthropicProviderOptions } from "../config.js";
 import { startRecordingProxy, type RecordedExchange, type RecordingProxy } from "./recording-proxy.js";
 
 /** Walk up from this module until the workspace root is found. */
@@ -211,8 +215,9 @@ const SCENARIOS: Scenario[] = [
             "rather than the ~120k the production default would need.",
         providerOptions: { enableCompaction: true, compactionTriggerTokens: COMPACTION_MIN_TRIGGER_TOKENS },
         requires:
-            "input tokens counted as input_tokens; the agent's blanket cache_control routes them to " +
-            "cache_creation_input_tokens instead, so the trigger never fires (see TODO Phase 2.6)",
+            "an input-token trigger that actually fires. The blanket cache_control that blocked this " +
+            "under agent-langchain is gone — this provider places deliberate breakpoints and leaves a " +
+            "single-turn prompt uncached — so the capture is worth retrying",
         verify: (exchanges) =>
             exchanges.some((exchange) => /"applied_edits":\[\s*\{/.test(exchange.response.body))
                 ? undefined

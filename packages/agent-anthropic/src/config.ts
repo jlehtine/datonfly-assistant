@@ -79,10 +79,17 @@ export interface AnthropicProviderOptions {
 /**
  * Number of trailing messages left uncached by default.
  *
- * One assistant turn plus the following user turn, so the breakpoint lands on
- * content that will not change on the next request.
+ * Just the incoming user turn. Everything up to and including the previous
+ * assistant turn is stable in a linear conversation, so caching it maximises
+ * the prefix the next request can reuse. Caches match by prefix, so a tail that
+ * later turns out to be wrong (a retry that drops an unpersisted assistant
+ * turn) simply stops hitting at the divergence point rather than costing
+ * anything — which is why a larger hedge is not worth the lost reuse.
+ *
+ * Raise this if the UI ever gains restore points or branch-from-here editing,
+ * which would make trailing turns genuinely volatile.
  */
-export const DEFAULT_CACHE_TAIL_MESSAGES = 2;
+export const DEFAULT_CACHE_TAIL_MESSAGES = 1;
 
 /**
  * Configuration options for the Anthropic agent.

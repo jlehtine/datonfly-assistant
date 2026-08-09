@@ -50,7 +50,7 @@ describe("agent-langchain conformance comparison", () => {
                     return `DIVERGES — ${error instanceof Error ? error.message : String(error)}`;
                 }
             });
-             
+
             console.info(`[conformance] ${testCase.name}: ${outcome}`);
         });
     }

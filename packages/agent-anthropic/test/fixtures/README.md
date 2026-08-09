@@ -1,12 +1,15 @@
 # Anthropic streaming fixtures
 
-Raw Anthropic API exchanges captured from the **`agent-langchain`**
-implementation. They are the regression baseline for the rewrite onto
-`@anthropic-ai/sdk`: the new provider must turn the same bytes into the same
+Raw Anthropic API exchanges. The committed recordings were captured from the
+**`agent-langchain`** implementation, which makes them an independent regression
+baseline for this provider: the same bytes must produce the same
 `AgentStreamChunk` sequence.
 
-Capture had to happen while `agent-langchain` still runs — once that package is
-deleted these recordings cannot be reproduced from the old code path.
+That capture had to happen before `agent-langchain` was deleted. The recorder
+now lives in this package, so anything recorded from here on is captured
+_through_ the implementation it tests — it documents current behaviour rather
+than validating it. That is fine for adding new scenarios, but a fixture
+re-recorded this way is no longer evidence that behaviour was preserved.
 
 ## File format
 
@@ -40,9 +43,9 @@ numbered files: `tool-loop-01.json`, `tool-loop-02.json`, …
 ## Recording
 
 ```bash
-pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- --list
-pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- plain-text
-pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- --all
+pnpm --filter @datonfly-assistant/agent-anthropic record:fixtures -- --list
+pnpm --filter @datonfly-assistant/agent-anthropic record:fixtures -- plain-text
+pnpm --filter @datonfly-assistant/agent-anthropic record:fixtures -- --all
 ```
 
 `ANTHROPIC_API_KEY` is read from the environment or the repository-root `.env`.
@@ -51,10 +54,10 @@ pnpm --filter @datonfly-assistant/agent-langchain record:fixtures -- --all
 > runs the whole matrix, including the server-tool scenarios that are the most
 > expensive.
 
-The recorder (`packages/agent-langchain/src/fixtures/`) starts a pass-through
-proxy on localhost and points the agent at it via
-`AnthropicAgentConfig.baseUrl`, so the capture is the exact wire format rather
-than whatever LangChain surfaces.
+The recorder (`packages/agent-anthropic/src/fixtures/`) starts a pass-through
+proxy on localhost and points the agent at it via `AgentConfig.baseUrl`, so the
+capture is the exact wire format rather than whatever the client library
+surfaces.
 
 ### Choosing the model
 
@@ -125,11 +128,17 @@ reported and **not written** rather than becoming a misleading baseline.
 ### Not captured
 
 - **`compaction`** — the request is valid (`trigger.value` must be at least
-  50000), but the agent sets `cache_control: { type: "ephemeral" }` on every
-  invoke, so a 180 kB prompt is billed as `cache_creation_input_tokens: 60059`
-  with `input_tokens: 44`. An `input_tokens` trigger cannot fire while every
-  token is attributed to cache creation, and `applied_edits` comes back empty.
-  Blocked on the deliberate cache breakpoints planned in Phase 2.6.
+  50000), but under `agent-langchain` the agent set
+  `cache_control: { type: "ephemeral" }` on every invoke, so a 180 kB prompt was
+  billed as `cache_creation_input_tokens: 60059` with `input_tokens: 44`. An
+  `input_tokens` trigger cannot fire while every token is attributed to cache
+  creation, and `applied_edits` came back empty.
+
+  **That cause is now gone.** This provider places deliberate cache breakpoints
+  and leaves a single-turn prompt uncached, so the trigger should fire. The
+  capture is worth retrying — and it matters more than it looks: a survey of the
+  development database found no compaction blocks in any thread, so
+  provider-side compaction has never been observed working end to end.
 
 ### Thinking
 

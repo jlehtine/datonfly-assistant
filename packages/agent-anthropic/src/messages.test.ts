@@ -15,6 +15,23 @@ const COMPACTION_PART: OpaqueContentPart = {
     data: { type: "compaction", content: "earlier conversation summary" },
 };
 
+/**
+ * Opaque part shape found in live data, written by an earlier design that
+ * persisted signed thinking blocks for verbatim replay. Threads containing it
+ * still load, so it has to survive the mapping without being mistaken for
+ * compaction.
+ */
+const LEGACY_THINKING_OPAQUE_PART: OpaqueContentPart = {
+    type: "opaque",
+    provider: "anthropic",
+    data: {
+        type: "thinking",
+        index: 0,
+        thinking: " The user is asking me to use extended thinking.",
+        signature: "EoQCClkIDRgCKkBlorqWS+gRHZD1zc7uEeWg8a9uRaof3xoovuecUzooQNkq",
+    },
+};
+
 describe("agentMessagesToParams", () => {
     it("maps an image attachment to an image block", () => {
         const messages: AgentMessage[] = [
@@ -198,6 +215,34 @@ describe("isCompactionPart", () => {
         expect(isCompactionPart({ type: "opaque", provider: "openai", data: COMPACTION_PART.data })).toBe(false);
         expect(isCompactionPart({ type: "opaque", provider: "anthropic", data: { type: "other" } })).toBe(false);
         expect(isCompactionPart({ type: "opaque", provider: "anthropic", data: null })).toBe(false);
+    });
+
+    it("rejects the legacy signed-thinking opaque part found in live data", () => {
+        expect(isCompactionPart(LEGACY_THINKING_OPAQUE_PART)).toBe(false);
+    });
+});
+
+describe("legacy persisted data", () => {
+    it("drops legacy signed-thinking opaque parts from the request", () => {
+        const messages: AgentMessage[] = [
+            { role: "human", content: [{ type: "text", text: "Explain." }] },
+            { role: "ai", content: [LEGACY_THINKING_OPAQUE_PART, { type: "text", text: "The answer." }] },
+            { role: "human", content: [{ type: "text", text: "Go on." }] },
+        ];
+
+        const { messages: turns } = agentMessagesToParams(messages);
+        expect(turns.map((turn) => turn.role)).toEqual(["user", "assistant", "user"]);
+        expect(turns[1]?.content).toEqual([{ type: "text", text: "The answer." }]);
+    });
+
+    it("does not treat a legacy opaque part as a compaction boundary", () => {
+        const messages: AgentMessage[] = [
+            { role: "human", content: [{ type: "text", text: "old" }] },
+            { role: "ai", content: [LEGACY_THINKING_OPAQUE_PART] },
+            { role: "human", content: [{ type: "text", text: "new" }] },
+        ];
+
+        expect(trimBeforeCompaction(messages)).toBe(messages);
     });
 });
 

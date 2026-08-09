@@ -154,7 +154,6 @@ describe("provider chunk-sequence comparison", () => {
                 }
             }
 
-             
             console.info(
                 report.length === 0
                     ? `[diff] ${scenario.name}: identical`

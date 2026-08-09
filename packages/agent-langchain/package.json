@@ -21,7 +21,6 @@
         "build": "tsc --project tsconfig.build.json",
         "dev": "tsc --watch --project tsconfig.build.json",
         "test": "vitest run --dir src",
-        "record:fixtures": "pnpm run build && node dist/fixtures/record-fixtures.js",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },

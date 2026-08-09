@@ -35,9 +35,9 @@ describe("applyCacheBreakpoints", () => {
         expect((tools[1] as { cache_control?: unknown }).cache_control).toEqual({ type: "ephemeral" });
         expect((tools[0] as { cache_control?: unknown }).cache_control).toBeUndefined();
 
-        // Default tail of 2 leaves the last two turns uncached.
-        expect(cacheControlOf(messages[2])).toEqual({ type: "ephemeral" });
-        expect(cacheControlOf(messages[3])).toBeUndefined();
+        // Default tail of 1 caches everything up to the previous assistant turn.
+        expect(cacheControlOf(messages[3])).toEqual({ type: "ephemeral" });
+        expect(cacheControlOf(messages[2])).toBeUndefined();
         expect(cacheControlOf(messages[4])).toBeUndefined();
     });
 

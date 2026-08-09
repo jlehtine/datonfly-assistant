@@ -475,21 +475,62 @@ The cross-provider comparison that justified a parallel run is already done (see
 the divergence catalogue above), so the remaining risk is in persisted data and
 end-to-end behaviour rather than in chunk semantics.
 
-- [ ] Verify persisted-data compatibility against a dump from a live test
-      deployment: existing threads with thinking, tool-call, and compaction
-      parts must render and replay identically. **Needs a dump from the user.**
+### Development database survey
+
+Run against the local development database to find real persisted data for the
+compatibility check. Three findings, all of which change assumptions recorded
+earlier:
+
+- **There is no compaction data anywhere.** The only three `opaque` parts in the
+  database are not compaction blocks at all: they carry `data.type: "thinking"`
+  with an `index`, `thinking`, and `signature`, written by an earlier design
+  that persisted signed thinking blocks for verbatim replay. Both providers
+  ignore them, but the shape exists in live data, so it is now covered by tests
+  (`isCompactionPart()` must reject it, it must be dropped from the request, and
+  it must not act as a compaction boundary). Provider-side compaction has
+  therefore **never been observed working** in this deployment.
+- **Thinking parts stopped in May.** All 24 are dated 2026-05-01 and all came
+  from `claude-opus-4-7`. Nothing since. The cause is mundane:
+  `DF_ANTHROPIC_THINKING_TYPE` is commented out in the local `.env`, so thinking
+  has simply been switched off. No code regression is involved. Note that
+  enabling it may still look broken on Claude 5 — see the fixture finding above,
+  where `adaptive` + `summarized` + `effort: low` returned a thinking block
+  whose text was empty. Try a higher effort level.
+- **The longest conversations are ~11k characters**, far below any compaction
+  trigger (the API minimum is 50k input tokens). Nothing in this database would
+  have exercised compaction regardless.
+
+Because provider-side compaction is unverified end to end, the `compaction`
+fixture matters more than it appeared. The blocker recorded in Phase 1.1 was the
+blanket `cache_control`, which this provider no longer sends, so the capture is
+now worth retrying.
+
+- [x] Verify persisted-data compatibility against a dump from a live test
+      deployment. Done against the local development database instead — see the
+      survey below; it turned out to contain no compaction data at all, but it
+      did reveal a legacy opaque shape that is now covered by tests.
 - [ ] Swap the `backend` import to `@datonfly-assistant/agent-anthropic` and map
       `BackendConfig.agent.anthropic` onto `providerOptions`.
-- [ ] Decide the prompt-cache defaults to ship (`cacheTailMessages`,
-      `cacheTtl`), and whether to expose them as `DF_ANTHROPIC_*` variables.
+- [x] Decide the prompt-cache defaults to ship. `cacheTailMessages` is **1** and
+      `cacheTtl` stays at the API default of 5 minutes. The UI has no restore
+      points or branch-from-here editing, so only the incoming user turn is
+      volatile; caching through the previous assistant turn maximises the
+      reusable prefix. A larger hedge costs reuse and buys nothing, because
+      caches match by prefix — a tail that later proves wrong simply stops
+      hitting at the divergence point. Not exposed as `DF_ANTHROPIC_*`
+      variables: there is no deployment-specific reason to vary them, and the
+      coupling to UI capabilities makes them a code-level decision. Revisit if
+      restore points are ever added.
 - [ ] Run the relevant e2e specs individually (not the whole suite — LLM rate
       limits cause spurious failures): `tests/chat-response.spec.ts`,
       `tests/attachment-context.spec.ts`, `tests/multiuser-interrupt.spec.ts`,
       `tests/thread-history.spec.ts`.
-- [ ] Delete `packages/agent-langchain`, including the fixture recorder. Move
-      `recording-proxy.ts` / `record-fixtures.ts` into `agent-anthropic` first
-      if re-recording fixtures should stay possible — otherwise that capability
-      goes with the package.
+- [x] Move the fixture recorder (`recording-proxy.ts` / `record-fixtures.ts`)
+      into `agent-anthropic` so re-recording survives the deletion. Recordings
+      made from here on are captured through the implementation they test, so
+      they document behaviour rather than validate it — noted in the fixtures
+      README.
+- [ ] Delete `packages/agent-langchain`.
 - [ ] Remove the dead `@langchain/core` dependencies from `backend`,
       `chat-client`, `chat-ui-mui`, and `frontend` `package.json`.
 - [ ] Update workspace plumbing: `pnpm-workspace.yaml`, `turbo.json`, tsconfig

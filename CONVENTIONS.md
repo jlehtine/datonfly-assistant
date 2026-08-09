@@ -74,6 +74,35 @@ compiled down at the boundary and loses fidelity on the way.
 `validate` is optional precisely so the second case is expressible; do not add
 it "for safety" where a downstream service already validates.
 
+## AI Agent Providers
+
+An agent provider implements `IAgentProvider` from `core` and is the only place
+that may know a vendor's API. Rules that apply to every provider:
+
+- **Split the configuration.** Neutral fields live in `AgentConfig`; anything
+  vendor-specific goes under a `providerOptions` bag. The composition root
+  assembles most of an agent's configuration without knowing which provider it
+  targets.
+- **Report capabilities, do not let callers infer them.** `AgentCapabilities`
+  describes the configuration the provider was constructed with, so a feature
+  that exists but is switched off reads as unsupported. Callers adapt to the
+  descriptor rather than naming a vendor.
+- **Round-trip provider-specific state through `OpaqueContentPart`.** It is the
+  only sanctioned escape hatch for data the server must store and hand back
+  without understanding it. Persisted encodings are a compatibility surface:
+  live threads contain them, so changing one needs a migration.
+- **Honour the usage contract.** See `AgentUsage` — `inputTokens` means the size
+  of the submitted context including cached tokens, because the gateway compares
+  it against the compaction threshold.
+- **Pass the conformance suite.** `@datonfly-assistant/agent-anthropic/testing`
+  exports `CONFORMANCE_CASES` plus a fixture replay server. The cases assert the
+  behaviour `chat-server` relies on — chunk ordering, part-index semantics,
+  tool-call/result pairing, usage on the final chunk. A new provider is
+  interchangeable exactly insofar as it passes them, so run them against it.
+- **Expect vendor SDKs to lag their own APIs.** Where a documented parameter is
+  missing from the SDK's types, assert narrowly at that one call site and say
+  why in a comment; never widen the surrounding types to accommodate it.
+
 ## Code Formatting
 
 **Prettier** handles all code formatting. Configuration lives in

@@ -126,9 +126,9 @@ export class AnthropicAgent implements IAgentProvider {
             compaction: options.enableCompaction === false ? "none" : "provider",
             webSearch: options.enableWebSearch === true,
             codeExecution: options.enableCodeExecution === true,
-            // Reasoning is on whether or not it is configured, because leaving
+            // Reasoning is on unless switched off explicitly, because leaving
             // the parameter unset accepts the API's adaptive default.
-            thinking: true,
+            thinking: options.thinkingType !== "disabled",
             attachments: { images: true, pdf: true },
         };
     }

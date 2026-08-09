@@ -468,17 +468,44 @@ unconfigured, whereas this provider omits the parameter. A live probe against
 | `{"type":"adaptive"}` | `thinking`, `text` | 108             |
 
 So **adaptive thinking is the API default** on Claude 5, and the cutover turns
-reasoning on where it used to be off. Accepted deliberately. Consequences worth
-knowing: thinking tokens are billed as output, `capabilities.thinking` is now
-always `true`, and `.env.example` no longer claims reasoning is disabled by
-default. There is currently no way to switch it off — `thinkingType` only
-accepts `"adaptive"` — so add `"disabled"` to that union if an off switch is
-wanted.
+reasoning on where it used to be off. Accepted deliberately, and
+`thinkingType: "disabled"` (`DF_ANTHROPIC_THINKING_TYPE=disabled`) now exists to
+switch it back off. Thinking tokens are billed as output, and
+`capabilities.thinking` reports `true` unless disabled explicitly.
 
-Note the probe also shows `thinking` blocks arriving with **no summary text** in
-every mode, matching the `thinking-adaptive` fixture. Reasoning happens and is
-billed, but nothing is displayed. Worth investigating separately before relying
-on the feature.
+### Reasoning was invisible because `display` was never sent
+
+Reasoning blocks came back empty in live development for the same reason they
+did in the `thinking-adaptive` fixture. Probing `claude-opus-5` with a prompt
+hard enough to force real reasoning:
+
+| `thinking`                                   | thinking tokens | reasoning text |
+| -------------------------------------------- | --------------- | -------------- |
+| `{"type":"adaptive"}` (= the API default)    | 2481            | **0 chars**    |
+| `{"type":"adaptive","display":"summarized"}` | 2324            | 2547 chars     |
+| `{"type":"adaptive"}` + `effort: "high"`     | 2924            | **0 chars**    |
+
+`display: "summarized"` is what produces reasoning text, and effort has nothing
+to do with it. The API default therefore reasons, bills the tokens as output,
+and returns nothing — the worst combination. Requesting adaptive thinking now
+defaults `display` to `"summarized"`, so an explicit opt-in is actually visible.
+
+Two traps this leaves:
+
+- **The API default path is still invisible.** `display` cannot be sent without
+  also sending `type`, so leaving the configuration unset means paying for
+  hidden reasoning. `.env.example` therefore ships
+  `DF_ANTHROPIC_THINKING_TYPE=adaptive`. **Decide whether the provider should
+  send `{adaptive, summarized}` when unconfigured** rather than omitting the
+  parameter — same cost, visible output — or default to `disabled`.
+- **Short questions produce no summary even when one is requested**, which is
+  what the `thinking-adaptive` fixture captured. There has to be enough
+  reasoning to be worth summarising, so an empty block is not on its own
+  evidence of misconfiguration.
+
+`display` is absent from `BetaThinkingConfigAdaptive` in SDK 0.74 despite being
+honoured by the API, so it needs an assertion — a third instance of the SDK
+lagging, alongside the 2026 tool versions and `xhigh` effort.
 
 **Fixture gap found while wiring the suite.** `thinking-adaptive` records a
 thinking block whose `thinking_delta` payloads are all empty — with

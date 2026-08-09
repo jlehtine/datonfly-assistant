@@ -127,8 +127,13 @@ describe("loadBackendConfig", () => {
 
     it("rejects the withdrawn manual thinking mode", () => {
         expect(() => loadBackendConfig(validEnv({ DF_ANTHROPIC_THINKING_TYPE: "enabled" }))).toThrow(
-            'DF_ANTHROPIC_THINKING_TYPE must be one of adaptive, got "enabled"',
+            'DF_ANTHROPIC_THINKING_TYPE must be one of adaptive|disabled, got "enabled"',
         );
+    });
+
+    it("accepts thinking being switched off explicitly", () => {
+        const config = loadBackendConfig(validEnv({ DF_ANTHROPIC_THINKING_TYPE: "disabled" }));
+        expect(config.agent.anthropic.thinkingType).toBe("disabled");
     });
 
     it("accepts adaptive thinking with an effort level", () => {

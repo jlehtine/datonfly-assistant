@@ -232,7 +232,7 @@ export interface BackendConfig {
             enableCodeExecution: boolean;
             enableWebSearch: boolean;
             enableWebFetch: boolean;
-            thinkingType: "adaptive" | undefined;
+            thinkingType: "adaptive" | "disabled" | undefined;
             thinkingDisplay: "summarized" | "omitted" | undefined;
             thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
         };
@@ -406,7 +406,7 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
                 enableWebFetch: reader.prefixed("ANTHROPIC_ENABLE_WEB_FETCH") !== "false",
                 thinkingType: parseEnum(
                     reader.prefixed("ANTHROPIC_THINKING_TYPE"),
-                    ["adaptive"] as const,
+                    ["adaptive", "disabled"] as const,
                     "DF_ANTHROPIC_THINKING_TYPE",
                 ),
                 thinkingDisplay: parseEnum(

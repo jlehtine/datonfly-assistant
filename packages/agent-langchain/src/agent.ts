@@ -507,13 +507,15 @@ export interface AnthropicProviderOptions {
     /** Maximum content length (in tokens) for fetched pages. Defaults to unlimited when omitted. */
     webFetchMaxContentTokens?: number | undefined;
     /**
-     * Anthropic thinking mode. When omitted, thinking stays disabled.
+     * Anthropic thinking mode. When omitted, thinking stays disabled — this
+     * provider sends `{ type: "disabled" }` rather than leaving the parameter
+     * unset, so the API's adaptive default never applies here.
      *
-     * Only `"adaptive"` exists: the Claude 5 generation dropped the manual
-     * `"enabled"` budget mode in favour of adaptive thinking plus
+     * The manual `"enabled"` budget mode was dropped by the Claude 5 generation
+     * in favour of adaptive thinking plus
      * {@link AnthropicProviderOptions.thinkingEffort}.
      */
-    thinkingType?: "adaptive" | undefined;
+    thinkingType?: "adaptive" | "disabled" | undefined;
     /** Anthropic thinking display mode. */
     thinkingDisplay?: "summarized" | "omitted" | undefined;
     /** Optional output effort level used with adaptive thinking. */
@@ -660,7 +662,7 @@ export class AnthropicAgent implements IAgentProvider {
             compaction: enableCompaction ? "provider" : "none",
             webSearch: provider.enableWebSearch === true,
             codeExecution: provider.enableCodeExecution === true,
-            thinking: provider.thinkingType !== undefined,
+            thinking: provider.thinkingType === "adaptive",
             attachments: { images: true, pdf: true },
         };
     }

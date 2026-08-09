@@ -40,13 +40,14 @@ export interface AnthropicProviderOptions {
     /** Maximum content length (in tokens) for fetched pages. Defaults to unlimited when omitted. */
     webFetchMaxContentTokens?: number | undefined;
     /**
-     * Anthropic thinking mode. When omitted, thinking stays disabled.
+     * Anthropic thinking mode. When omitted, the API default applies, which on
+     * the Claude 5 generation is adaptive thinking.
      *
-     * Only `"adaptive"` exists: the Claude 5 generation dropped the manual
-     * `"enabled"` budget mode in favour of adaptive thinking plus
-     * {@link thinkingEffort}.
+     * `"adaptive"` requests it explicitly and `"disabled"` switches it off; the
+     * manual `"enabled"` budget mode was dropped by the Claude 5 generation in
+     * favour of adaptive thinking plus {@link thinkingEffort}.
      */
-    thinkingType?: "adaptive" | undefined;
+    thinkingType?: "adaptive" | "disabled" | undefined;
     /** Anthropic thinking display mode. */
     thinkingDisplay?: "summarized" | "omitted" | undefined;
     /** Optional output effort level used with adaptive thinking. */
@@ -142,15 +143,22 @@ export function requiredBetas(options: AnthropicProviderOptions): string[] {
  * Omitting the parameter leaves the API default in force, which on the Claude 5
  * generation is adaptive thinking. `agent-langchain` instead sent
  * `{ type: "disabled" }` whenever thinking was unconfigured, so reasoning is on
- * by default here where it used to be off.
+ * by default here where it used to be off; set `thinkingType: "disabled"` to
+ * restore the old behaviour.
+ *
+ * When adaptive thinking is requested explicitly, `display` defaults to
+ * `"summarized"`. Without it the model reasons and bills the tokens but returns
+ * empty `thinking` blocks, so the reasoning is paid for and never shown. The SDK
+ * does not type the field, hence the assertion.
  */
 export function buildThinkingParam(
     options: AnthropicProviderOptions,
 ): Anthropic.Beta.BetaThinkingConfigParam | undefined {
     if (!options.thinkingType) return undefined;
+    if (options.thinkingType === "disabled") return { type: "disabled" };
     return {
         type: "adaptive",
-        ...(options.thinkingDisplay ? { display: options.thinkingDisplay } : {}),
+        display: options.thinkingDisplay ?? "summarized",
     } as Anthropic.Beta.BetaThinkingConfigParam;
 }
 

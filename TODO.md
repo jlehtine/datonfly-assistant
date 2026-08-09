@@ -608,37 +608,43 @@ tests.
       variables: there is no deployment-specific reason to vary them, and the
       coupling to UI capabilities makes them a code-level decision. Revisit if
       restore points are ever added.
-- [ ] Run the relevant e2e specs individually (not the whole suite — LLM rate
+- [x] Run the relevant e2e specs individually (not the whole suite — LLM rate
       limits cause spurious failures): `tests/chat-response.spec.ts`,
       `tests/attachment-context.spec.ts`, `tests/multiuser-interrupt.spec.ts`,
-      `tests/thread-history.spec.ts`. Three of the four pass unchanged;
-      `multiuser-interrupt` fails on a timing budget — see below.
+      `tests/thread-history.spec.ts`. All four pass; `multiuser-interrupt`
+      needed its streaming budget raised — see below.
 
-### `multiuser-interrupt` now exceeds its 30 s budget
+### `multiuser-interrupt` needed a longer streaming budget
 
-The spec fails at
+The spec failed at
 `expect(streamingIndicator).toHaveCount(0, { timeout: 30_000 })` after the
-interrupting question. Nothing is stuck: the response completed normally and
+interrupting question. Nothing was stuck: the response completed normally and
 persisted, it just took about 48 s to produce 9052 characters and 3739 output
-tokens. The stored parts are well-formed — the interrupted turn holds a
+tokens. The stored parts were well-formed — the interrupted turn held a
 344-character `thinking` part plus an empty `text` part, and the resumed turn a
 single clean `text` part — so the streaming, abort, and restart paths all
-behave.
+behaved. A mid-stream abort was separately probed for an unhandled rejection
+from the SDK's internal `finalMessage` promise, which would crash the backend;
+it propagates cleanly as `APIUserAbortError`.
 
-The cause is the thinking default. The prompt deliberately asks for a long
+The cause is the thinking default: the prompt deliberately asks for a long
 answer, the model now reasons before producing it, and the budget was calibrated
-against `agent-langchain`, which sent `{ type: "disabled" }`. Two ways to
-resolve, and this is a decision rather than a fix:
+against `agent-langchain`, which sent `{ type: "disabled" }`. **Resolved by
+doubling the budget to 60 s.** The whole e2e suite runs against one shared
+assistant configuration, so every spec inherits whatever reasoning settings the
+deployment uses — a spec cannot assume a non-reasoning agent. It now passes in
+about 20 s, so the headroom is for response-length variance rather than a
+routine 60 s wait.
 
-- **Raise the budget** to reflect that a reasoning agent is slower on a prompt
-  written to be verbose. Honest, but bumping a timeout to make a test pass
-  deserves scrutiny.
-- **Reconsider the thinking default.** Reasoning on by default costs latency on
-  every response, not just this one; the e2e suite is simply where it first
-  showed up.
+### Follow-up: e2e coverage for reasoning and other advanced behaviour
 
-Deliberately not changed unilaterally — raising a timeout is exactly the kind of
-edit that hides a real regression.
+Nothing exercises reasoning, provider-side compaction, or server-side tools end
+to end; those paths are covered only by fixture replay. The obstacle is that the
+suite shares a single assistant configuration, so a spec cannot ask for
+reasoning without imposing it on every other spec. Worth solving before adding
+such coverage — options include a per-test configuration override, a second
+backend instance, or grouping configuration-sensitive specs into their own
+Playwright project.
 
 - [x] Move the fixture recorder (`recording-proxy.ts` / `record-fixtures.ts`)
       into `agent-anthropic` so re-recording survives the deletion. Recordings

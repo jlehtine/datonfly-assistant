@@ -68,11 +68,14 @@ test.describe("multi-user interrupt", () => {
         await expect(aiMsgsA).toHaveCount(countBefore + 2, { timeout: 60_000 });
         await expect(aiMsgsB).toHaveCount(countBefore + 2, { timeout: 60_000 });
 
-        // Wait for the new AI response to finish streaming
+        // Wait for the new AI response to finish streaming. The budget allows for
+        // a reasoning agent answering a prompt written to be verbose: the suite
+        // runs against one shared assistant configuration, so this spec inherits
+        // whatever reasoning settings the deployment uses.
         const newAiA = aiMsgsA.last();
         const newAiB = aiMsgsB.last();
-        await expect(newAiA.locator(".datonfly-message-streaming-indicator")).toHaveCount(0, { timeout: 30_000 });
-        await expect(newAiB.locator(".datonfly-message-streaming-indicator")).toHaveCount(0, { timeout: 30_000 });
+        await expect(newAiA.locator(".datonfly-message-streaming-indicator")).toHaveCount(0, { timeout: 60_000 });
+        await expect(newAiB.locator(".datonfly-message-streaming-indicator")).toHaveCount(0, { timeout: 60_000 });
 
         // Both users should see Bob's message
         await expect(page.locator('.datonfly-message-human[data-message-author="Fake Bob"]')).toBeVisible();

@@ -454,6 +454,32 @@ Two bugs in the rewrite surfaced through the diff and are fixed:
   `content_block_start` shifted the text part to index 1. The index is now
   claimed on the first non-empty delta.
 
+**Request-level divergence.** Comparing only emitted chunks cannot see a change
+in what goes _out_ — replayed fixtures return the same bytes whatever was asked
+for. The diff now compares request bodies too, which found one difference:
+`agent-langchain` sends `thinking: { type: "disabled" }` when reasoning is
+unconfigured, whereas this provider omits the parameter. A live probe against
+`claude-opus-5` settled what that means:
+
+| `thinking`            | blocks returned    | thinking tokens |
+| --------------------- | ------------------ | --------------- |
+| omitted               | `thinking`, `text` | 36              |
+| `{"type":"disabled"}` | `text`             | 0               |
+| `{"type":"adaptive"}` | `thinking`, `text` | 108             |
+
+So **adaptive thinking is the API default** on Claude 5, and the cutover turns
+reasoning on where it used to be off. Accepted deliberately. Consequences worth
+knowing: thinking tokens are billed as output, `capabilities.thinking` is now
+always `true`, and `.env.example` no longer claims reasoning is disabled by
+default. There is currently no way to switch it off — `thinkingType` only
+accepts `"adaptive"` — so add `"disabled"` to that union if an off switch is
+wanted.
+
+Note the probe also shows `thinking` blocks arriving with **no summary text** in
+every mode, matching the `thinking-adaptive` fixture. Reasoning happens and is
+billed, but nothing is displayed. Worth investigating separately before relying
+on the feature.
+
 **Fixture gap found while wiring the suite.** `thinking-adaptive` records a
 thinking block whose `thinking_delta` payloads are all empty — with
 `display: "summarized"` and `effort: "low"` the model returned only a signature.
@@ -500,10 +526,45 @@ earlier:
   trigger (the API minimum is 50k input tokens). Nothing in this database would
   have exercised compaction regardless.
 
-Because provider-side compaction is unverified end to end, the `compaction`
-fixture matters more than it appeared. The blocker recorded in Phase 1.1 was the
-blanket `cache_control`, which this provider no longer sends, so the capture is
-now worth retrying.
+### Provider-side compaction now works — three bugs found capturing it
+
+Capturing the `compaction` fixture took five attempts and turned up three
+independent defects. Compaction had **never** worked in this project, which is
+why the database holds no compaction blocks.
+
+1. **A missing beta header made every compaction request fail.** The
+   `compact_20260112` edit needs `compact-2026-01-12` _in addition to_
+   `context-management-2025-06-27`. Without it the API returns a 400 listing
+   only `clear_thinking_20251015` / `clear_tool_uses_20250919` as valid tags.
+   `@langchain/anthropic` added the header automatically, so this was a
+   regression introduced by the rewrite — and since
+   `DF_ANTHROPIC_ENABLE_COMPACTION` defaults to on, it would have failed _every_
+   request in production. Betas are now derived from the configuration.
+2. **`pause_after_compaction` was never set.** Without it the API compacts
+   internally and returns nothing, so no block can be persisted and every later
+   request resends the full history to be compacted again — the stored
+   `OpaqueContentPart` round-trip this codebase is built around never engages.
+   It is now an option, defaulting **off** to keep behaviour unchanged; the
+   fixture scenario turns it on. **Decide whether production should enable it**
+   — it is what makes compaction actually save anything, at the cost of one
+   extra round trip on the compacting turn.
+3. **`stop_reason: "compaction"` was unhandled.** The compacting turn answers
+   nothing; it returns the block and stops. The loop treated that as the final
+   response and returned an empty answer. It is now resumed like `pause_turn`.
+
+Two further discoveries came from the same capture:
+
+- **`applied_edits` stays empty even on success.** The scenario's original
+  `verify` predicate looked for it and so rejected working captures. The real
+  signals are `stop_reason: "compaction"` and a `compaction` content block.
+- **A compacting turn zeroes the top-level usage counts** and reports the real
+  numbers under `usage.iterations[]`, whose last entry the SDK documents as the
+  true context size. `readPromptUsage()` now prefers it — without that, a
+  compacting turn reported 0 input tokens.
+
+Recorded as `compaction-01` (stops with the block) and `compaction-02` (resumes
+with the block standing in for the compacted history); both are covered by
+tests.
 
 - [x] Verify persisted-data compatibility against a dump from a live test
       deployment. Done against the local development database instead — see the

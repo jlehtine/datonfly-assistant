@@ -112,7 +112,7 @@ personal content that does not belong in the repository.
 | `attachment-image`    | Image attachment → `image` block.                                          |
 | `attachment-pdf`      | PDF attachment → `document` block.                                         |
 | `attachment-text`     | Text attachment decoded and inlined as a text block.                       |
-| `compaction`          | Provider-side compaction. **Not captured** — see below.                    |
+| `compaction`          | Provider-side compaction, in two exchanges — see below.                    |
 | `abort-mid-stream`    | Caller aborts partway through the response.                                |
 | `error-400`           | Invalid request rejected by the API.                                       |
 | `error-429`           | Rate limit. **Synthetic** — see below.                                     |
@@ -125,20 +125,31 @@ calling the tool, and compaction can be configured without ever firing. Each
 scenario therefore carries a `verify` predicate, and a capture that fails it is
 reported and **not written** rather than becoming a misleading baseline.
 
-### Not captured
+### Compaction
 
-- **`compaction`** — the request is valid (`trigger.value` must be at least
-  50000), but under `agent-langchain` the agent set
-  `cache_control: { type: "ephemeral" }` on every invoke, so a 180 kB prompt was
-  billed as `cache_creation_input_tokens: 60059` with `input_tokens: 44`. An
-  `input_tokens` trigger cannot fire while every token is attributed to cache
-  creation, and `applied_edits` came back empty.
+`compaction-01` stops with `stop_reason: "compaction"` and returns the block;
+`compaction-02` resumes with that block standing in for the compacted history.
+Capturing it took five attempts and exposed three defects, all now fixed:
 
-  **That cause is now gone.** This provider places deliberate cache breakpoints
-  and leaves a single-turn prompt uncached, so the trigger should fire. The
-  capture is worth retrying — and it matters more than it looks: a survey of the
-  development database found no compaction blocks in any thread, so
-  provider-side compaction has never been observed working end to end.
+- The `compact_20260112` edit needs the **`compact-2026-01-12` beta header** in
+  addition to `context-management-2025-06-27`. Without it the API rejects the
+  edit type outright with a 400.
+- **`pause_after_compaction` must be set** for the block to come back at all.
+  Otherwise the API compacts internally and returns nothing, so there is nothing
+  to persist and the next request resends the full history.
+- **`stop_reason: "compaction"` has to be handled.** That turn answers nothing;
+  treating it as final yields an empty response.
+
+Two traps worth remembering when re-recording:
+
+- **`applied_edits` stays empty even on success**, so it is useless as a signal.
+  The scenario checks `stop_reason` instead.
+- **A compacting turn zeroes the top-level usage counts** and reports the real
+  numbers under `usage.iterations[]`.
+
+The history must also be spread across several turns: compaction summarises
+_earlier_ turns, so one oversized message crosses the trigger without producing
+any edit.
 
 ### Thinking
 

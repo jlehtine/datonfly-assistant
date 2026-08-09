@@ -68,8 +68,28 @@ const TINY_PDF_BASE64 = Buffer.from(
 /** Smallest `trigger.value` the compaction API accepts. */
 const COMPACTION_MIN_TRIGGER_TOKENS = 50_000;
 
-/** Filler sized to exceed {@link COMPACTION_MIN_TRIGGER_TOKENS}, so compaction actually fires. */
-const LOG_ABOVE_TRIGGER = "log line\n".repeat(20_000);
+/** Filler for one conversation turn; several turns together cross the trigger. */
+const LOG_CHUNK = "log line\n".repeat(4_000);
+
+/**
+ * A conversation large enough for compaction to have something to compact.
+ *
+ * Compaction replaces *earlier* turns with a summary, so a single oversized
+ * message crosses the trigger without producing any edit. The history has to be
+ * spread across turns for the feature to have anything to act on.
+ */
+function compactionConversation(): AgentMessage[] {
+    const messages: AgentMessage[] = [];
+    for (let batch = 1; batch <= 6; batch++) {
+        messages.push({
+            role: "human",
+            content: [{ type: "text", text: `Log batch ${String(batch)}:\n${LOG_CHUNK}` }],
+        });
+        messages.push({ role: "ai", content: [{ type: "text", text: `Recorded batch ${String(batch)}.` }] });
+    }
+    messages.push({ role: "human", content: [{ type: "text", text: "How many log batches did I send?" }] });
+    return messages;
+}
 
 /** Build a single human message with the given text. */
 function human(text: string): AgentMessage[] {
@@ -213,21 +233,21 @@ const SCENARIOS: Scenario[] = [
         description:
             "Provider-side context compaction. Uses the API's minimum trigger of 50k input tokens, " +
             "rather than the ~120k the production default would need.",
-        providerOptions: { enableCompaction: true, compactionTriggerTokens: COMPACTION_MIN_TRIGGER_TOKENS },
+        providerOptions: {
+            enableCompaction: true,
+            compactionTriggerTokens: COMPACTION_MIN_TRIGGER_TOKENS,
+            pauseAfterCompaction: true,
+        },
         requires:
-            "an input-token trigger that actually fires. The blanket cache_control that blocked this " +
-            "under agent-langchain is gone — this provider places deliberate breakpoints and leaves a " +
-            "single-turn prompt uncached — so the capture is worth retrying",
+            "a multi-turn history above the trigger. The `compact-2026-01-12` beta header is now sent " +
+            "alongside `context-management-2025-06-27`; without it the API rejects the edit type outright",
         verify: (exchanges) =>
-            exchanges.some((exchange) => /"applied_edits":\[\s*\{/.test(exchange.response.body))
+            // `applied_edits` stays empty even on success; the signal that
+            // compaction ran is the stop reason and the returned block.
+            exchanges.some((exchange) => exchange.response.body.includes('"stop_reason":"compaction"'))
                 ? undefined
-                : "context_management reported no applied_edits, so compaction never fired",
-        messages: [
-            {
-                role: "human",
-                content: [{ type: "text", text: `Summarise this log in one sentence:\n${LOG_ABOVE_TRIGGER}` }],
-            },
-        ],
+                : "no turn stopped with stop_reason=compaction, so compaction never fired",
+        messages: compactionConversation(),
     },
     {
         name: "abort-mid-stream",

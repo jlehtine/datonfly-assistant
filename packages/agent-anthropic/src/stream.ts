@@ -53,13 +53,19 @@ interface TurnUsage {
  * submitted context — the gateway compares it against the compaction threshold
  * — so the three fields are summed. Reporting only the uncached remainder would
  * silently stop external compaction from ever triggering.
+ *
+ * When the API performs server-side iterations (compaction, server tool loops)
+ * the top-level counts are zero and the real numbers live in `iterations`. The
+ * last iteration carries the true context size, so it is preferred when present.
  */
 function readPromptUsage(usage: Anthropic.Beta.BetaUsage): TurnUsage {
-    const cacheCreation = usage.cache_creation_input_tokens ?? 0;
-    const cacheRead = usage.cache_read_input_tokens ?? 0;
+    const iterations = usage.iterations;
+    const source = iterations && iterations.length > 0 ? (iterations[iterations.length - 1] ?? usage) : usage;
+    const cacheCreation = source.cache_creation_input_tokens ?? 0;
+    const cacheRead = source.cache_read_input_tokens ?? 0;
     return {
-        inputTokens: usage.input_tokens + cacheCreation + cacheRead,
-        outputTokens: usage.output_tokens,
+        inputTokens: source.input_tokens + cacheCreation + cacheRead,
+        outputTokens: source.output_tokens,
         cacheCreationInputTokens: cacheCreation,
         cacheReadInputTokens: cacheRead,
     };
@@ -274,9 +280,12 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
             throw new Error("The model declined to answer this request.");
         }
 
-        // A long-running server tool suspends the turn; resuming means replaying
-        // the partial assistant message and asking the model to continue.
-        if (finalMessage.stop_reason === "pause_turn") {
+        // Both suspend the turn without answering: a long-running server tool
+        // (`pause_turn`), or the API compacting the history and handing back the
+        // compaction block (`compaction`). Either way the assistant turn is
+        // replayed and the model asked to continue — after a compaction the
+        // block stands in for everything before it.
+        if (finalMessage.stop_reason === "pause_turn" || finalMessage.stop_reason === "compaction") {
             conversation.push({ role: "assistant", content: finalMessage.content });
             continue;
         }

@@ -59,6 +59,16 @@ export interface AnthropicProviderOptions {
      */
     compactionTriggerTokens?: number | undefined;
     /**
+     * Pause the turn after compacting and return the compaction block.
+     *
+     * Without this the API compacts internally and returns nothing, so there is
+     * no block to persist and every later request resends the full history to be
+     * compacted again. Enabling it is what makes the stored
+     * {@link OpaqueContentPart} round-trip actually save anything, at the cost of
+     * an extra round trip on the turn that compacts.
+     */
+    pauseAfterCompaction?: boolean | undefined;
+    /**
      * Number of trailing conversation messages kept outside the prompt cache.
      *
      * A cache breakpoint is placed before these messages, so the stable prefix
@@ -110,9 +120,30 @@ export interface AnthropicAgentConfig extends AgentConfig {
  * `client.beta.messages` with these headers rather than maintaining two code
  * paths for one feature set.
  */
-export const REQUIRED_BETAS = ["context-management-2025-06-27"] as const;
+const BASE_BETAS = ["context-management-2025-06-27"];
 
-/** Build the Anthropic thinking parameter, or `undefined` when thinking is off. */
+/**
+ * Additional header gating the `compact_20260112` edit.
+ *
+ * Without it the API rejects the edit type outright, listing only the
+ * `clear_thinking` / `clear_tool_uses` tags as valid — the request fails with a
+ * 400 rather than silently skipping compaction.
+ */
+const COMPACTION_BETA = "compact-2026-01-12";
+
+/** Beta headers required for the given configuration. */
+export function requiredBetas(options: AnthropicProviderOptions): string[] {
+    return options.enableCompaction === false ? [...BASE_BETAS] : [...BASE_BETAS, COMPACTION_BETA];
+}
+
+/**
+ * Build the Anthropic thinking parameter, or `undefined` to accept the default.
+ *
+ * Omitting the parameter leaves the API default in force, which on the Claude 5
+ * generation is adaptive thinking. `agent-langchain` instead sent
+ * `{ type: "disabled" }` whenever thinking was unconfigured, so reasoning is on
+ * by default here where it used to be off.
+ */
 export function buildThinkingParam(
     options: AnthropicProviderOptions,
 ): Anthropic.Beta.BetaThinkingConfigParam | undefined {
@@ -144,6 +175,7 @@ export function buildContextManagement(
         edits: [
             {
                 type: "compact_20260112",
+                ...(options.pauseAfterCompaction === true ? { pause_after_compaction: true } : {}),
                 trigger: {
                     type: "input_tokens",
                     value: options.compactionTriggerTokens ?? Math.round(contextWindowSize * 0.6),

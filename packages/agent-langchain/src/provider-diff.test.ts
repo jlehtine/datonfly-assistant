@@ -97,15 +97,38 @@ async function withServer<T>(names: string[], fn: (server: FixtureServer) => Pro
 async function runProvider(
     scenario: Scenario,
     build: (baseUrl: string, tools?: ITool[]) => IAgentProvider,
-): Promise<{ chunks: AgentStreamChunk[] } | { error: string }> {
+): Promise<{ chunks: AgentStreamChunk[]; requests: Record<string, unknown>[] } | { error: string }> {
     try {
-        const chunks = await withServer(scenario.fixtures, (server) =>
-            collectChunks(build(server.baseUrl, scenario.tools), scenario.messages),
-        );
-        return { chunks };
+        return await withServer(scenario.fixtures, async (server) => {
+            const chunks = await collectChunks(build(server.baseUrl, scenario.tools), scenario.messages);
+            return { chunks, requests: server.requests };
+        });
     } catch (error) {
         return { error: error instanceof Error ? error.message : String(error) };
     }
+}
+
+/**
+ * Compare the first request each provider sends.
+ *
+ * Replaying fixtures returns the same bytes whatever was asked for, so a
+ * response diff cannot see a change in what goes *out*. Request parameters are
+ * where a silent behaviour change would hide.
+ */
+function requestDifferences(a: Record<string, unknown>, b: Record<string, unknown>): string[] {
+    const describe = (source: Record<string, unknown>, key: string): string =>
+        key in source ? JSON.stringify(source[key]) : "absent";
+    const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+    const differences: string[] = [];
+    for (const key of keys) {
+        if (key === "messages") continue;
+        const left = describe(a, key);
+        const right = describe(b, key);
+        if (left !== right) {
+            differences.push(`  ${key}: langchain=${left} sdk=${right}`);
+        }
+    }
+    return differences;
 }
 
 function buildLangChain(baseUrl: string, tools?: ITool[]): IAgentProvider {
@@ -151,6 +174,14 @@ describe("provider chunk-sequence comparison", () => {
                         `  langchain: ${JSON.stringify(text(langchain.chunks).slice(0, 120))}`,
                         `  sdk:       ${JSON.stringify(text(sdk.chunks).slice(0, 120))}`,
                     );
+                }
+                const first = langchain.requests[0];
+                const second = sdk.requests[0];
+                if (first && second) {
+                    const differences = requestDifferences(first, second);
+                    if (differences.length > 0) {
+                        report.push(`request differs`, ...differences);
+                    }
                 }
             }
 

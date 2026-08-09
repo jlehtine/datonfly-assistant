@@ -23,7 +23,7 @@ import {
     DEFAULT_MAX_TOKENS,
     DEFAULT_MAX_TOOL_ITERATIONS,
     PROVIDER_ID,
-    REQUIRED_BETAS,
+    requiredBetas,
     type AnthropicAgentConfig,
     type AnthropicProviderOptions,
 } from "./config.js";
@@ -126,7 +126,9 @@ export class AnthropicAgent implements IAgentProvider {
             compaction: options.enableCompaction === false ? "none" : "provider",
             webSearch: options.enableWebSearch === true,
             codeExecution: options.enableCodeExecution === true,
-            thinking: options.thinkingType !== undefined,
+            // Reasoning is on whether or not it is configured, because leaving
+            // the parameter unset accepts the API's adaptive default.
+            thinking: true,
             attachments: { images: true, pdf: true },
         };
     }
@@ -145,7 +147,7 @@ export class AnthropicAgent implements IAgentProvider {
         const request = {
             model: this.modelName,
             max_tokens: this.maxTokens,
-            betas: [...REQUIRED_BETAS],
+            betas: requiredBetas(this.options),
             ...(system ? { system } : {}),
             ...(allTools.length > 0 ? { tools: allTools } : {}),
             ...(thinking ? { thinking } : {}),

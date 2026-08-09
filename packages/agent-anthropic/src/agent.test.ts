@@ -173,6 +173,46 @@ describe("AnthropicAgent usage accounting", () => {
     });
 });
 
+describe("AnthropicAgent provider-side compaction", () => {
+    it("resumes after a compaction pause and replays the block", async () => {
+        await withServer(["compaction-01", "compaction-02"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("How many log batches did I send?")]);
+
+            // The first turn stops with stop_reason=compaction and answers nothing,
+            // so the loop must continue rather than treat it as the final response.
+            expect(server.requests).toHaveLength(2);
+            expect(joinText(chunks).length).toBeGreaterThan(0);
+
+            const opaque = chunks.filter((chunk) => chunk.type === "opaque-part");
+            expect(opaque).toHaveLength(1);
+            const part = opaque[0];
+            expect(part?.type === "opaque-part" ? part.part.provider : "").toBe("anthropic");
+            expect(part?.type === "opaque-part" ? (part.part.data as { type: string }).type : "").toBe("compaction");
+
+            // The resumed request carries the compaction block, which stands in
+            // for everything before it.
+            const resumed = server.requests[1]?.messages as { role: string; content: unknown }[];
+            const blocks = resumed.flatMap((message) =>
+                Array.isArray(message.content) ? (message.content as { type: string }[]) : [],
+            );
+            expect(blocks.some((block) => block.type === "compaction")).toBe(true);
+        });
+    });
+
+    it("reports context size from the compaction iteration, not the zeroed totals", async () => {
+        await withServer(["compaction-01", "compaction-02"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("How many log batches did I send?")]);
+
+            // A compacting turn zeroes the top-level counts and reports the real
+            // numbers under `iterations`.
+            const usage = chunks.find((chunk) => chunk.type === "usage");
+            expect(usage?.type === "usage" ? usage.usage.inputTokens : 0).toBeGreaterThan(50_000);
+        });
+    });
+});
+
 describe("AnthropicAgent.run", () => {
     it("returns the same text the stream emitted", async () => {
         const messages: AgentMessage[] = [userMessage("Say hello.")];
@@ -238,6 +278,8 @@ describe("AnthropicAgent capabilities", () => {
         });
 
         expect(agent.capabilities.compaction).toBe("none");
-        expect(agent.capabilities.thinking).toBe(false);
+        // Reasoning stays on: an unset thinking parameter accepts the API's
+        // adaptive default rather than switching it off.
+        expect(agent.capabilities.thinking).toBe(true);
     });
 });

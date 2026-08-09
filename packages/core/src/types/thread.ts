@@ -51,6 +51,11 @@ export interface ThreadMemberInfo {
     email: string;
     /** URL to the member's avatar, if available. */
     avatarUrl?: string | undefined;
-    /** Name shown to the AI agent in place of the member's real name. */
+    /**
+     * Name the AI agent sees for this member.
+     *
+     * Real names are never sent to the agent. Without an alias the member is
+     * anonymous to it, so this is the only identity it can address them by.
+     */
     agentAlias?: string | undefined;
 }

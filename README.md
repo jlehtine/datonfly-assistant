@@ -60,7 +60,9 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   using AI-generated summaries.
 - **Emoji picker** — Quick emoji insertion from an integrated picker.
 - **User customization** — Set a personal alias for how the AI addresses you,
-  choose between simple or rich text input, and manage profile settings.
+  choose between simple or rich text input, and manage profile settings. Real
+  names are never sent to the AI model: users are anonymous to it until they
+  choose an alias.
 - **Flexible authentication** — Supports OIDC (Google, Azure AD, Keycloak,
   Auth0, etc.) for production and a zero-config fake mode for development.
 - **Rate limiting** — Configurable per-tier request limits protect login,

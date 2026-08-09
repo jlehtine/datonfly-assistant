@@ -6,7 +6,13 @@ import type {
     ThreadMessage,
 } from "@datonfly-assistant/core";
 
-/** Default alias used when a member has not configured an agent alias. */
+/**
+ * Alias used for a member who has not configured one.
+ *
+ * Members are anonymous to the agent by default: real names are never sent, so
+ * an unaliased member is deliberately indistinguishable rather than falling back
+ * to their display name.
+ */
 const DEFAULT_ALIAS = "Unidentified user";
 
 /** Extract the concatenated text from an array of content parts, ignoring tool calls, results, and opaque parts. */

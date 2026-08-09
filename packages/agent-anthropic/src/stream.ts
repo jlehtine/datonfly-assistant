@@ -45,12 +45,23 @@ interface TurnUsage {
     cacheReadInputTokens: number;
 }
 
-function readTurnUsage(usage: Anthropic.Beta.BetaUsage | Anthropic.Beta.BetaMessageDeltaUsage): TurnUsage {
+/**
+ * Read the prompt-side token counts from `message_start`.
+ *
+ * Anthropic reports `input_tokens` as the *uncached* remainder, with cached
+ * tokens split out separately. `AgentUsage.inputTokens` means the size of the
+ * submitted context — the gateway compares it against the compaction threshold
+ * — so the three fields are summed. Reporting only the uncached remainder would
+ * silently stop external compaction from ever triggering.
+ */
+function readPromptUsage(usage: Anthropic.Beta.BetaUsage): TurnUsage {
+    const cacheCreation = usage.cache_creation_input_tokens ?? 0;
+    const cacheRead = usage.cache_read_input_tokens ?? 0;
     return {
-        inputTokens: usage.input_tokens ?? 0,
+        inputTokens: usage.input_tokens + cacheCreation + cacheRead,
         outputTokens: usage.output_tokens,
-        cacheCreationInputTokens: usage.cache_creation_input_tokens ?? 0,
-        cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
+        cacheCreationInputTokens: cacheCreation,
+        cacheReadInputTokens: cacheRead,
     };
 }
 
@@ -155,6 +166,16 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
         const thinkingTextByBlock = new Map<number, string>();
         let turnUsage: TurnUsage | undefined;
 
+        // A thinking block only claims a part index once it carries text. An
+        // adaptive-thinking block whose summary is empty must not leave a gap.
+        const thinkingPartIndexFor = (blockIndex: number): number => {
+            const existing = thinkingPartIndexByBlock.get(blockIndex);
+            if (existing !== undefined) return existing;
+            const partIndex = nextPartIndex++;
+            thinkingPartIndexByBlock.set(blockIndex, partIndex);
+            return partIndex;
+        };
+
         try {
             for await (const event of stream) {
                 if (debugApiContent) {
@@ -162,15 +183,18 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                 }
                 switch (event.type) {
                     case "message_start": {
-                        turnUsage = readTurnUsage(event.message.usage);
+                        turnUsage = readPromptUsage(event.message.usage);
                         break;
                     }
                     case "content_block_start": {
                         const block = event.content_block;
                         if (block.type === "thinking") {
-                            const partIndex = nextPartIndex++;
-                            thinkingPartIndexByBlock.set(event.index, partIndex);
-                            thinkingTextByBlock.set(event.index, block.thinking);
+                            if (block.thinking.length > 0) {
+                                thinkingTextByBlock.set(event.index, block.thinking);
+                                thinkingPartIndexFor(event.index);
+                            } else {
+                                thinkingTextByBlock.set(event.index, "");
+                            }
                         } else if (block.type === "server_tool_use") {
                             const status = toolNameToStatus(block.name);
                             if (status) {
@@ -192,8 +216,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                                 };
                             }
                         } else if (delta.type === "thinking_delta") {
-                            const partIndex = thinkingPartIndexByBlock.get(event.index);
-                            if (partIndex !== undefined && delta.thinking.length > 0) {
+                            if (thinkingTextByBlock.has(event.index) && delta.thinking.length > 0) {
                                 thinkingTextByBlock.set(
                                     event.index,
                                     (thinkingTextByBlock.get(event.index) ?? "") + delta.thinking,
@@ -201,7 +224,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                                 yield {
                                     type: "text-delta",
                                     partType: "thinking",
-                                    partIndex,
+                                    partIndex: thinkingPartIndexFor(event.index),
                                     delta: delta.thinking,
                                 };
                             }
@@ -220,7 +243,9 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                         break;
                     }
                     case "message_delta": {
-                        turnUsage = readTurnUsage(event.usage);
+                        // Carries the final output count; the prompt-side numbers
+                        // stay as reported at message_start.
+                        if (turnUsage) turnUsage.outputTokens = event.usage.output_tokens;
                         break;
                     }
                     default:

@@ -33,6 +33,7 @@
         "@datonfly-assistant/core": "workspace:*"
     },
     "devDependencies": {
+        "@datonfly-assistant/agent-anthropic": "workspace:*",
         "@datonfly-assistant/core": "workspace:*",
         "@types/node": "^25.5.2",
         "typescript": "^6.0.2",

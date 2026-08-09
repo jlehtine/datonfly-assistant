@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentMessage, ITool } from "@datonfly-assistant/core";
 
 import { AnthropicAgent } from "./agent.js";
-import { collectChunks, CONFORMANCE_CASES, joinText, userMessage } from "./testing/conformance.js";
+import { ADDER_TOOL, collectChunks, CONFORMANCE_CASES, joinText, userMessage } from "./testing/conformance.js";
 import { serveFixtures, type FixtureServer } from "./testing/fixture-server.js";
 
 function createAgent(baseUrl: string, tools?: ITool[]): AnthropicAgent {
@@ -132,6 +132,43 @@ describe("AnthropicAgent streaming", () => {
         await withServer(["error-400"], async (server) => {
             const agent = createAgent(server.baseUrl);
             await expect(collectChunks(agent, [userMessage("Say hello.")])).rejects.toThrow();
+        });
+    });
+});
+
+describe("AnthropicAgent usage accounting", () => {
+    // Anthropic splits the prompt across input_tokens (uncached), cache creation,
+    // and cache read. inputTokens means context size — the gateway compares it
+    // against the compaction threshold — so all three must be summed.
+    it("reports input tokens as the whole submitted context", async () => {
+        await withServer(["web-search"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("Search the web.")]);
+
+            const usage = chunks.find((chunk) => chunk.type === "usage");
+            expect(usage?.type === "usage" ? usage.usage.inputTokens : 0).toBe(5903);
+            expect(usage?.type === "usage" ? usage.usage.cacheCreationInputTokens : 0).toBe(5901);
+        });
+    });
+
+    it("reports the final output token count, not the message_start placeholder", async () => {
+        await withServer(["plain-text"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("Say hello.")]);
+
+            const usage = chunks.find((chunk) => chunk.type === "usage");
+            expect(usage?.type === "usage" ? usage.usage.outputTokens : 0).toBe(9);
+        });
+    });
+
+    it("sums output across a tool loop and keeps the largest context", async () => {
+        await withServer(["tool-loop-01", "tool-loop-02", "tool-loop-03"], async (server) => {
+            const agent = createAgent(server.baseUrl, [ADDER_TOOL]);
+            const chunks = await collectChunks(agent, [userMessage("Add 2 and 3, then add 10.")]);
+
+            const usage = chunks.find((chunk) => chunk.type === "usage");
+            expect(usage?.type === "usage" ? usage.usage.inputTokens : 0).toBe(616);
+            expect(usage?.type === "usage" ? usage.usage.outputTokens : 0).toBe(209);
         });
     });
 });

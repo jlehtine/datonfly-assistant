@@ -86,6 +86,9 @@ importers:
         specifier: ^1.1.39
         version: 1.1.39(openai@6.39.1(ws@8.18.3)(zod@4.3.6))(ws@8.18.3)
     devDependencies:
+      '@datonfly-assistant/agent-anthropic':
+        specifier: workspace:*
+        version: link:../agent-anthropic
       '@datonfly-assistant/core':
         specifier: workspace:*
         version: link:../core

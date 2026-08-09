@@ -293,8 +293,9 @@ layers as they were with LangChain.
 keys reasoning state on `thinking:${blockIndex}` globally, so a thinking block
 in the second tool-loop turn merges into the first turn's part (block indices
 restart at 0 each turn). The rewrite assigns a fresh part index per block per
-turn, which is what the transcript means. Expect this to show up as a difference
-in the Phase 3 chunk diff; it is a fix, not a regression.
+turn, which is what the transcript means. No recorded fixture exercises thinking
+inside a multi-turn tool loop, so the cross-provider diff below does not show
+it; it stays a known difference rather than a measured one.
 
 ### 2.1 Scaffold the package
 
@@ -418,8 +419,40 @@ in the Phase 3 chunk diff; it is a fix, not a regression.
       actually makes the seam verifiable rather than aspirational.
       (`src/testing/conformance.ts`, exported via the `./testing` subpath; uses
       `node:assert` rather than a test runner so any package can drive it.)
-- [ ] Run the conformance suite against both `agent-langchain` and
+- [x] Run the conformance suite against both `agent-langchain` and
       `agent-anthropic` while they coexist.
+      (`packages/agent-langchain/src/conformance.test.ts` runs the shared cases;
+      `provider-diff.test.ts` diffs the emitted chunk sequences scenario by
+      scenario. Both report rather than assert — `agent-langchain` is being
+      deleted, so the goal is to know the divergences, not to fix them.)
+
+**Divergence catalogue — measured, not assumed.** `agent-langchain` passes all
+five conformance cases, so the contract is unchanged. The chunk-sequence diff is
+sharper: across `plain-text`, both thinking fixtures, `tool-loop`, `web-search`,
+`web-fetch`, `code-execution`, and `attachment-text` the **chunk order, part
+indices, and visible text are identical**. Exactly one field differs.
+
+- **`usage.outputTokens` — `agent-langchain` is wrong.** It keeps the streamed
+  chunk with the highest `input_tokens`, which is `message_start`, where
+  `output_tokens` is the placeholder `1`. Every scenario reports 1–3 against
+  real counts of 9–707. Output-token metrics persisted to `message.metadata`
+  have therefore been understated for the whole life of the feature; the rewrite
+  fixes this, and stored history stays wrong. Nothing else reads the field, so
+  there is no behavioural consequence beyond reporting.
+
+Two bugs in the rewrite surfaced through the diff and are fixed:
+
+- **Input tokens must include cached tokens.** Anthropic reports `input_tokens`
+  as the _uncached remainder_, with `cache_creation_input_tokens` and
+  `cache_read_input_tokens` split out. `AgentUsage.inputTokens` means context
+  size — `CompactionService.maybeCompact()` compares it against a threshold — so
+  the three are summed. Reporting the remainder alone (4 instead of 5903 on
+  `web-search`) would have silently stopped external compaction from ever
+  triggering. Pinned by a regression test.
+- **An empty thinking block must not claim a part index.** Adaptive thinking can
+  return a block carrying only a signature; allocating its part index at
+  `content_block_start` shifted the text part to index 1. The index is now
+  claimed on the first non-empty delta.
 
 **Fixture gap found while wiring the suite.** `thinking-adaptive` records a
 thinking block whose `thinking_delta` payloads are all empty — with
@@ -431,21 +464,32 @@ the non-empty path. Re-record at a higher effort level to replace it.
 
 ## Phase 3 — Cutover and removal of `agent-langchain`
 
-- [ ] Add `DF_AGENT_PROVIDER` (default `anthropic`) and select the provider in
-      `packages/backend/src/main.ts` via dynamic `import()`, so an unused SDK is
-      never loaded. Each provider package exports
-      `createAgent(config): IAgentProvider`.
-- [ ] Run both providers side by side against the fixtures and the conformance
-      suite; diff emitted `AgentStreamChunk` sequences.
+A **hard cutover**: `backend` swaps one import and `agent-langchain` is deleted
+in the same change. No provider switch is introduced for it — both providers
+target Anthropic, so a selector between them would only describe which client
+library is in use, and it would be removed again immediately.
+`DF_AGENT_PROVIDER` is reserved for a genuinely different vendor (e.g. a future
+`agent-openai`) and should be added when there is one, not before.
+
+The cross-provider comparison that justified a parallel run is already done (see
+the divergence catalogue above), so the remaining risk is in persisted data and
+end-to-end behaviour rather than in chunk semantics.
+
 - [ ] Verify persisted-data compatibility against a dump from a live test
       deployment: existing threads with thinking, tool-call, and compaction
-      parts must render and replay identically.
+      parts must render and replay identically. **Needs a dump from the user.**
+- [ ] Swap the `backend` import to `@datonfly-assistant/agent-anthropic` and map
+      `BackendConfig.agent.anthropic` onto `providerOptions`.
+- [ ] Decide the prompt-cache defaults to ship (`cacheTailMessages`,
+      `cacheTtl`), and whether to expose them as `DF_ANTHROPIC_*` variables.
 - [ ] Run the relevant e2e specs individually (not the whole suite — LLM rate
       limits cause spurious failures): `tests/chat-response.spec.ts`,
       `tests/attachment-context.spec.ts`, `tests/multiuser-interrupt.spec.ts`,
       `tests/thread-history.spec.ts`.
-- [ ] Flip the default provider.
-- [ ] Delete `packages/agent-langchain`.
+- [ ] Delete `packages/agent-langchain`, including the fixture recorder. Move
+      `recording-proxy.ts` / `record-fixtures.ts` into `agent-anthropic` first
+      if re-recording fixtures should stay possible — otherwise that capability
+      goes with the package.
 - [ ] Remove the dead `@langchain/core` dependencies from `backend`,
       `chat-client`, `chat-ui-mui`, and `frontend` `package.json`.
 - [ ] Update workspace plumbing: `pnpm-workspace.yaml`, `turbo.json`, tsconfig

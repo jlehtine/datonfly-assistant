@@ -1,0 +1,60 @@
+{
+    "scenario": "thinking-summarized",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": {
+            "connection": "keep-alive",
+            "accept": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-timeout": "600",
+            "x-stainless-lang": "js",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-os": "Linux",
+            "x-stainless-arch": "x64",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v24.12.0",
+            "anthropic-dangerous-direct-browser-access": "true",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "accept-language": "*",
+            "sec-fetch-mode": "cors",
+            "accept-encoding": "gzip, deflate",
+            "content-length": "327"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "stream": true,
+            "max_tokens": 1024,
+            "thinking": {
+                "type": "adaptive",
+                "display": "summarized"
+            },
+            "output_config": {
+                "effort": "low"
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "A farmer has 17 sheep; all but 9 run away. How many are left? Think it through.",
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-opus-5\",\"id\":\"msg_011CdqwYBMcP37jfzfBqoZFv\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":36,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":2,\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}       }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}         }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"Let me work through this. \"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"First the premise, \"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"then the conclusion.\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"CAISjgIKhwEIEBgCKkCnSbofWm8Ksc5Is8kVDV2bC2XW6z8ccSllY4le5rXBURTQ4eEbUl0ntJ2LsQOaGhhbbnfCqB3mMND5L9yE0/7NMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ3NzhjY2NjZC00ZTEyLTQ2NTQtOWYwZC0zMDg0ZmE3ZWMzZjMSDGWrxPJPuM6w3PJstBoMW3lLngy4znetHJORIjByZ02A2SAf6jXrdQYrE7SeI50NaBi6VFnukaJU8Z7SlrymPrgVCP52vbhgmXt1yucqNONU46o4sLrWJlPaQGl+ABC6Zlf7bNYqWr8QP94bYqXtUsR+dAW0qI/OGqWHTaVjjD5X+QEYAQ==\"}            }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0     }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\"}            }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"**9 sheep are left.**\\n\\nHere's the reasoning: the phrase \\\"all but 9 run away\\\" means *every\"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\" sheep except 9* ran away. So the 9 are precisely the ones that stayed.\\n\\nThe trap is that the number 17 tempts you to subtract \u2014 17 \u2212 9 =\"}       }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\" 8. But that would be the answer to \\\"9 ran away, how many are left?\\\" Here, 9 is the number *remaining*, not the number f\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"leeing. (Incidentally, 8 is how many ran off \u2014 the 17 is only needed if that's what you wanted to know.)\"}       }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1          }\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null},\"usage\":{\"input_tokens\":36,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":196,\"output_tokens_details\":{\"thinking_tokens\":18}}       }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"    }\n\n"
+    }
+}

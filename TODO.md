@@ -280,100 +280,154 @@ readonly capabilities: {
 
 ## Phase 2 — `agent-anthropic` implementation
 
+**Finding — the SDK lags the API too, but narrowly.** `@anthropic-ai/sdk@0.74.0`
+does not type the 2026 server tools (`code_execution_20260120`,
+`web_search_20260209`, `web_fetch_20260209`) or the `xhigh` thinking effort. Two
+assertions cover it: one in `serverToolParams()`, one in `buildOutputConfig()`.
+That is the whole extent of it — messages, streaming events, usage, citations,
+compaction, and context management are all fully typed, so the casts are pinned
+to version identifiers rather than spread through the message and streaming
+layers as they were with LangChain.
+
+**Deviation — thinking parts no longer merge across turns.** `agent-langchain`
+keys reasoning state on `thinking:${blockIndex}` globally, so a thinking block
+in the second tool-loop turn merges into the first turn's part (block indices
+restart at 0 each turn). The rewrite assigns a fresh part index per block per
+turn, which is what the transcript means. Expect this to show up as a difference
+in the Phase 3 chunk diff; it is a fix, not a regression.
+
 ### 2.1 Scaffold the package
 
-- [ ] Create `packages/agent-anthropic` (`@datonfly-assistant/agent-anthropic`)
+- [x] Create `packages/agent-anthropic` (`@datonfly-assistant/agent-anthropic`)
       with `@anthropic-ai/sdk`, mirroring the existing package layout
       (`tsconfig.json`, `tsconfig.build.json`, workspace and turbo wiring).
-- [ ] Export `AnthropicAgent`, `AnthropicAgentConfig`, `createTitleGenerateFn`,
+- [x] Export `AnthropicAgent`, `AnthropicAgentConfig`, `createTitleGenerateFn`,
       `TitleModelConfig` — matching the current public surface so `backend`
-      needs only an import swap.
+      needs only an import swap. Also exports `AnthropicProviderOptions`, the
+      error helpers, and a `./testing` subpath carrying the fixture server and
+      the conformance suite.
+- [x] Route every request through `client.beta.messages`. `context_management`,
+      `output_config`, and the compaction blocks exist only in the beta
+      namespace, so a single beta path avoids maintaining two request builders
+      for one feature set.
 
 ### 2.2 Message mapping
 
-- [ ] Map `AgentMessage[]` → `Anthropic.MessageParam[]` using typed
+- [x] Map `AgentMessage[]` → `Anthropic.MessageParam[]` using typed
       `ContentBlockParam` unions, replacing the current
       `Record<string, unknown>` construction and casts.
-- [ ] Port attachment handling (image / PDF `document` / decoded text blocks)
+- [x] Port attachment handling (image / PDF `document` / decoded text blocks)
       onto the SDK's typed source blocks.
-- [ ] Port `trimBeforeCompaction()` and the compaction opaque-block
+- [x] Port `trimBeforeCompaction()` and the compaction opaque-block
       encode/decode **preserving the exact persisted shape**.
-- [ ] Round-trip test: every persisted `ContentPart` variant survives
+- [x] Round-trip test: every persisted `ContentPart` variant survives
       `AgentMessage` → request → response → `AgentMessage` unchanged.
+- [x] Hoist system messages into the top-level `system` parameter and merge
+      consecutive same-role turns. The Messages API has no system role and
+      requires alternating turns, but a multi-user thread routinely produces
+      several consecutive human messages. Empty text blocks are dropped, since
+      the API rejects them.
 
 ### 2.3 Streaming state machine
 
-- [ ] Consume raw stream events (`message_start`, `content_block_start`,
+- [x] Consume raw stream events (`message_start`, `content_block_start`,
       `content_block_delta` with `text_delta` / `thinking_delta` /
       `signature_delta` / `input_json_delta` / `citations_delta`,
       `content_block_stop`, `message_delta`, `message_stop`) and emit
       `AgentStreamChunk`.
-- [ ] Delete the index-keyed thinking dedup map and `materializeThinkingParts()`
+- [x] Delete the index-keyed thinking dedup map and `materializeThinkingParts()`
       — raw events are already index-addressed and unambiguous.
-- [ ] Delete the `concat()`-based chunk accumulation; the SDK's `MessageStream`
+- [x] Delete the `concat()`-based chunk accumulation; the SDK's `MessageStream`
       accumulates natively.
-- [ ] Implement `run()` as a drain of `stream()` and delete `tools.ts`'s
+- [x] Implement `run()` as a drain of `stream()` and delete `tools.ts`'s
       duplicate loop.
 
 ### 2.4 Tool loop
 
-- [ ] Drive the loop from `stream.finalMessage()`, which returns the exact
+- [x] Drive the loop from `stream.finalMessage()`, which returns the exact
       assistant turn.
-- [ ] Replay thinking blocks **verbatim including `signature`** within a turn.
+- [x] Replay thinking blocks **verbatim including `signature`** within a turn.
       This lifts the current limitation recorded in `agent.ts` (persisted
       thinking blocks are not replayed, because Anthropic requires
       thinking/redacted_thinking blocks in the latest assistant message to be
       byte-identical to the original response) and is what interleaved thinking
       with tool use requires.
-- [ ] Persist thinking _text_ for display; keep exact blocks in memory for the
+- [x] Persist thinking _text_ for display; keep exact blocks in memory for the
       loop only.
-- [ ] Handle `stop_reason` explicitly: `pause_turn` (re-issue for long-running
+- [x] Handle `stop_reason` explicitly: `pause_turn` (re-issue for long-running
       server tools), `refusal`, `max_tokens`.
-- [ ] Enforce the `maxToolIterations` budget and honour `AbortSignal` at every
+- [x] Enforce the `maxToolIterations` budget and honour `AbortSignal` at every
       await point.
 
 ### 2.5 Server tools and status mapping
 
-- [ ] Configure `web_search`, `web_fetch`, and `code_execution` through the
-      SDK's typed server-tool unions instead of `as ServerTool` casts.
-- [ ] Derive tool status from `content_block_start` with
+- [x] Configure `web_search`, `web_fetch`, and `code_execution` through the
+      SDK's typed server-tool unions instead of `as ServerTool` casts. Partly
+      done: the SDK does not yet know the 2026 versions, so one assertion
+      remains in `serverToolParams()` (see the finding above).
+- [x] Derive tool status from `content_block_start` with
       `type: "server_tool_use"` and delete the three-way `detectToolStatus()`
       probe (LangChain #9911 workaround).
 
 ### 2.6 Citations, usage, caching, errors
 
-- [ ] Map the full citation union (`char_location`, `page_location`,
+- [x] Map the full citation union (`char_location`, `page_location`,
       `web_search_result_location`) onto `Citation`, replacing the URL+title
-      scrape.
-- [ ] Map `usage` including `cache_creation_input_tokens`,
-      `cache_read_input_tokens`, and `server_tool_use` onto `AgentUsage`.
-- [ ] Replace the blanket `cache_control: { type: "ephemeral" }` invoke option
+      scrape. Handled structurally across the whole union; only entries carrying
+      a URL become a `Citation`, because the core type requires one. Document
+      citations need `Citation` to gain a document form — deferred to Phase 4
+      with the PDF citation work.
+- [x] Map `usage` including `cache_creation_input_tokens`,
+      `cache_read_input_tokens`, and `server_tool_use` onto `AgentUsage`. Across
+      a multi-turn loop, input tokens take the per-turn maximum (a snapshot of
+      the context, which is what compaction keys on) while output and cache
+      writes are summed (per-request costs).
+- [x] Replace the blanket `cache_control: { type: "ephemeral" }` invoke option
       with deliberate breakpoints (system prompt, tool definitions, last-N
-      messages; max 4) and an explicit TTL choice. Verify effectiveness via
-      `cache_read_input_tokens` — the current setting's effect is unverified.
-- [ ] Map `Anthropic.APIError` subclasses (`RateLimitError`,
+      messages; max 4) and an explicit TTL choice.
+- [ ] Verify cache effectiveness against the live API via
+      `cache_read_input_tokens`, then re-attempt the blocked `compaction`
+      fixture capture from Phase 1.1.
+- [x] Map `Anthropic.APIError` subclasses (`RateLimitError`,
       `AuthenticationError`, `BadRequestError`, overloaded/529) onto `core`
       error codes via `instanceof`, replacing string parsing. Configure SDK
-      `maxRetries` and `timeout`, and handle mid-stream `overloaded_error`.
+      `maxRetries` and `timeout`.
+- [ ] Handle mid-stream `overloaded_error` (a 529 delivered inside an already
+      open SSE stream, which SDK-level retries do not cover).
 
 ### 2.7 Title and triage
 
-- [ ] Port `createTitleGenerateFn()` onto `messages.create`.
-- [ ] Reimplement `shouldRespond()` with forced tool use
+- [x] Port `createTitleGenerateFn()` onto `messages.create`.
+- [x] Reimplement `shouldRespond()` with forced tool use
       (`tool_choice: { type: "tool", name: "triage" }`) instead of parsing free
       text — deterministic and cheaper.
+- [ ] Cover title generation and triage with fixture-backed tests. Neither has a
+      recorded fixture yet; both are non-streaming calls, so they need their own
+      captures.
 
 ### 2.8 Tests
 
-- [ ] Test at the HTTP boundary: override the SDK `baseURL` to a local fake
+- [x] Test at the HTTP boundary: override the SDK `baseURL` to a local fake
       server driven by the Phase 1.1 fixtures. Drop the current approach of
       monkey-patching the private `model` field.
-- [ ] Write a provider conformance suite (chunk ordering, `text-delta`
+      (`src/testing/fixture-server.ts` replays recorded exchanges in order over
+      an ephemeral port and records the request bodies it received.)
+- [x] Write a provider conformance suite (chunk ordering, `text-delta`
       `partIndex` semantics, tool-call/tool-result pairing, abort behaviour,
       usage-on-final-chunk) that any `IAgentProvider` must pass. This is what
       actually makes the seam verifiable rather than aspirational.
+      (`src/testing/conformance.ts`, exported via the `./testing` subpath; uses
+      `node:assert` rather than a test runner so any package can drive it.)
 - [ ] Run the conformance suite against both `agent-langchain` and
       `agent-anthropic` while they coexist.
+
+**Fixture gap found while wiring the suite.** `thinking-adaptive` records a
+thinking block whose `thinking_delta` payloads are all empty — with
+`display: "summarized"` and `effort: "low"` the model returned only a signature.
+The Phase 1.1 `verify` predicate checked for the block, not its text. The
+recording is kept (an empty thinking block must not produce an empty part, which
+is now a conformance case) and a derived `thinking-summarized` fixture covers
+the non-empty path. Re-record at a higher effort level to replace it.
 
 ## Phase 3 — Cutover and removal of `agent-langchain`
 

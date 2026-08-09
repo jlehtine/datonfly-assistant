@@ -97,22 +97,23 @@ personal content that does not belong in the repository.
 
 ## Scenarios
 
-| Fixture             | Exercises                                                                  |
-| ------------------- | -------------------------------------------------------------------------- |
-| `plain-text`        | Plain streamed text; no tools, no thinking.                                |
-| `thinking-adaptive` | Adaptive thinking with summarized reasoning blocks.                        |
-| `web-search`        | Server-side `web_search`, including citation blocks. Needs server tools.   |
-| `web-fetch`         | Server-side `web_fetch` against a URL from the prompt. Needs server tools. |
-| `code-execution`    | Server-side `code_execution`. Needs server tools.                          |
-| `tool-loop`         | Multi-iteration local tool loop (two dependent calls).                     |
-| `attachment-image`  | Image attachment → `image` block.                                          |
-| `attachment-pdf`    | PDF attachment → `document` block.                                         |
-| `attachment-text`   | Text attachment decoded and inlined as a text block.                       |
-| `compaction`        | Provider-side compaction. **Not captured** — see below.                    |
-| `abort-mid-stream`  | Caller aborts partway through the response.                                |
-| `error-400`         | Invalid request rejected by the API.                                       |
-| `error-429`         | Rate limit. **Synthetic** — see below.                                     |
-| `error-529`         | Overloaded. **Synthetic** — see below.                                     |
+| Fixture               | Exercises                                                                  |
+| --------------------- | -------------------------------------------------------------------------- |
+| `plain-text`          | Plain streamed text; no tools, no thinking.                                |
+| `thinking-adaptive`   | Adaptive thinking whose summary came back **empty** — see below.           |
+| `thinking-summarized` | Thinking with reasoning text. **Synthetic** — see below.                   |
+| `web-search`          | Server-side `web_search`, including citation blocks. Needs server tools.   |
+| `web-fetch`           | Server-side `web_fetch` against a URL from the prompt. Needs server tools. |
+| `code-execution`      | Server-side `code_execution`. Needs server tools.                          |
+| `tool-loop`           | Multi-iteration local tool loop (two dependent calls).                     |
+| `attachment-image`    | Image attachment → `image` block.                                          |
+| `attachment-pdf`      | PDF attachment → `document` block.                                         |
+| `attachment-text`     | Text attachment decoded and inlined as a text block.                       |
+| `compaction`          | Provider-side compaction. **Not captured** — see below.                    |
+| `abort-mid-stream`    | Caller aborts partway through the response.                                |
+| `error-400`           | Invalid request rejected by the API.                                       |
+| `error-429`           | Rate limit. **Synthetic** — see below.                                     |
+| `error-529`           | Overloaded. **Synthetic** — see below.                                     |
 
 ### Verification
 
@@ -135,12 +136,24 @@ reported and **not written** rather than becoming a misleading baseline.
 Only adaptive thinking is captured, because it is the only mode that exists: the
 Claude 5 generation rejects `thinking.type: "enabled"` outright, and the manual
 budget option was dropped from the product rather than kept for older models.
-`thinking-adaptive` carries `thinking_delta` and `signature_delta`, which is
-what the signature-preserving replay in Phase 2.4 needs.
+
+`thinking-adaptive` carries a `thinking` block with a `signature_delta` — which
+is what the signature-preserving replay in Phase 2.4 needs — but **its
+`thinking_delta` payloads are empty**. With `display: "summarized"` and
+`effort: "low"` the model returned a block holding only a signature. The capture
+verified the block's presence, not its text, so the gap only surfaced when the
+rewrite consumed the fixture.
+
+It is kept as recorded, because the empty case is worth pinning: an empty
+thinking block must not surface as an empty thinking part. `thinking-summarized`
+covers the non-empty path — derived from this recording's envelope with
+reasoning text injected into the deltas. Re-record `thinking-adaptive` at a
+higher effort level to replace it with a genuine summarized capture.
 
 ### Synthetic fixtures
 
 `error-429` and `error-529` cannot be triggered on demand, so they are written
 by hand from Anthropic's documented error shapes and marked with
-`"synthetic": true`. Treat them as a description of the contract rather than a
+`"synthetic": true`. `thinking-summarized` is likewise derived rather than
+recorded (see above). Treat them as a description of the contract rather than a
 recording; correct them if a real capture ever contradicts them.

@@ -1,0 +1,44 @@
+{
+    "name": "@datonfly-assistant/agent-anthropic",
+    "version": "0.0.1",
+    "type": "module",
+    "publishConfig": {
+        "registry": "https://npm.jlehtinen.net/"
+    },
+    "files": [
+        "dist"
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./testing": {
+            "types": "./dist/testing/index.d.ts",
+            "import": "./dist/testing/index.js"
+        }
+    },
+    "scripts": {
+        "clean": "rm -rf dist",
+        "build": "tsc --project tsconfig.build.json",
+        "dev": "tsc --watch --project tsconfig.build.json",
+        "test": "vitest run --dir src",
+        "lint": "eslint src/",
+        "lint:fix": "eslint src/ --fix"
+    },
+    "dependencies": {
+        "@anthropic-ai/sdk": "^0.74.0"
+    },
+    "peerDependencies": {
+        "@datonfly-assistant/core": "workspace:*"
+    },
+    "devDependencies": {
+        "@datonfly-assistant/core": "workspace:*",
+        "@types/node": "^25.5.2",
+        "typescript": "^6.0.2",
+        "vitest": "^4.1.2",
+        "zod": "^4.3.6"
+    }
+}

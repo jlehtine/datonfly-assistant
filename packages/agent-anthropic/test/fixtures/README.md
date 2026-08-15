@@ -104,24 +104,26 @@ personal content that does not belong in the repository.
 
 ## Scenarios
 
-| Fixture               | Exercises                                                                  |
-| --------------------- | -------------------------------------------------------------------------- | --- | -------- | ----------------------------------------------------------------------- |
-| `plain-text`          | Plain streamed text; no tools, no thinking.                                |
-| `thinking-adaptive`   | Adaptive thinking whose summary came back **empty** — see below.           |
-| `thinking-summarized` | Thinking with reasoning text. **Synthetic** — see below.                   |
-| `web-search`          | Server-side `web_search`, including citation blocks. Needs server tools.   |
-| `web-fetch`           | Server-side `web_fetch` against a URL from the prompt. Needs server tools. |
-| `code-execution`      | Server-side `code_execution`. Needs server tools.                          |
-| `tool-loop`           | Multi-iteration local tool loop (two dependent calls).                     |
-| `attachment-image`    | Image attachment → `image` block.                                          |
-| `attachment-pdf`      | PDF attachment → `document` block.                                         |
-| `attachment-text`     | Text attachment decoded and inlined as a text block.                       |
-| `compaction`          | Provider-side compaction, in two exchanges — see below.                    |
-| `abort-mid-stream`    | Caller aborts partway through the response.                                |
-| `error-400`           | Invalid request rejected by the API.                                       |
-| `error-429`           | Rate limit. **Synthetic** — see below.                                     |
-| `error-529`           | Overloaded. **Synthetic** — see below.                                     |     | `triage` | Non-streaming `shouldRespond()` classification through forced tool use. |
-| `title`               | Non-streaming `generateTitle()` call.                                      |
+| Fixture                 | Exercises                                                                  |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `plain-text`            | Plain streamed text; no tools, no thinking.                                |
+| `thinking-adaptive`     | Adaptive thinking whose summary came back **empty** — see below.           |
+| `thinking-summarized`   | Thinking with reasoning text. **Synthetic** — see below.                   |
+| `web-search`            | Server-side `web_search`, including citation blocks. Needs server tools.   |
+| `web-fetch`             | Server-side `web_fetch` against a URL from the prompt. Needs server tools. |
+| `code-execution`        | Server-side `code_execution`. Needs server tools.                          |
+| `tool-loop`             | Multi-iteration local tool loop (two dependent calls).                     |
+| `attachment-image`      | Image attachment → `image` block.                                          |
+| `attachment-pdf`        | PDF attachment → `document` block.                                         |
+| `attachment-text`       | Text attachment decoded and inlined as a text block.                       |
+| `compaction`            | Provider-side compaction, in two exchanges — see below.                    |
+| `abort-mid-stream`      | Caller aborts partway through the response.                                |
+| `error-400`             | Invalid request rejected by the API.                                       |
+| `error-429`             | Rate limit. **Synthetic** — see below.                                     |
+| `error-529`             | Overloaded (top-level, at connection time). **Synthetic** — see below.     |
+| `overloaded-mid-stream` | Overloaded _inside_ an open stream. **Synthetic** — see below.             |
+| `triage`                | Non-streaming `shouldRespond()` classification through forced tool use.    |
+| `title`                 | Non-streaming `generateTitle()` call.                                      |
 
 ### Verification
 
@@ -182,3 +184,37 @@ by hand from Anthropic's documented error shapes and marked with
 `"synthetic": true`. `thinking-summarized` is likewise derived rather than
 recorded (see above). Treat them as a description of the contract rather than a
 recording; correct them if a real capture ever contradicts them.
+
+### Mid-stream overload
+
+`overloaded-mid-stream` cannot be triggered on demand either, and unlike
+`error-529` it cannot be a top-level HTTP status: the connection has to succeed
+(200, `text/event-stream`) before the SSE body itself carries an `event: error`
+frame with `overloaded_error`, which is what makes it invisible to the SDK's own
+request-level retries. The fixture is hand-written: `message_start`, a complete
+and **signed** `thinking` block, then a `text` block cut off partway through,
+followed by the error frame instead of `content_block_stop`/`message_stop`.
+
+Established empirically against the live API
+(`src/fixtures/continuation-experiment.ts`,
+`pnpm --filter @datonfly-assistant/agent-anthropic experiment:continuation`)
+before this fixture and the retry it drives were written:
+
+- **Assistant message prefill is rejected outright** —
+  `"This model does not support assistant message prefill. The conversation must end with a user message."`
+  — reproduced with thinking disabled, so it is a model-level rule, not an
+  extended-thinking interaction. A retry therefore has to end with a synthetic
+  `user` turn asking the model to continue, not just replay the partial
+  assistant turn.
+- **A `thinking` block is only replayable once signed.** The signature arrives
+  in `signature_delta` at `content_block_stop`; a block still open at the cut
+  has none, and replaying it gets `"Invalid signature in thinking block"`. Plain
+  text has no such constraint and replays whether or not its block closed —
+  confirmed by capturing a real cut mid-text-block and replaying exactly that
+  partial text successfully.
+- **The seam is only clean if the continuation instruction quotes the exact
+  trailing text.** A generic "please continue" produced a garbled join; naming
+  the last ~120 characters verbatim made the model resume **mid-word**.
+
+Pair `overloaded-mid-stream` with a normal fixture (e.g. `plain-text`) as the
+second exchange to play the retried request's response.

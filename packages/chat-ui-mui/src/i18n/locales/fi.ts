@@ -95,6 +95,7 @@ const fi: FlatKeys<typeof en> = {
         tool_code_execution: "Suoritetaan koodia…",
         tool_web_fetch: "Haetaan sivua…",
         tool_web_search: "Haetaan verkosta…",
+        retrying_overloaded: "Palvelin ylikuormittunut, yritetään uudelleen…",
         unspecified: "Työskentelee…",
     },
 

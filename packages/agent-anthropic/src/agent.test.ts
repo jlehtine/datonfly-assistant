@@ -213,6 +213,63 @@ describe("AnthropicAgent provider-side compaction", () => {
     });
 });
 
+describe("AnthropicAgent mid-stream overload recovery", () => {
+    it("retries with the salvaged partial turn and appends the continuation", async () => {
+        await withServer(["overloaded-mid-stream", "plain-text"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("Explain how a bicycle derailleur works.")]);
+
+            expect(server.requests).toHaveLength(2);
+
+            const retrying = chunks.filter(
+                (chunk) => chunk.type === "status" && chunk.status === "retrying_overloaded",
+            );
+            expect(retrying).toHaveLength(1);
+
+            // The salvaged text from the interrupted attempt and the retry's
+            // answer are both plain text-delta chunks, so they land in the same
+            // final text part with nothing in between — a seamless join.
+            const partialText =
+                "A derailleur is a mechanical arm that pushes the chain sideways off one sprocket and onto";
+            const text = joinText(chunks);
+            expect(text.startsWith(partialText)).toBe(true);
+            expect(text.length).toBeGreaterThan(partialText.length);
+
+            // The retried request replays the signed thinking block and the
+            // salvaged text, then an ephemeral continuation instruction quoting
+            // the exact cutoff — never the original user message repeated verbatim.
+            const retried = server.requests[1]?.messages as { role: string; content: unknown }[];
+            const assistantTurn = retried.find((message) => message.role === "assistant");
+            const assistantBlocks = assistantTurn?.content as { type: string; text?: string; signature?: string }[];
+            expect(assistantBlocks.map((block) => block.type)).toEqual(["thinking", "text"]);
+            expect(assistantBlocks[0]?.signature).toBe("fixture-signature-overloaded-01");
+            expect(assistantBlocks[1]?.text).toBe(partialText);
+
+            const lastTurn = retried[retried.length - 1];
+            expect(lastTurn?.role).toBe("user");
+            const instruction = lastTurn?.content as { type: string; text?: string }[] | string as unknown;
+            const instructionText =
+                typeof instruction === "string"
+                    ? instruction
+                    : ((instruction as { type: string; text?: string }[])[0]?.text ?? "");
+            expect(instructionText).toContain(partialText.slice(-30));
+            expect(instructionText).toContain("overload");
+        });
+    });
+
+    it("throws once retries are exhausted, without ever losing the salvage-based structure", async () => {
+        await withServer(["overloaded-mid-stream"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            await expect(
+                collectChunks(agent, [userMessage("Explain how a bicycle derailleur works.")]),
+            ).rejects.toThrow();
+
+            // One initial attempt plus two retries (bounded), then give up.
+            expect(server.requests).toHaveLength(3);
+        });
+    });
+});
+
 describe("AnthropicAgent.run", () => {
     it("returns the same text the stream emitted", async () => {
         const messages: AgentMessage[] = [userMessage("Say hello.")];

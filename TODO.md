@@ -211,10 +211,113 @@ ratio between them is under 10x, which is false for an Opus-class main model.
 Revisit only if the main model becomes Sonnet-class, and only after this
 refactor makes it expressible.
 
+### 4. Handle mid-stream `overloaded_error`
+
+A 529 delivered _inside_ an already open SSE stream, which SDK-level retries do
+not cover: those only apply to the initial HTTP response, and by the time the
+stream is flowing the status is long since 200. The SDK surfaces it from
+`core/streaming.mjs` as a bare `new APIError(undefined, body, …)` — **not**
+`InternalServerError` or `RateLimitError`, which only come from
+`APIError.generate()` on a real HTTP status. So `error.status` is `undefined`
+and `instanceof` is useless; detection has to read
+`error.error.error.type === "overloaded_error"`, which the existing
+`readErrorType()` helper in `errors.ts` already does.
+
+Today this surfaces as a generic failure and **the partial answer is discarded**
+— `runStream()`'s catch block persists nothing — after the user has already
+watched it stream in.
+
+#### Verified API constraints
+
+Established empirically against `claude-opus-5` with
+`packages/agent-anthropic/src/fixtures/continuation-experiment.ts`
+(`pnpm --filter @datonfly-assistant/agent-anthropic experiment:continuation`),
+kept as a live record alongside `compaction-experiment.ts`:
+
+| Strategy                                              | Result                                              |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| Prefill (assistant turn last, model continues it)     | ❌ 400 `does not support assistant message prefill` |
+| Partial assistant turn + ephemeral user instruction   | ✅ accepted                                         |
+| …replaying a **signed** `thinking` block alongside it | ✅ accepted                                         |
+| …replaying an **unsigned** `thinking` block           | ❌ 400 `Invalid signature in thinking block`        |
+
+Three consequences fix the design:
+
+- **Prefill is off the table.** The rejection reproduces with thinking
+  _disabled_, so it is a model-level rule ("the conversation must end with a
+  user message"), not an extended-thinking interaction. A synthetic user turn is
+  therefore mandatory, not a stylistic choice.
+- **Thinking blocks are replayable only once signed.** The `signature` arrives
+  in `signature_delta` at `content_block_stop`, so a block still open at the cut
+  has none and must be dropped. (An earlier version of the experiment read the
+  signature from `content_block_start`, where it is absent, and wrongly
+  concluded that signed replay fails — worth remembering when re-running it.)
+- **The seam can be made character-perfect.** A generic "please continue"
+  produced garbage at the join (`"it pulls o"` ➕
+  `"...ic systems), which moves"`). Quoting the exact trailing text in the
+  instruction fixed it completely — the model resumed **mid-word**:
+  `"…pulls or rele"` ➕ `"ases tension, and a spring…"`. Trimming back to a
+  sentence boundary also joins cleanly but requires retracting text the user
+  already saw, so it is strictly worse and is not used.
+
+Because the answer can be continued and appended verbatim, no protocol or
+persistence change is needed: no partial-output replacement, no permanent error
+marker, no new `ContentPart` type. The retry is invisible in the transcript.
+
+#### Plan
+
+- [x] Add `isOverloadedError(error)` to `agent-anthropic/src/errors.ts`, reading
+      the Anthropic error `type` rather than matching an SDK error class.
+- [x] Track salvageable partial content per attempt in `stream.ts`: all text
+      (completed or still open at the cut — proven safe to replay either way),
+      plus thinking blocks that reached `content_block_stop` with a non-empty
+      signature. An open/unsigned thinking block is dropped; other block types
+      (`tool_use`, `server_tool_use`, …) are not salvaged at all.
+- [x] On a mid-stream overload, retry the turn with
+      `[…conversation, assistant(salvaged), user(continuation instruction)]`.
+      The instruction quotes the last ~120 characters verbatim and forbids
+      repetition or preamble. It is ephemeral: never yielded as a chunk, never
+      persisted, never shown.
+- [x] When nothing salvageable was produced, retry the turn as-is instead — the
+      simple restart case, with no synthetic turn.
+- [x] Bound the retries (2, short exponential backoff: 500ms then 1000ms) and
+      honour the abort signal while waiting, so a user interrupt is not delayed
+      by a sleep.
+- [x] Keep usage accounting correct across the retry: the abandoned attempt's
+      output tokens were still billed, so they add to the total, while
+      `inputTokens` stays a max rather than a sum.
+- [x] Add a `"retrying_overloaded"` value to `StatusCode` in
+      `core/src/types/status-code.ts` and emit it as a `StatusChunk` before each
+      retry. This reuses the existing `MessageStatusEvent` path end to end — no
+      new event type, no `chat-server` change, no frontend change. The client
+      clears it on the next delta, which is exactly the desired behaviour.
+- [x] Add an `i18n` label for the new status code wherever the existing `tool_*`
+      status codes are translated.
+- [x] Synthetic fixture `overloaded-mid-stream` (hand-written like `error-429` /
+      `error-529`, marked `"synthetic": true`): `message_start` plus some text
+      deltas, then an `event: error` SSE frame carrying `overloaded_error`. Pair
+      it with a normal fixture as the retry response, and assert the
+      continuation request's shape — salvaged assistant turn, quoted-tail
+      instruction, no unsigned thinking block — plus that the chunk stream
+      carries the status and the concatenated text.
+- [x] Document the scenario and the prefill/signature constraints in
+      `test/fixtures/README.md`.
+
+**Done.** All retry logic lives in `agent-anthropic/src/stream.ts`, transparent
+to `IAgentProvider`/`chat-server` — no interface, persistence, or protocol
+changes. Two fixture-backed tests cover it: a successful retry (asserts the
+salvaged assistant turn's exact shape, the quoted-tail instruction, and that the
+final text is the salvaged partial text with the retry's answer appended with
+nothing in between) and exhausted retries (asserts exactly 3 requests — 1
+initial + 2 retries — then the call rejects). Build, lint, and all 116 unit
+tests across every package pass. **Deliberately out of scope:** persisting
+partial output when retries are _exhausted_. That is a real gap (the answer is
+dropped today) but it needs the permanent-error-marker discussion — `metadata`
+flag versus a new notice `ContentPart` — and is independent of making the retry
+work. Revisit separately.
+
 ### Other open items
 
-- [ ] Handle mid-stream `overloaded_error` (a 529 delivered inside an already
-      open SSE stream, which SDK-level retries do not cover).
 - [ ] E2E coverage for reasoning, provider-side compaction, and server-side
       tools. Nothing exercises these end to end; they are covered only by
       fixture replay. The obstacle is that the suite shares a single assistant

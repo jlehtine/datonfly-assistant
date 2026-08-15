@@ -84,6 +84,20 @@ export function isAbortError(error: unknown): boolean {
 }
 
 /**
+ * Whether a caught value is a mid-stream `overloaded_error`.
+ *
+ * The SDK throws this straight from the SSE `event: error` frame as a bare
+ * `APIError` with `status: undefined` (see `core/streaming.mjs`) — it is not
+ * `RateLimitError`/`InternalServerError`, which only come from
+ * `APIError.generate()` on a real HTTP status. So detection has to read the
+ * Anthropic error `type` out of the body instead of using `instanceof`.
+ */
+export function isOverloadedError(error: unknown): boolean {
+    if (!(error instanceof APIError)) return false;
+    return readErrorType(error.error as unknown) === "overloaded_error";
+}
+
+/**
  * Map a caught value onto a machine-readable {@link ErrorCode}.
  *
  * Lets the gateway report a meaningful reason to the user instead of a generic

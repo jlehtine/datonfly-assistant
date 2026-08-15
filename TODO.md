@@ -52,25 +52,92 @@ These are the follow-ups, in dependency order.
 
 ### 1. Verify provider-side compaction end to end
 
-Compaction has **never been observed working in this application**. The
-`compaction-01` / `compaction-02` fixtures prove the wire protocol, but no live
-thread has produced a compaction block: the development database contains none,
-and `pauseAfterCompaction` defaults to off, so the API compacts internally and
-returns nothing to persist. Every later request then resends the full history to
-be compacted again, which is the opposite of the intended saving.
+**Verified live — compaction works, and `pauseAfterCompaction` should stay
+off.** No fixture had ever exercised the transparent (`pauseAfterCompaction`
+unset) path: every earlier capture set it to `true` from the start, so it was
+never established whether the default path fires against a real conversation at
+all. `packages/agent-anthropic/src/fixtures/compaction-experiment.ts`
+(`pnpm --filter @datonfly-assistant/agent-anthropic experiment:compaction`) runs
+both configurations back to back against the same 6-batch, ~72k-token
+conversation and reports the raw wire facts. Real, billable API calls — record
+selectively.
 
-This has to be settled before step 2 removes the fallback path.
+Anthropic's docs describe two modes for `compact_20260112`, and the experiment
+confirmed both against `claude-opus-5`:
 
-- [ ] Decide whether production sets `pauseAfterCompaction`. It is what makes
-      the stored `OpaqueContentPart` round-trip engage at all, at the cost of
-      one extra round trip on the compacting turn.
-- [ ] Verify on a live thread that crosses the trigger: block returned,
-      persisted as an opaque part, and `trimBeforeCompaction()` shortening the
-      next request.
-- [ ] Verify prompt-cache effectiveness against the live API via
-      `cache_read_input_tokens`. Cache creation and compaction interact — a
-      blanket cache breakpoint previously starved the input-token trigger
-      entirely — so confirm both work together rather than separately.
+- **Default (`pauseAfterCompaction` unset):** compaction happens inside the
+  _same_ request. One HTTP exchange came back with content block types
+  `["compaction", "thinking", "text"]`, `stop_reason: end_turn`, and
+  `usage.iterations` of `["compaction", "message"]` — the summary and the actual
+  answer, together, in a single round trip. `agent.stream()` correctly emitted
+  an `opaque-part` chunk carrying the compaction block.
+- **`pauseAfterCompaction: true`:** two HTTP exchanges. The first returns only
+  the compaction block with `stop_reason: compaction` and
+  `usage: {input: 0, output: 0}` (the real cost is under `usage.iterations`);
+  the second is a full extra round trip to get the answer.
+
+Neither mode needed the disabled path this project never used (`applied_edits`,
+which belongs to `clear_tool_uses` / `clear_thinking`, not to compaction — the
+true signal is `stop_reason: "compaction"` plus the returned block, as already
+reflected in `record-fixtures.ts`'s `verify` predicate).
+
+**Conclusion: keep `pauseAfterCompaction` off (the default).** It buys nothing
+here — nothing needs to preserve specific messages verbatim across a compaction,
+or track a token budget across many compactions, which are the two documented
+reasons to pause — and it costs a guaranteed extra round trip for identical
+output.
+
+- [x] Decide whether production sets `pauseAfterCompaction`. **Off** — see
+      above; correcting an earlier, wrong assumption here that it was required
+      for the `OpaqueContentPart` round-trip to engage at all. It isn't: the
+      block is returned either way, just interleaved with the rest of the
+      response instead of delivered alone.
+- [x] Verify that the SDK/API layer returns a persistable block and that
+      `agent.stream()` maps it to an `opaque-part` chunk on a live conversation
+      that crosses the trigger. Done via the experiment above.
+- [x] Verify the full app-level round trip: a message persisted through
+      `chat-server`, then a _subsequent_ top-level request where
+      `trimBeforeCompaction()` shortens what goes out.
+
+      **Verified live, through the real running app** (not a synthetic script):
+      seeded a thread directly in the dev database with 12 alternating
+      human/ai turns (~144k tokens, confirmed via `countTokens` before spending
+      anything), opened it in the browser, and sent a real message. Compared to
+      the previous unit-level experiment, this exercises the parts that
+      matter for "full app round trip" specifically: persistence load/save,
+      `chat.gateway.ts` streaming, and a genuine second top-level turn.
+
+      | Turn                        | `inputTokens` | `cacheCreation` | `cacheRead` |
+      | ---------------------------- | ------------: | ---------------: | -----------: |
+      | 1 (crosses the trigger)      |        151,188 |           151,098 |             — |
+      | 2 ("What is 2 + 2?")         |          6,834 |               356 |         6,434 |
+
+      Turn 1's persisted message carries the `opaque` compaction part (696
+      chars) followed by the `text` answer, confirming the transparent path
+      persists correctly end to end. Turn 2 — a genuinely new top-level
+      request — dropped from ~151k tokens to ~6.8k: `trimBeforeCompaction()` is
+      finding the compaction message in the persisted history and cutting
+      everything before it, exactly as designed. The compaction summary itself
+      also correctly referred to the user by their configured alias
+      ("MenuAlias"), not their real name — consistent with the privacy-by-default
+      behaviour documented elsewhere.
+
+- [x] Verify prompt-cache effectiveness against the live API via
+      `cache_read_input_tokens`. Confirmed by the same experiment: turn 2 read
+      6,434 of its 6,834 input tokens from cache (94%), and only wrote 356 new
+      tokens — caching and compaction coexist correctly under this provider's
+      deliberate-breakpoint design. Turn 1 also shows compaction firing
+      correctly _despite_ being almost entirely `cacheCreationInputTokens`
+      (151,098 of 151,188), which is worth recording: the trigger check
+      evidently compares total context size, not a "cache miss only" figure —
+      this experiment did not reproduce the earlier finding (recorded against
+      the old LangChain blanket `cache_control`) that caching could starve the
+      trigger. That earlier case may simply have been under threshold rather
+      than an actual interaction bug; not worth chasing further given this
+      provider's design already avoids it.
+
+**Section 1 is now fully verified. Step 2 (removing the in-app fallback) is
+unblocked.**
 
 ### 2. Remove the in-app compaction path
 

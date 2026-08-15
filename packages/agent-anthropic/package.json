@@ -26,6 +26,7 @@
         "dev": "tsc --watch --project tsconfig.build.json",
         "test": "vitest run --dir src",
         "record:fixtures": "pnpm run build && node dist/fixtures/record-fixtures.js",
+        "experiment:compaction": "pnpm run build && node dist/fixtures/compaction-experiment.js",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },

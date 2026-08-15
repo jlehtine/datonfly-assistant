@@ -250,6 +250,22 @@ const SCENARIOS: Scenario[] = [
         messages: compactionConversation(),
     },
     {
+        name: "compaction-transparent",
+        description:
+            "Same trigger as `compaction`, but with pause_after_compaction left unset (the default), " +
+            "to see whether the block is folded into a normal turn instead of stopping it.",
+        providerOptions: {
+            enableCompaction: true,
+            compactionTriggerTokens: COMPACTION_MIN_TRIGGER_TOKENS,
+            // pauseAfterCompaction intentionally omitted — this is the experiment.
+        },
+        requires: "the same multi-turn history as `compaction`",
+        // Only requires a compaction block somewhere; whether stop_reason is
+        // "compaction" or something else is exactly what this capture is for.
+        verify: bodyContains('"type":"compaction"'),
+        messages: compactionConversation(),
+    },
+    {
         name: "abort-mid-stream",
         description: "Stream aborted by the caller partway through the response.",
         verify: (exchanges) =>

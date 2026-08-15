@@ -55,10 +55,6 @@ export interface LoadMessagesOptions {
     limit?: number | undefined;
     /** Return only messages created before this timestamp. */
     before?: Date | undefined;
-    /** Exclude messages marked as compacted (original messages replaced by a summary). */
-    excludeCompacted?: boolean | undefined;
-    /** Exclude compaction summary messages (agent-generated summaries not shown to users). */
-    excludeCompactionSummaries?: boolean | undefined;
 }
 
 /** Options for saving a newly uploaded attachment. */

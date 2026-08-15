@@ -147,19 +147,30 @@ provider reports. Duplicating a capability the provider already offers is not
 worth carrying, and a future provider without compaction would be better served
 by a provider-common implementation than by the current gateway-welded one.
 
-Low data risk: the development database holds zero compacted messages and zero
-compaction summaries, so nothing is stranded. Git history preserves the
-implementation.
+No data risk: checked `metadata->>'compacted'` and
+`metadata->>'compactionSummary'` on `dfa.message` across every existing
+environment (dev and all other test deployments) — zero rows in either,
+everywhere. Confirms this is safe independent of the `agent-anthropic` cutover
+already having made the exclusion filters inert (`capabilities.compaction`
+reports `"provider"`, so `excludeCompacted` has been `false` regardless since
+that rewrite). Git history preserves the implementation.
 
-- [ ] Delete `packages/chat-server/src/compaction.ts` and its wiring in
+- [x] Delete `packages/chat-server/src/compaction.ts` and its wiring in
       `chat.gateway.ts`.
-- [ ] Narrow `AgentCapabilities.compaction` to `"provider" | "none"`.
-- [ ] Remove `excludeCompacted` / `excludeCompactionSummaries` from
+- [x] Narrow `AgentCapabilities.compaction` to `"provider" | "none"`.
+- [x] Remove `excludeCompacted` / `excludeCompactionSummaries` from
       `IPersistenceProvider` and `persistence-pg`, and the `compacted` /
       `compactionSummary` metadata conventions from `chat-server`
       (`messages.ts`, `thread.controller.ts`, `audit-logger.ts`).
-- [ ] Leave the `metadata` column itself alone — it carries usage metrics and
+- [x] Leave the `metadata` column itself alone — it carries usage metrics and
       citations too.
+
+**Done.** `updateMessageMetadata()` / `deleteMessage()` on
+`IPersistenceProvider` were `CompactionService`'s only callers and are now
+unused, but they weren't named in scope above and read as reasonable generic
+persistence primitives rather than compaction-specific — left in place rather
+than expanding this change to remove them too. Build, lint, all 111 unit tests,
+and the `chat-response` / `thread-history` e2e specs pass after the removal.
 
 ### 3. Refactor title generation into the provider API
 

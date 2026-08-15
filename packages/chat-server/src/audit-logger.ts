@@ -13,7 +13,6 @@ export interface AuditData {
     shouldRespond?: boolean | undefined;
     reason?: string | undefined;
     messageCount?: number | undefined;
-    compactedCount?: number | undefined;
     eventName?: string | undefined;
     assistantTextLength?: number | undefined;
     assistantVisibleLength?: number | undefined;

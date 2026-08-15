@@ -55,9 +55,8 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   the host app, or provided through external MCP (Model Context Protocol)
   servers via the `DF_MCP_SERVERS` configuration.
 - **Context management** — Long conversations are automatically compacted to
-  stay within context limits. Compaction can be handled natively by the AI
-  provider (e.g. Claude's built-in compaction) or externally by the gateway
-  using AI-generated summaries.
+  stay within context limits, handled natively by the AI provider (e.g. Claude's
+  built-in compaction).
 - **Emoji picker** — Quick emoji insertion from an integrated picker.
 - **User customization** — Set a personal alias for how the AI addresses you,
   choose between simple or rich text input, and manage profile settings. Real
@@ -217,8 +216,8 @@ React, MUI.
 Provides an AI agent service implementation backed by Anthropic's Claude models,
 using the official `@anthropic-ai/sdk` directly. Implements the AI agent service
 API declared by `core` and used by `chat-server`. Leverages Claude's built-in
-provider-side compaction for context management, so the gateway does not have to
-compact externally.
+provider-side compaction for context management; `chat-server` has no compaction
+logic of its own.
 
 Configured and initialized by application specific logic and passed to
 `chat-server` as AI agent service. Anthropic-only settings (server-side tools,

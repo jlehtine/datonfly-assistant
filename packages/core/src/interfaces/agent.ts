@@ -218,10 +218,9 @@ export interface AgentCapabilities {
      * Where conversation compaction happens.
      *
      * - `"provider"` — the provider compacts internally.
-     * - `"external"` — the caller must compact (e.g. via a compaction service).
      * - `"none"` — no compaction; the caller is responsible for staying in budget.
      */
-    compaction: "provider" | "external" | "none";
+    compaction: "provider" | "none";
     /** Provider-side web search is enabled. */
     webSearch: boolean;
     /** Provider-side code execution is enabled. */

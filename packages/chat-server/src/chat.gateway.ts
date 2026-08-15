@@ -46,7 +46,6 @@ import {
 } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
-import { CompactionService } from "./compaction.js";
 import {
     AGENT_PROVIDER,
     GENERATE_TITLE_FN,
@@ -105,7 +104,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly server!: Server;
 
     private titleGenerator: ThreadTitleGenerator | null = null;
-    private compactionService: CompactionService | null = null;
     private roomManager!: ThreadRoomManager;
 
     /** Per-thread mutex: thread IDs for which the lock is currently held. */
@@ -171,13 +169,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     });
             });
         }
-
-        // Set up compaction service
-        this.compactionService = new CompactionService({
-            agent: this.agent,
-            persistence: this.persistence,
-            auditLogger: this.auditLogger,
-        });
 
         // Set up title generator
         if (this.generateTitleFn) {
@@ -444,10 +435,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         });
 
         // Load full history and convert to AgentMessage[]
-        const history = await this.persistence.loadMessages({
-            threadId,
-            excludeCompacted: this.agent.capabilities.compaction === "external",
-        });
+        const history = await this.persistence.loadMessages({ threadId });
         const members = await this.persistence.listMembersWithUser(threadId);
         const authorAliases = buildAuthorAliases(members);
         const messages: AgentMessage[] = threadMessagesToAgentMessages(history, authorAliases);
@@ -498,7 +486,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         this.activeStreams.set(threadId, streamState);
 
         // Resolve attachment bytes into the agent messages only now, on the
-        // stream path, so title/compaction paths never load file bytes.
+        // stream path, so the title path never loads file bytes.
         await resolveAttachmentData(messages, this.persistence);
 
         const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
@@ -715,11 +703,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 // Fire-and-forget title generation.
                 if (this.titleGenerator) {
                     void this.titleGenerator.maybeGenerateTitle(threadId);
-                }
-
-                // Fire-and-forget compaction check (only for external compaction providers).
-                if (this.compactionService && this.agent.capabilities.compaction === "external" && streamState.usage) {
-                    void this.compactionService.maybeCompact(threadId, streamState.usage.inputTokens);
                 }
             } finally {
                 this.releaseThreadLock(threadId);

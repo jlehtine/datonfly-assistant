@@ -1,6 +1,4 @@
 export { AnthropicAgent } from "./agent.js";
-export { createTitleGenerateFn } from "./title.js";
-export type { TitleModelConfig } from "./title.js";
 export type { AnthropicAgentConfig, AnthropicProviderOptions } from "./config.js";
 export { PROVIDER_ID } from "./config.js";
 export { describeApiError, isAbortError, isRetryableApiError, toErrorCode } from "./errors.js";

@@ -224,6 +224,7 @@ export interface BackendConfig {
     agent: {
         modelName: string;
         triageModelName: string | undefined;
+        titleModelName: string | undefined;
         maxToolIterations: number | undefined;
         debugApiContent: boolean;
         /** Anthropic-only knobs, grouped so they map onto provider options. */
@@ -237,7 +238,6 @@ export interface BackendConfig {
             thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
         };
     };
-    titleModelName: string | undefined;
     mcp: { servers: McpServerConfig[]; toolTimeoutMs: number | undefined };
     transcription: { apiKey: string; model: string } | undefined;
     memberSearchStrategy: MemberSearchStrategy;
@@ -394,6 +394,7 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
         agent: {
             modelName,
             triageModelName: reader.prefixed("AGENT_TRIAGE_MODEL"),
+            titleModelName: reader.prefixed("AGENT_TITLE_MODEL"),
             maxToolIterations: parseOptionalPositiveInt(
                 reader.prefixed("AGENT_MAX_TOOL_ITERATIONS"),
                 "DF_AGENT_MAX_TOOL_ITERATIONS",
@@ -421,7 +422,6 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
                 ),
             },
         },
-        titleModelName: reader.prefixed("AGENT_TITLE_MODEL"),
         mcp: { servers: mcpServers, toolTimeoutMs: mcpToolTimeoutMs },
         transcription,
         memberSearchStrategy,

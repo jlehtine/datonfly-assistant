@@ -1,4 +1,4 @@
-import type { AgentMessage, IPersistenceProvider, ThreadMessage } from "@datonfly-assistant/core";
+import type { IAgentProvider, IPersistenceProvider, ThreadMessage } from "@datonfly-assistant/core";
 
 import type { AuditLogger } from "./audit-logger.js";
 import { buildAuthorAliases, threadMessagesToAgentMessages } from "./messages.js";
@@ -10,9 +10,6 @@ function isPowerOfTwo(n: number): boolean {
     return n > 0 && (n & (n - 1)) === 0;
 }
 
-/** Callback that generates a thread title from a list of conversation messages. */
-export type GenerateTitleFn = (messages: AgentMessage[]) => Promise<string>;
-
 /** Callback invoked after the title has been updated in the database. */
 export type OnTitleUpdatedFn = (threadId: string, title: string, titleManuallySet: boolean) => void;
 
@@ -20,8 +17,8 @@ export type OnTitleUpdatedFn = (threadId: string, title: string, titleManuallySe
 export interface ThreadTitleGeneratorConfig {
     /** Persistence provider for reading threads/messages and writing updates. */
     persistence: IPersistenceProvider;
-    /** Function that invokes the LLM to generate a title from conversation messages. */
-    generateTitle: GenerateTitleFn;
+    /** Agent used to generate titles from conversation messages. */
+    agent: IAgentProvider;
     /** Called after a title has been persisted so the caller can broadcast the update. */
     onTitleUpdated: OnTitleUpdatedFn;
     /** Optional audit logger for structured audit events. */
@@ -38,13 +35,13 @@ export interface ThreadTitleGeneratorConfig {
  */
 export class ThreadTitleGenerator {
     private readonly persistence: IPersistenceProvider;
-    private readonly generateTitle: GenerateTitleFn;
+    private readonly agent: IAgentProvider;
     private readonly onTitleUpdated: OnTitleUpdatedFn;
     private readonly auditLogger?: AuditLogger | undefined;
 
     constructor(config: ThreadTitleGeneratorConfig) {
         this.persistence = config.persistence;
-        this.generateTitle = config.generateTitle;
+        this.agent = config.agent;
         this.onTitleUpdated = config.onTitleUpdated;
         this.auditLogger = config.auditLogger;
     }
@@ -83,7 +80,7 @@ export class ThreadTitleGenerator {
             const members = await this.persistence.listMembersWithUser(threadId);
             const authorAliases = buildAuthorAliases(members);
             const agentMessages = threadMessagesToAgentMessages(recentMessages, authorAliases);
-            const rawTitle = await this.generateTitle(agentMessages);
+            const rawTitle = await this.agent.generateTitle(agentMessages, threadId);
 
             // Clean up the LLM response: strip surrounding quotes and whitespace, truncate.
             const title = rawTitle

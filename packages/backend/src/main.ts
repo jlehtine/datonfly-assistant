@@ -10,7 +10,7 @@ import { config } from "dotenv";
 import { Logger } from "nestjs-pino";
 import pino from "pino";
 
-import { AnthropicAgent, createTitleGenerateFn } from "@datonfly-assistant/agent-anthropic";
+import { AnthropicAgent } from "@datonfly-assistant/agent-anthropic";
 import { McpServerSet } from "@datonfly-assistant/agent-mcp";
 import { ChatModule } from "@datonfly-assistant/chat-server";
 import type { ISearchProvider, ProviderLogger } from "@datonfly-assistant/core";
@@ -69,20 +69,13 @@ async function bootstrap(): Promise<void> {
         modelName: cfg.agent.modelName,
         apiKey: cfg.anthropicApiKey,
         triageModelName: cfg.agent.triageModelName,
+        titleModelName: cfg.agent.titleModelName,
         debugApiContent: cfg.agent.debugApiContent,
         ...(cfg.agent.maxToolIterations !== undefined ? { maxToolIterations: cfg.agent.maxToolIterations } : {}),
         ...(mcpServerSet ? { defaultTools: mcpServerSet.tools } : {}),
         logger: agentLogger,
         providerOptions: cfg.agent.anthropic,
     });
-
-    // Optional: separate (cheaper) model for automatic thread title generation.
-    const generateTitle = cfg.titleModelName
-        ? createTitleGenerateFn({
-              modelName: cfg.titleModelName,
-              apiKey: cfg.anthropicApiKey,
-          })
-        : undefined;
 
     // Optional: audio input transcription backed by OpenAI. Enabled when an API
     // key is present; advertised to clients via the welcome event feature flag.
@@ -111,7 +104,6 @@ async function bootstrap(): Promise<void> {
         agent,
         persistence,
         validateToken: (token: string) => authService.authenticateToken(token),
-        generateTitle,
         transcribe,
         cors: { origin: cfg.frontendUrl, credentials: true },
         memberSearchStrategy: cfg.memberSearchStrategy,

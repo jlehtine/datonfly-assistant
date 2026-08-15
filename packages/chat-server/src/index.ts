@@ -16,7 +16,6 @@ export {
     PERSISTENCE_PROVIDER,
     AGENT_PROVIDER,
     VALIDATE_TOKEN_FN,
-    GENERATE_TITLE_FN,
     CHAT_CORS_OPTIONS,
     MEMBER_SEARCH_STRATEGY,
     SEARCH_PROVIDER,
@@ -27,7 +26,7 @@ export {
 
 export type { ValidateTokenFn } from "./chat.gateway.js";
 export { ThreadTitleGenerator } from "./title-generator.js";
-export type { GenerateTitleFn, OnTitleUpdatedFn, ThreadTitleGeneratorConfig } from "./title-generator.js";
+export type { OnTitleUpdatedFn, ThreadTitleGeneratorConfig } from "./title-generator.js";
 export { threadMessagesToAgentMessages, extractText } from "./messages.js";
 export type { TrustedReverseProxy } from "./trusted-proxy.service.js";
 export { RateTier } from "./rate-limit/rate-tier.decorator.js";

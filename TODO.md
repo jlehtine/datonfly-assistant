@@ -180,14 +180,27 @@ that knows nothing of the agent's betas, caching, or configuration. Folding it
 into `IAgentProvider` lets each provider pick its own best strategy and deletes
 a parallel wiring path.
 
-- [ ] Move title generation onto `IAgentProvider`, replacing the injected
+- [x] Move title generation onto `IAgentProvider`, replacing the injected
       `GENERATE_TITLE_FN` provider and the separate client construction.
-- [ ] Keep `DF_AGENT_TITLE_MODEL` meaningful: a provider may still choose a
+- [x] Keep `DF_AGENT_TITLE_MODEL` meaningful: a provider may still choose a
       cheaper model, but the choice becomes its own rather than the composition
       root's.
-- [ ] Cover title generation and triage with fixture-backed tests. Neither has a
+- [x] Cover title generation and triage with fixture-backed tests. Neither has a
       recorded fixture yet; both are non-streaming calls, so they need their own
       captures.
+
+**Done.** `generateTitle()` and `shouldRespond()` are now the two non-streaming
+methods on `IAgentProvider`/`AnthropicAgent`, both using the agent's single
+`this.client` (no second Anthropic client). Title generation is unconditional
+now (`ThreadTitleGenerator` is always constructed in `chat.gateway.ts`, calling
+`agent.generateTitle()` directly): omitting `DF_AGENT_TITLE_MODEL` falls back to
+titling with the main model rather than skipping titling entirely, a deliberate
+behaviour change confirmed with the user before implementing. Recording the new
+`triage`/`title` fixtures surfaced a live, pre-existing bug: both non-streaming
+calls hardcoded `temperature: 0`, which `claude-opus-5` rejects outright (newer
+models drop the `temperature` param); fixed by only sending it when configured,
+matching the streaming path. Build, lint, all 114 unit tests (including new
+fixture-backed `shouldRespond`/`generateTitle` specs), and two e2e specs pass.
 
 **Not worth doing as part of this:** generating titles with the main model to
 reuse its prompt cache. It cannot work as currently structured — the title

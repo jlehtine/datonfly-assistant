@@ -40,6 +40,10 @@ One JSON file per exchange:
 A scenario that issues several API calls (the tool loop, compaction) produces
 numbered files: `tool-loop-01.json`, `tool-loop-02.json`, …
 
+`triage` and `title` record `shouldRespond()`/`generateTitle()` instead of the
+streaming path: the request has no `stream` field and the response body is a
+plain JSON message rather than an SSE event stream.
+
 ## Recording
 
 ```bash
@@ -101,7 +105,7 @@ personal content that does not belong in the repository.
 ## Scenarios
 
 | Fixture               | Exercises                                                                  |
-| --------------------- | -------------------------------------------------------------------------- |
+| --------------------- | -------------------------------------------------------------------------- | --- | -------- | ----------------------------------------------------------------------- |
 | `plain-text`          | Plain streamed text; no tools, no thinking.                                |
 | `thinking-adaptive`   | Adaptive thinking whose summary came back **empty** — see below.           |
 | `thinking-summarized` | Thinking with reasoning text. **Synthetic** — see below.                   |
@@ -116,7 +120,8 @@ personal content that does not belong in the repository.
 | `abort-mid-stream`    | Caller aborts partway through the response.                                |
 | `error-400`           | Invalid request rejected by the API.                                       |
 | `error-429`           | Rate limit. **Synthetic** — see below.                                     |
-| `error-529`           | Overloaded. **Synthetic** — see below.                                     |
+| `error-529`           | Overloaded. **Synthetic** — see below.                                     |     | `triage` | Non-streaming `shouldRespond()` classification through forced tool use. |
+| `title`               | Non-streaming `generateTitle()` call.                                      |
 
 ### Verification
 

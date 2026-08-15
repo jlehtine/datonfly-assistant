@@ -194,6 +194,11 @@ export interface AgentConfig {
      * multi-user threads. When omitted the agent always responds.
      */
     triageModelName?: string | undefined;
+    /**
+     * Cheaper model used for automatic thread title generation. When omitted,
+     * the provider titles with its main model instead of skipping titling.
+     */
+    titleModelName?: string | undefined;
     /** Maximum number of model turns in a tool-calling loop before aborting. */
     maxToolIterations?: number | undefined;
     /** Tools the agent may invoke on every call, unless a call overrides them. */
@@ -272,6 +277,14 @@ export interface IAgentProvider {
      * @param memberCount - Total number of human members in the thread.
      */
     shouldRespond(messages: AgentMessage[], threadId: string, memberCount: number): Promise<ShouldRespondResult>;
+
+    /**
+     * Generate a short, descriptive title summarizing the conversation so far.
+     *
+     * @param messages - Conversation messages to summarize (already windowed by the caller).
+     * @param threadId - The thread being titled, for logging/telemetry.
+     */
+    generateTitle(messages: AgentMessage[], threadId: string): Promise<string>;
 
     /** Return the context window size (in tokens) of the underlying model. */
     getContextWindowSize(): number;

@@ -155,6 +155,14 @@ interface Scenario {
     abortAfterChunks?: number;
     /** Expect the run to fail; the fixture captures the error response. */
     expectFailure?: boolean;
+    /**
+     * Which provider entry point to record through.
+     *
+     * Defaults to the streaming `stream()` path used by every chat scenario.
+     * `"shouldRespond"` and `"generateTitle"` exercise the two non-streaming
+     * calls instead.
+     */
+    call?: "stream" | "shouldRespond" | "generateTitle";
 }
 
 const SCENARIOS: Scenario[] = [
@@ -282,6 +290,24 @@ const SCENARIOS: Scenario[] = [
         messages: human("This request is intentionally malformed."),
         expectFailure: true,
     },
+    {
+        name: "triage",
+        description: "Non-streaming shouldRespond() triage classification through forced tool use.",
+        verify: bodyContains("record_decision"),
+        call: "shouldRespond",
+        messages: [
+            { role: "human", content: [{ type: "text", text: "[Alice] @ 2026-04-10T14:30+02:00\n\nHey Bob, lunch?" }] },
+        ],
+    },
+    {
+        name: "title",
+        description: "Non-streaming generateTitle() call summarizing a short conversation.",
+        call: "generateTitle",
+        messages: [
+            { role: "human", content: [{ type: "text", text: "What's the capital of France?" }] },
+            { role: "ai", content: [{ type: "text", text: "The capital of France is Paris." }] },
+        ],
+    },
 ];
 
 /** The adder tool used by the tool-loop scenario. */
@@ -381,6 +407,8 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string,
         apiKey,
         baseUrl: proxy.url,
         maxTokens: 1024,
+        ...(scenario.call === "shouldRespond" ? { triageModelName: model } : {}),
+        ...(scenario.call === "generateTitle" ? { titleModelName: model } : {}),
         ...scenario.config,
         ...(scenario.name === "tool-loop" ? { defaultTools: await toolLoopTools() } : {}),
         providerOptions: { enableCompaction: false, ...scenario.providerOptions },
@@ -389,8 +417,14 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string,
     const agent = new AnthropicAgent(config);
     const controller = new AbortController();
     try {
-        const stream = await agent.stream(scenario.messages, "fixture-thread", "fixture-user", controller.signal);
-        await drain(stream, controller, scenario.abortAfterChunks);
+        if (scenario.call === "shouldRespond") {
+            await agent.shouldRespond(scenario.messages, "fixture-thread", 2);
+        } else if (scenario.call === "generateTitle") {
+            await agent.generateTitle(scenario.messages, "fixture-thread");
+        } else {
+            const stream = await agent.stream(scenario.messages, "fixture-thread", "fixture-user", controller.signal);
+            await drain(stream, controller, scenario.abortAfterChunks);
+        }
         if (scenario.expectFailure) {
             process.stdout.write(`  ! expected a failure but the call succeeded\n`);
         }

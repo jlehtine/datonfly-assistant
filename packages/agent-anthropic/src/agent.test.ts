@@ -253,6 +253,58 @@ describe("AnthropicAgent.run", () => {
     });
 });
 
+describe("AnthropicAgent.shouldRespond", () => {
+    it("classifies a message not addressed to the assistant as no-respond", async () => {
+        await withServer(["triage"], async (server) => {
+            const agent = new AnthropicAgent({
+                modelName: "claude-opus-5",
+                apiKey: "sk-ant-test",
+                baseUrl: server.baseUrl,
+                triageModelName: "claude-opus-5",
+                providerOptions: { maxRetries: 0, disableCaching: true },
+            });
+
+            const result = await agent.shouldRespond(
+                [
+                    {
+                        role: "human",
+                        content: [{ type: "text", text: "[Alice] @ 2026-04-10T14:30+02:00\n\nHey Bob, lunch?" }],
+                    },
+                ],
+                "thread-1",
+                2,
+            );
+
+            expect(result.shouldRespond).toBe(false);
+            expect(result.reason).toBeTruthy();
+        });
+    });
+
+    it("always responds when no triage model is configured, without calling the API", async () => {
+        const agent = createAgent("http://127.0.0.1:1");
+        const result = await agent.shouldRespond([userMessage("Hi")], "thread-1", 2);
+        expect(result.shouldRespond).toBe(true);
+    });
+});
+
+describe("AnthropicAgent.generateTitle", () => {
+    it("returns the title text from a non-streaming call", async () => {
+        await withServer(["title"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+
+            const title = await agent.generateTitle(
+                [
+                    userMessage("What's the capital of France?"),
+                    { role: "ai", content: [{ type: "text", text: "The capital of France is Paris." }] },
+                ],
+                "thread-1",
+            );
+
+            expect(title).toBe("Capital of France Question");
+        });
+    });
+});
+
 describe("AnthropicAgent capabilities", () => {
     it("reports provider compaction and configured server tools", () => {
         const agent = new AnthropicAgent({

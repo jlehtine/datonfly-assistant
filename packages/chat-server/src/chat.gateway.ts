@@ -48,7 +48,6 @@ import {
 import { AuditLogger } from "./audit-logger.js";
 import {
     AGENT_PROVIDER,
-    GENERATE_TITLE_FN,
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
     TRANSCRIBE_FN,
@@ -57,7 +56,7 @@ import {
 import { buildAuthorAliases, extractText, resolveAttachmentData, threadMessagesToAgentMessages } from "./messages.js";
 import { RateLimitService } from "./rate-limit/rate-limit.service.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
-import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
+import { ThreadTitleGenerator } from "./title-generator.js";
 import type { TranscribeFn } from "./transcription.controller.js";
 
 /** Callback that validates a raw token string and returns the user identity, or `null` on failure. */
@@ -103,7 +102,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     @WebSocketServer()
     private readonly server!: Server;
 
-    private titleGenerator: ThreadTitleGenerator | null = null;
+    private titleGenerator!: ThreadTitleGenerator;
     private roomManager!: ThreadRoomManager;
 
     /** Per-thread mutex: thread IDs for which the lock is currently held. */
@@ -118,7 +117,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Inject(AGENT_PROVIDER) private readonly agent: IAgentProvider,
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
-        @Optional() @Inject(GENERATE_TITLE_FN) private readonly generateTitleFn: GenerateTitleFn | null,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
         @Optional() @Inject(TRANSCRIBE_FN) private readonly transcribeFn: TranscribeFn | null,
         private readonly auditLogger: AuditLogger,
@@ -171,22 +169,20 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
 
         // Set up title generator
-        if (this.generateTitleFn) {
-            this.titleGenerator = new ThreadTitleGenerator({
-                persistence: this.persistence,
-                generateTitle: this.generateTitleFn,
-                auditLogger: this.auditLogger,
-                onTitleUpdated: (threadId: string, title: string, titleManuallySet: boolean): void => {
-                    const event: ThreadUpdatedEvent = {
-                        event: "thread-updated",
-                        threadId,
-                        title,
-                        titleManuallySet,
-                    };
-                    void this.emitToThreadMembers(threadId, "thread-updated", event);
-                },
-            });
-        }
+        this.titleGenerator = new ThreadTitleGenerator({
+            persistence: this.persistence,
+            agent: this.agent,
+            auditLogger: this.auditLogger,
+            onTitleUpdated: (threadId: string, title: string, titleManuallySet: boolean): void => {
+                const event: ThreadUpdatedEvent = {
+                    event: "thread-updated",
+                    threadId,
+                    title,
+                    titleManuallySet,
+                };
+                void this.emitToThreadMembers(threadId, "thread-updated", event);
+            },
+        });
     }
 
     handleConnection(socket: Socket): void {
@@ -701,9 +697,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 });
 
                 // Fire-and-forget title generation.
-                if (this.titleGenerator) {
-                    void this.titleGenerator.maybeGenerateTitle(threadId);
-                }
+                void this.titleGenerator.maybeGenerateTitle(threadId);
             } finally {
                 this.releaseThreadLock(threadId);
             }

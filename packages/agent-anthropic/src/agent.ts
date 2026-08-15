@@ -71,6 +71,11 @@ const TRIAGE_TOOL: Anthropic.Beta.BetaTool = {
     },
 };
 
+const TITLE_INSTRUCTION =
+    "Generate a short, descriptive title (3-8 words) for the above conversation. " +
+    "The title MUST be in the same language that the participants are predominantly using in the conversation. " +
+    "Respond with ONLY the title, no quotes, no explanation.";
+
 /**
  * Chat agent backed by an Anthropic model through the official SDK.
  *
@@ -93,6 +98,7 @@ export class AnthropicAgent implements IAgentProvider {
     private readonly defaultSystemPrompt: string | undefined;
     private readonly serverTools: Anthropic.Beta.BetaToolUnion[];
     private readonly triageModelName: string | undefined;
+    private readonly titleModelName: string | undefined;
     private readonly debugApiContent: boolean;
     private readonly logger: ProviderLogger;
 
@@ -111,6 +117,7 @@ export class AnthropicAgent implements IAgentProvider {
         this.defaultTools = config.defaultTools ?? [];
         this.defaultSystemPrompt = config.defaultSystemPrompt;
         this.triageModelName = config.triageModelName;
+        this.titleModelName = config.titleModelName;
         this.debugApiContent = config.debugApiContent ?? false;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
         this.serverTools = serverToolParams(options);
@@ -286,7 +293,6 @@ export class AnthropicAgent implements IAgentProvider {
             const response = await this.client.beta.messages.create({
                 model: this.triageModelName,
                 max_tokens: 200,
-                temperature: 0,
                 system: [{ type: "text", text: TRIAGE_SYSTEM_PROMPT }],
                 messages: conversation.messages,
                 tools: [TRIAGE_TOOL],
@@ -304,6 +310,41 @@ export class AnthropicAgent implements IAgentProvider {
         } catch (error) {
             logger.error({ phase: "triage", ...describeApiError(error) }, "Assistant API call failed");
             return { shouldRespond: true, reason: "triage error — defaulting to respond" };
+        }
+    }
+
+    /**
+     * @inheritdoc
+     *
+     * Uses {@link titleModelName} when configured, falling back to the main
+     * model otherwise — titling always runs, just against whichever model the
+     * deployment chose for it.
+     */
+    async generateTitle(messages: AgentMessage[], threadId: string): Promise<string> {
+        const model = this.titleModelName ?? this.modelName;
+        const logger = this.logger.child({
+            vendor: PROVIDER_ID,
+            model,
+            operation: "generateTitle",
+            threadId,
+        });
+        const conversation = agentMessagesToParams(messages);
+
+        try {
+            const response = await this.client.beta.messages.create({
+                model,
+                max_tokens: 100,
+                ...(conversation.system ? { system: conversation.system } : {}),
+                messages: [...conversation.messages, { role: "user", content: TITLE_INSTRUCTION }],
+            });
+            return response.content
+                .filter((block) => block.type === "text")
+                .map((block) => block.text)
+                .join("")
+                .trim();
+        } catch (error) {
+            logger.error({ phase: "title", ...describeApiError(error) }, "Assistant API call failed");
+            return "";
         }
     }
 }

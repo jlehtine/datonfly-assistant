@@ -24,15 +24,15 @@
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
-        "kysely": "^0.28.2",
-        "pg": "^8.16.0"
+        "kysely": "^0.29.5",
+        "pg": "^8.23.0"
     },
     "peerDependencies": {
         "@datonfly-assistant/core": "workspace:*"
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
-        "@types/pg": "^8.15.4",
-        "typescript": "^6.0.2"
+        "@types/pg": "^8.21.0",
+        "typescript": "^6.0.3"
     }
 }

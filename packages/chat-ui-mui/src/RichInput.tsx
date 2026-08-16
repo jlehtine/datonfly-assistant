@@ -7,7 +7,7 @@ import Popover from "@mui/material/Popover";
 import { useTheme } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
 import MDEditor, { commands, type ICommand, type TextAreaTextApi } from "@uiw/react-md-editor";
-import { useEffect, useRef, useState, type ReactElement, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AdornmentToolButton } from "./AdornmentToolButton.js";
@@ -119,7 +119,7 @@ export function RichInput({
 
     const handleKeyDown = (e: React.KeyboardEvent): void => {
         if (e.key === "Enter" && !e.shiftKey) {
-            onKeyDown(e as unknown as ReactKeyboardEvent);
+            onKeyDown(e);
         }
     };
 
@@ -152,24 +152,22 @@ export function RichInput({
 
     const toolCommands: ICommand[] = (inputTools ?? [])
         .filter((tool) => tool.placement !== "input-end")
-        .map(
-            (tool): ICommand => ({
-                name: tool.name,
-                keyCommand: tool.name,
-                icon: tool.icon,
-                execute: (_state, api) => {
-                    textApiRef.current = api;
-                    setAnchorEl(document.querySelector<HTMLElement>(`[data-name="${tool.name}"]`));
-                    setToolCtx({
-                        text: value,
-                        selectionStart: selectionRef.current.start,
-                        selectionEnd: selectionRef.current.end,
-                    });
-                    setActiveTool(tool);
-                },
-                buttonProps: { "data-name": tool.name } as React.ButtonHTMLAttributes<HTMLButtonElement>,
-            }),
-        );
+        .map((tool): ICommand => ({
+            name: tool.name,
+            keyCommand: tool.name,
+            icon: tool.icon,
+            execute: (_state, api) => {
+                textApiRef.current = api;
+                setAnchorEl(document.querySelector<HTMLElement>(`[data-name="${tool.name}"]`));
+                setToolCtx({
+                    text: value,
+                    selectionStart: selectionRef.current.start,
+                    selectionEnd: selectionRef.current.end,
+                });
+                setActiveTool(tool);
+            },
+            buttonProps: { "data-name": tool.name } as React.ButtonHTMLAttributes<HTMLButtonElement>,
+        }));
 
     const adornmentTools = orderAdornmentTools(
         (inputTools ?? []).filter((tool) => tool.placement === "input-end" || tool.placement === "action"),
@@ -239,11 +237,11 @@ export function RichInput({
                                 placeholder,
                                 disabled,
                                 autoFocus: true,
-                                onKeyDown: handleKeyDown as unknown as React.KeyboardEventHandler<HTMLTextAreaElement>,
-                                onSelect: ((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+                                onKeyDown: handleKeyDown,
+                                onSelect: (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
                                     const target = e.target as HTMLTextAreaElement;
                                     selectionRef.current = { start: target.selectionStart, end: target.selectionEnd };
-                                }) as unknown as React.ReactEventHandler<HTMLTextAreaElement>,
+                                },
                             }}
                         />
                     </Box>

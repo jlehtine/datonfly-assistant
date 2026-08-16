@@ -25,9 +25,7 @@ One JSON file per exchange:
       "content-type": "application/json",
       "anthropic-version": "...",
     },
-    "body": {
-      /* the request Anthropic received */
-    },
+    "body": {/* the request Anthropic received */},
   },
   "response": {
     "status": 200,

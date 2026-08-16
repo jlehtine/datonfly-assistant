@@ -247,7 +247,7 @@ describe("AnthropicAgent mid-stream overload recovery", () => {
 
             const lastTurn = retried[retried.length - 1];
             expect(lastTurn?.role).toBe("user");
-            const instruction = lastTurn?.content as { type: string; text?: string }[] | string as unknown;
+            const instruction = lastTurn?.content;
             const instructionText =
                 typeof instruction === "string"
                     ? instruction

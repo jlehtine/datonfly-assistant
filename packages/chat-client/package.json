@@ -35,7 +35,7 @@
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
-        "socket.io-client": "^4.8.0"
+        "socket.io-client": "^4.8.3"
     },
     "peerDependencies": {
         "@datonfly-assistant/core": "workspace:*",
@@ -49,8 +49,8 @@
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
-        "@types/react": "^19.0.0",
-        "react": "^19.0.0",
-        "typescript": "^6.0.2"
+        "@types/react": "^19.2.18",
+        "react": "^19.2.8",
+        "typescript": "^6.0.3"
     }
 }

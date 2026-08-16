@@ -155,13 +155,13 @@ async function capturePartialTurn(
                 // finalMessage() is unavailable after an abort, so blocks are
                 // rebuilt from the accumulated events instead.
                 if (open.type === "text") {
-                    completed.push({ type: "text", text: open.text, citations: [] } as Anthropic.Beta.BetaTextBlock);
+                    completed.push({ type: "text", text: open.text, citations: [] });
                 } else if (open.type === "thinking") {
                     completed.push({
                         type: "thinking",
                         thinking: open.text,
                         signature: open.signature,
-                    } as Anthropic.Beta.BetaThinkingBlock);
+                    });
                 }
             }
         }

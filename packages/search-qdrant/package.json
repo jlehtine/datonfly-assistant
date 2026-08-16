@@ -25,9 +25,9 @@
     },
     "dependencies": {
         "@datonfly-assistant/core": "workspace:*",
-        "@qdrant/js-client-rest": "^1.14.0"
+        "@qdrant/js-client-rest": "^1.19.0"
     },
     "devDependencies": {
-        "typescript": "^6.0.2"
+        "typescript": "^6.0.3"
     }
 }

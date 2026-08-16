@@ -25,16 +25,16 @@
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.21.0"
+        "@modelcontextprotocol/sdk": "^1.30.0"
     },
     "peerDependencies": {
         "@datonfly-assistant/core": "workspace:*"
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
-        "@types/node": "^25.5.2",
-        "typescript": "^6.0.2",
-        "vitest": "^4.1.2",
-        "zod": "^4.3.6"
+        "@types/node": "^25.9.5",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.10",
+        "zod": "^4.4.3"
     }
 }

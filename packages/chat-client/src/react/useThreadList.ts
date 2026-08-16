@@ -220,9 +220,9 @@ export function useThreadList({
                 return [newThread, ...prev];
             });
         };
-        client.on("thread-created", handler as Parameters<typeof client.on<"thread-created">>[1]);
+        client.on("thread-created", handler);
         return () => {
-            client.off("thread-created", handler as Parameters<typeof client.off<"thread-created">>[1]);
+            client.off("thread-created", handler);
         };
     }, [client]);
 
@@ -267,14 +267,11 @@ export function useThreadList({
             }
         };
 
-        client.on("new-message", handleNewMessage as Parameters<typeof client.on<"new-message">>[1]);
-        client.on("message-complete", handleMessageComplete as Parameters<typeof client.on<"message-complete">>[1]);
+        client.on("new-message", handleNewMessage);
+        client.on("message-complete", handleMessageComplete);
         return () => {
-            client.off("new-message", handleNewMessage as Parameters<typeof client.off<"new-message">>[1]);
-            client.off(
-                "message-complete",
-                handleMessageComplete as Parameters<typeof client.off<"message-complete">>[1],
-            );
+            client.off("new-message", handleNewMessage);
+            client.off("message-complete", handleMessageComplete);
         };
     }, [client]);
 
@@ -308,9 +305,9 @@ export function useThreadList({
             );
         };
 
-        client.on("thread-updated", handleThreadUpdated as Parameters<typeof client.on<"thread-updated">>[1]);
+        client.on("thread-updated", handleThreadUpdated);
         return () => {
-            client.off("thread-updated", handleThreadUpdated as Parameters<typeof client.off<"thread-updated">>[1]);
+            client.off("thread-updated", handleThreadUpdated);
         };
     }, [client]);
 

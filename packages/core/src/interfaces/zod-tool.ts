@@ -37,7 +37,7 @@ export function zodTool<TSchema extends z.ZodType>(definition: ZodToolDefinition
             target: "draft-7",
             unrepresentable: "any",
         }) as JsonSchema,
-        validate: (input: unknown) => schema.parse(input) as z.infer<TSchema>,
+        validate: (input: unknown) => schema.parse(input),
         execute,
     };
 }

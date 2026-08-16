@@ -179,7 +179,7 @@ export function ThreadListPanel({
                         <Select
                             value={filter}
                             onChange={(e) => {
-                                setFilter(e.target.value as ThreadFilter);
+                                setFilter(e.target.value);
                             }}
                             size="small"
                             variant="outlined"

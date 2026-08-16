@@ -193,5 +193,5 @@ export function buildContextManagement(
                 },
             },
         ],
-    } as Anthropic.Beta.BetaContextManagementConfig;
+    };
 }

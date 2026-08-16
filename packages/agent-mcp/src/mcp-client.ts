@@ -5,7 +5,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
-import type { ITool, JsonSchema } from "@datonfly-assistant/core";
+import type { ITool } from "@datonfly-assistant/core";
 
 /** Connection parameters for an MCP server reached over the **stdio** transport. */
 export interface McpStdioServerConfig {
@@ -101,7 +101,7 @@ function createProxyTool(
     return {
         name: mcpTool.name,
         description: mcpTool.description ?? "",
-        inputSchema: isRecord(mcpTool.inputSchema) ? (mcpTool.inputSchema as JsonSchema) : { type: "object" },
+        inputSchema: isRecord(mcpTool.inputSchema) ? mcpTool.inputSchema : { type: "object" },
         execute: async (input) => {
             let result: Awaited<ReturnType<Client["callTool"]>>;
             try {

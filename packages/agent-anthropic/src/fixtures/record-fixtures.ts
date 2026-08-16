@@ -371,9 +371,9 @@ function apiErrorMessage(body: string): string {
     try {
         const parsed: unknown = JSON.parse(body);
         if (typeof parsed === "object" && parsed !== null && "error" in parsed) {
-            const inner = (parsed as { error: unknown }).error;
+            const inner = parsed.error;
             if (typeof inner === "object" && inner !== null && "message" in inner) {
-                return String((inner as { message: unknown }).message);
+                return String(inner.message);
             }
         }
     } catch {

@@ -2,7 +2,8 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FileMigrationProvider, Kysely, Migrator, PostgresDialect } from "kysely";
+import { Kysely, PostgresDialect } from "kysely";
+import { FileMigrationProvider, Migrator } from "kysely/migration";
 import pg from "pg";
 
 import { PostgresPersistenceProvider } from "./provider.js";

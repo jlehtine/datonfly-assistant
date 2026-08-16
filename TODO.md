@@ -442,9 +442,27 @@ scripts remain what catches API changes.
       new `fake-api` turbo task (`agent-anthropic`'s own `fake-api` script) —
       verified live: the server starts, logs its URL, and answers a real request
       while `pnpm dev` is running.
-- [ ] Add specs for reasoning, server-side tools, and compaction. Compaction
+- [x] Add specs for reasoning, server-side tools, and compaction. Compaction
       becomes trivial here — the fake API decides when to emit a compaction
-      block, so no 120k-token seeded thread and no cost.
+      block, so no 120k-token seeded thread and no cost. Added
+      `tests/agent-capabilities.spec.ts` (5 specs): reasoning asserts visible
+      `.datonfly-message-thinking` content via `thinking-summarized`;
+      server-side tools covers web search, web fetch, and code execution, each
+      asserting a concrete piece of the fixture's answer text (`24.14.0`,
+      `Example Domain`, `6765`) so the assertion can't pass against an unrelated
+      reply; compaction sends the `compaction-01` trigger to a fresh thread with
+      no seeded history and asserts the turn completes normally. Found that
+      `thinking-adaptive` and `thinking-summarized` shared an identical trigger
+      — since `thinking-adaptive`'s `thinking_delta` is empty, whichever
+      scenario the registry happens to check first would silently win, and
+      alphabetic iteration order meant it was never `thinking-summarized`.
+      Reworded the latter's recorded prompt (it's already a synthetic derivation
+      per `test/fixtures/README.md`) so its trigger is unique. Note: the
+      compaction block itself can't be asserted on directly —
+      `thread.controller.ts` and `chat.gateway.ts` strip `opaque` content parts
+      before they reach the client — so this spec only checks the user-visible
+      outcome; the provider-level mechanics are already covered by
+      `agent.test.ts`.
 - [x] Point the timing-sensitive existing specs (`auto-scroll`, `input-focus`,
       `multiuser-interrupt`) at the fake API so they stop depending on live
       latency. No spec changes were needed — it follows from the endpoint switch
@@ -465,8 +483,8 @@ fake API end to end), plus manual verification of multi-exchange indexing
 (`tool-loop`), non-streaming structural routing (`triage`/`title`), and the
 exhaustion fallback (`overloaded-mid-stream` → `plain-text`). Build, lint, and
 all 76 `agent-anthropic` tests pass. `.env`/`.env.example` point at the fixture
-harness by default. **Still pending:** the three new specs (reasoning,
-server-side tools, compaction).
+harness by default. The three new specs (reasoning, server-side tools,
+compaction) are also done — see above.
 
 Note the qualification to "one suite, two endpoints": a spec that asserts on
 _model-generated content_ rather than UI behaviour cannot be served by a canned
@@ -551,3 +569,66 @@ environment variable. The API's minimum is 50k, so it would cut a _live_
 compaction test's seed from ~120k to ~50k tokens. Only worth doing if live
 compaction testing is wanted alongside the fake API; the fake API removes the
 need.
+
+## Thread list scalability with an ever-growing history
+
+Not tackled now — recorded while investigating E2E flakiness against a dev
+database that had grown to ~1500 threads. The sidebar itself is **not** the
+naive case: `useThreadList` pages 20 at a time by offset with load-on-scroll,
+and the ordering is indexed (`thread_updated_at_idx (updated_at DESC, id)`), so
+the initial load does not grow with history size. Two real issues remain, both
+of which only bite once a user has a long history:
+
+- [ ] **Offset pagination over a list that reorders while paging.** Threads are
+      ordered by `updated_at DESC` and move to the top whenever they receive a
+      message, so `LIMIT 20 OFFSET n` can return duplicates or silently skip
+      threads when activity arrives mid-scroll. Switch to keyset (seek)
+      pagination on `(updated_at, id)` — the index is already in the right
+      shape. This is a correctness issue, not just performance.
+- [ ] **No virtualization in the rendered list.** `ThreadListPanel` renders
+      every loaded thread (`filtered.map(...)`), and `useThreadList` keeps all
+      loaded pages plus any threads prepended by `thread-created` events, so DOM
+      nodes and in-memory state grow without bound as the user scrolls. Add
+      windowing, and/or cap what is retained in memory.
+- [ ] **`thread-created` grows the list without bound, independent of
+      scrolling.** The handler prepends every newly created thread to `threads`
+      and nothing ever evicts. A tab left open accumulates every thread the user
+      creates from any device or tab, for the lifetime of the tab — **observed:
+      a dev-UI tab left open during an E2E run crashed Chrome with
+      out-of-memory** after the suite created ~1500 threads under the shared
+      fake user. Cap or evict, and reconcile against the loaded window rather
+      than growing it.
+- [ ] **`loadMore` derives its offset from `threads.length`,** which the
+      unbounded `thread-created` prepending inflates, so the next page is
+      fetched from the wrong offset and skips threads. Keyset pagination (above)
+      removes this coupling; until then the two bugs compound.
+
+Worth revisiting the message list on the same grounds: it pages history on
+scroll-up and never drops what it has loaded.
+
+## Unresolved: composer text can be lost between typing and send
+
+`chat-response.spec.ts`'s "keeps markdown soft breaks and paragraph spacing"
+fails intermittently (roughly 1 in 3 full-suite runs, load-dependent). It fills
+the composer and clicks Send immediately, and on failure the composer is empty
+and Send is disabled.
+
+What was established:
+
+- Not data loss and not a wrong-thread send: the DB shows the second message was
+  never persisted, so nothing was sent anywhere.
+- Not rate limiting (`DF_RATE_LIMIT_FACTOR=100` changed nothing) and not the
+  accumulated-test-data slowdown (it still reproduces against a truncated
+  database).
+- The thread is still selected and its messages are intact at failure, so the
+  `key={threadId ?? "new"}` on `Composer` did not change.
+- Nothing resets `useComposer`'s `text` except submitting, so the state can only
+  have been lost by the `Composer` remounting — but Playwright's log reporting
+  the send button "detached from the DOM" is the only evidence of that, and a
+  mount/unmount trace added to `Composer` failed to reproduce across a full
+  suite run.
+
+- [ ] Find the remount (or whatever else drops the typed text) and fix it. If it
+      is real, a user typing while a background re-render lands would silently
+      lose their message. Until then the spec stays as-is rather than being
+      papered over with a retry, so the flake keeps surfacing it.

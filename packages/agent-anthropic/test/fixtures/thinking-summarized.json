@@ -1,5 +1,7 @@
 {
     "scenario": "thinking-summarized",
+    "synthetic": true,
+    "note": "Derived from thinking-adaptive's envelope with reasoning text injected into the deltas — see test/fixtures/README.md. The recorded prompt was also reworded so its trigger no longer collides with thinking-adaptive's (both matching would non-deterministically pick whichever scenario the registry happens to check first, and thinking-adaptive's own thinking_delta is empty).",
     "request": {
         "method": "POST",
         "path": "/v1/messages",
@@ -40,7 +42,7 @@
                     "content": [
                         {
                             "type": "text",
-                            "text": "A farmer has 17 sheep; all but 9 run away. How many are left? Think it through.",
+                            "text": "Think it through and show your reasoning: a farmer has 17 sheep; all but 9 run away. How many are left?",
                             "cache_control": {
                                 "type": "ephemeral"
                             }

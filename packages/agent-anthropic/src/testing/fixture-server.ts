@@ -16,6 +16,12 @@ export interface Fixture {
         status: number;
         headers: Record<string, string>;
         body: string;
+        /**
+         * Per-chunk arrival timing, `atMs` relative to the request being sent.
+         * Optional: absent on every fixture committed so far, in which case the
+         * playback server paces replay with a synthesized model instead.
+         */
+        frames?: { atMs: number; text: string }[] | undefined;
     };
 }
 

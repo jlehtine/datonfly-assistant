@@ -43,6 +43,12 @@ export interface RecordedExchange {
         headers: Record<string, string>;
         /** Raw response body, verbatim SSE for streaming calls. */
         body: string;
+        /**
+         * Per-chunk arrival timing, `atMs` relative to the request being sent.
+         * Optional: a fixture without it (every one committed so far) is paced
+         * by a synthesized model instead when replayed by the playback server.
+         */
+        frames?: { atMs: number; text: string }[] | undefined;
     };
 }
 
@@ -162,6 +168,10 @@ export async function startRecordingProxy(options: RecordingProxyOptions): Promi
             clientGone.abort();
         });
 
+        // Started before the request goes out, so the first frame's `atMs`
+        // includes real time-to-first-byte rather than only inter-chunk gaps
+        // after the response headers already arrived.
+        const startedAt = Date.now();
         const upstream = await fetch(`${upstreamBase}${path}`, {
             method: req.method ?? "POST",
             headers,
@@ -172,6 +182,7 @@ export async function startRecordingProxy(options: RecordingProxyOptions): Promi
         res.writeHead(upstream.status, relayResponseHeaders(upstream.headers));
 
         const captured: string[] = [];
+        const frames: { atMs: number; text: string }[] = [];
         // Recorded in `finally`: an abort mid-stream is a scenario in its own
         // right, and its partial capture is exactly what must be kept.
         try {
@@ -179,10 +190,14 @@ export async function startRecordingProxy(options: RecordingProxyOptions): Promi
                 const decoder = new TextDecoder();
                 for await (const chunk of upstream.body) {
                     const bytes = chunk as Uint8Array;
-                    captured.push(decoder.decode(bytes, { stream: true }));
+                    const text = decoder.decode(bytes, { stream: true });
+                    captured.push(text);
+                    if (text.length > 0) frames.push({ atMs: Date.now() - startedAt, text });
                     if (!res.writableEnded) res.write(bytes);
                 }
-                captured.push(decoder.decode());
+                const tail = decoder.decode();
+                captured.push(tail);
+                if (tail.length > 0) frames.push({ atMs: Date.now() - startedAt, text: tail });
             }
         } finally {
             if (!res.writableEnded) res.end();
@@ -198,6 +213,9 @@ export async function startRecordingProxy(options: RecordingProxyOptions): Promi
                     status: upstream.status,
                     headers: sanitizeResponseHeaders(upstream.headers),
                     body: scrubSecrets(captured.join("")),
+                    ...(frames.length > 0
+                        ? { frames: frames.map((frame) => ({ atMs: frame.atMs, text: scrubSecrets(frame.text) })) }
+                        : {}),
                 },
             });
         }

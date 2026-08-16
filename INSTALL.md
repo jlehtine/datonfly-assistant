@@ -14,7 +14,8 @@ pnpm install
 
 # Copy environment file
 cp .env.example .env
-# Edit .env — at minimum set ANTHROPIC_API_KEY
+# By default this points at a local fixture playback harness (no API key or
+# billing needed) — see "Fixture Playback Harness" below to use the real API.
 
 # Start infrastructure services
 docker compose up -d
@@ -111,8 +112,12 @@ DF_JWT_SECRET=a-strong-random-secret
 
 ## AI Model Configuration
 
-The AI agent is powered by Anthropic models. Configure the model and optional
-title generation model:
+The AI agent is powered by Anthropic models. `.env.example` ships pointed at a
+local fixture playback harness by default (see "Fixture Playback Harness"
+below), so a fresh checkout runs with no key and no billing. For real usage,
+comment out the two `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` lines under
+"Fixture playback harness" in `.env` and configure the model and a real key
+instead:
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
@@ -120,12 +125,35 @@ DF_AGENT_MODEL=claude-opus-4-6
 DF_AGENT_TITLE_MODEL=claude-haiku-4-5
 ```
 
-- **`ANTHROPIC_API_KEY`** — Required. Your Anthropic API key (canonical name,
-  read by the SDK — no `DF_` prefix).
+- **`ANTHROPIC_API_KEY`** — Required for real use. Your Anthropic API key
+  (canonical name, read by the SDK — no `DF_` prefix).
 - **`DF_AGENT_MODEL`** _(optional, default: claude-opus-4-6)_ — The model used
   for chat responses.
 - **`DF_AGENT_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
   titles. Omit to disable title generation.
+
+### Fixture Playback Harness
+
+`.env.example` ships with `ANTHROPIC_BASE_URL=http://localhost:4010` and a dummy
+`ANTHROPIC_API_KEY=sk-ant-test` active by default:
+
+```env
+ANTHROPIC_BASE_URL=http://localhost:4010
+ANTHROPIC_API_KEY=sk-ant-test
+```
+
+`ANTHROPIC_BASE_URL` is read by the Anthropic SDK itself — there is no `DF_`
+variable or application wiring for it. It points at a local playback server
+(`packages/agent-anthropic`'s `fake-api` script) that `pnpm dev` starts
+automatically, which replays recorded/synthesised fixtures instead of calling
+the real API: deterministic, free, and fast, and what a fresh checkout runs
+against out of the box with no key and no billing.
+
+To develop or test against the real Anthropic API — required for genuine live
+usage, and for anything beyond the fixed set of recorded scenarios — comment out
+both lines above and set a real `ANTHROPIC_API_KEY` instead (see "AI Model
+Configuration" above). Never leave a real key set while `ANTHROPIC_BASE_URL`
+points somewhere other than Anthropic's own API.
 
 ## Agent Tools and MCP
 

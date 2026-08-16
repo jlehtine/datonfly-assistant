@@ -1,10 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-import { composerInput, sendAndWaitForReply } from "./helpers";
+import { composerInput, requiresLiveApi, sendAndWaitForReply } from "./helpers";
 
 const SECRET_WORD = "Serendipity";
 
 test("assistant remembers a word from earlier in the thread", async ({ page }) => {
+    // Asserts the model actually received earlier turns, so it needs a real
+    // model to be meaningful. A fixture reply containing the word would pass
+    // without exercising conversation history at all — worse than not running.
+    requiresLiveApi();
     test.setTimeout(60_000);
 
     await page.goto("/");

@@ -21,6 +21,11 @@
             "dependsOn": ["^build"],
             "cache": false,
             "persistent": true
+        },
+        "fake-api": {
+            "dependsOn": ["^build"],
+            "cache": false,
+            "persistent": true
         }
     }
 }

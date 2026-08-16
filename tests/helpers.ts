@@ -1,4 +1,22 @@
-import { expect, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+
+/**
+ * Skip the calling test unless the backend is pointed at the real Anthropic API.
+ *
+ * Most specs assert on UI behaviour and run fine against the fixture playback
+ * harness (the default; see `.env.example`). A few assert on what the *model*
+ * produces — reasoning over earlier turns, say — which canned fixtures cannot
+ * exercise: a fixture crafted to satisfy the assertion would make the test pass
+ * without testing anything. Those call this instead.
+ *
+ * Set `DF_E2E_LIVE_API=true` when running the suite against the real API.
+ */
+export function requiresLiveApi(): void {
+    test.skip(
+        process.env.DF_E2E_LIVE_API !== "true",
+        "requires the real Anthropic API (set DF_E2E_LIVE_API=true); asserts on model-generated content",
+    );
+}
 
 /** Locate the composer input textarea. */
 export function composerInput(page: Page): Locator {

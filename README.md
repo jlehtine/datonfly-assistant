@@ -127,6 +127,23 @@ pnpm test:e2e
 > pnpm exec playwright test tests/thread-management.spec.ts
 > ```
 
+By default, `.env.example` points the backend at a local fixture playback
+harness (`ANTHROPIC_BASE_URL=http://localhost:4010`, started automatically by
+`pnpm dev`) instead of the real Anthropic API: deterministic, free, and fast,
+which is also what sidesteps the rate-limit note above. To run the suite against
+the real API instead — to catch upstream API changes, or to exercise anything
+outside the fixed set of recorded scenarios — comment out the two
+`ANTHROPIC_BASE_URL`/`ANTHROPIC_API_KEY` lines in `.env` and set a real
+`ANTHROPIC_API_KEY`, then restart `pnpm dev`.
+
+A few specs assert on model-generated content rather than UI behaviour (that the
+assistant recalls an earlier turn, for example) and cannot be served by canned
+fixtures. They are skipped unless the suite is run against the real API:
+
+```bash
+DF_E2E_LIVE_API=true pnpm test:e2e
+```
+
 ## Package Structure
 
 The project is organized as a monorepo with library packages and a standalone

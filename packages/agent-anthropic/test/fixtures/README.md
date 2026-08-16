@@ -44,6 +44,94 @@ numbered files: `tool-loop-01.json`, `tool-loop-02.json`, …
 streaming path: the request has no `stream` field and the response body is a
 plain JSON message rather than an SSE event stream.
 
+An exchange's `response` may also carry a `frames` array — `{ atMs, text }[]`,
+timestamps relative to the request being sent — captured automatically by the
+recording proxy since this field was added. It is optional and absent on every
+fixture committed so far; the playback server below synthesizes pacing for those
+instead of requiring a re-recording.
+
+## Fake API playback server
+
+`packages/agent-anthropic/src/testing/playback-server.ts` replays these fixtures
+over real HTTP, so a real backend can be pointed at it via the Anthropic SDK's
+own `ANTHROPIC_BASE_URL` for deterministic, free, fast E2E testing — see
+`TODO.md` section 5 for the full design. It runs automatically as part of
+`pnpm dev` (the `fake-api` turbo task, `agent-anthropic`'s own `fake-api`
+script) on `http://localhost:4010`, whether or not anything is currently pointed
+at it.
+
+Selection is content-based, not positional: each scenario's trigger is simply
+the human text its own first exchange was recorded with (see
+`scenario-registry.ts`) — no separate registry to keep in sync with the
+fixtures. A request matches whichever scenario's trigger text appears anywhere
+in its `messages`; a multi-exchange scenario's own numbered fixtures then replay
+in order, inferred from how many `assistant` turns the (always fully resent)
+history already contains — no server-side session state. Requests that match
+nothing, or continue past a scenario's own recorded exchanges (e.g. a retry
+after `overloaded-mid-stream`), fall back to `plain-text`.
+
+Non-streaming calls (`title`, `triage`) are routed structurally instead, since
+they have no human turn to key off: a forced `record_decision` tool choice
+selects `triage`, anything else non-streaming selects `title`.
+
+**Fixtures are hot-reloaded.** The harness watches this directory and reloads
+when a fixture is added or edited, so no restart is needed. This matters because
+an unloaded fixture does not error — it simply never matches, and the request
+quietly falls back to `plain-text`, which surfaces as a confusing assertion
+failure rather than an obvious problem. Harness _code_ changes are covered too,
+by `node --watch` in the `fake-api` script (fixtures are read rather than
+imported, so the two mechanisms cover different things).
+
+### Specs that cannot use fixtures
+
+Most E2E specs assert on UI behaviour and run against the harness unchanged. A
+few assert on what the _model_ produces — `thread-history`, for instance, checks
+that the assistant recalls a word from an earlier turn. A canned reply
+containing that word would make such a test pass without exercising conversation
+history at all, so those specs call `requiresLiveApi()` from `tests/helpers.ts`
+and are skipped unless `DF_E2E_LIVE_API=true`.
+
+The distinction is whether a fixture preserves what the test verifies.
+`thread-routing`'s "response still renders after initial send navigates to
+thread URL" is about _rendering_, not about the model, so it gets the
+`routing-render` fixture and keeps its full value.
+
+### Timing model
+
+Fixtures without recorded `frames` (all of them, currently) are paced by a
+synthesized model in `testing/timing.ts`, grounded in a handful of observational
+captures against the deployment's own model rather than guessed constants:
+
+```bash
+pnpm --filter @datonfly-assistant/agent-anthropic experiment:timing
+# TIMING_DEBUG=1 prefix prints the raw per-chunk timestamps behind the stats
+```
+
+The captures found genuine, non-obvious pacing that the original placeholder got
+wrong in two ways:
+
+- **Time to first byte is ~800-1000ms**, not the tens of milliseconds a
+  co-located mock server would suggest — `message_start` is the slowest single
+  gap in an exchange.
+- **Opus-class answer text streams in chunks roughly 600-800ms apart.** This
+  looked at first like a measurement bug (huge gaps, tiny sample), but the raw
+  per-chunk timestamps confirmed it is genuine: `claude-opus-5` really is this
+  much slower per chunk than a smaller/faster model would be. This is also what
+  makes the playback server's speed multiplier worth having at all — a
+  placeholder fast enough to look realistic on its own would have made the
+  multiplier redundant.
+- **A thinking block's own reasoning happens silently before anything is
+  visible.** The observed pattern was a long pause (~2s) before the first
+  `thinking_delta`, then a fast burst (~10-20ms between deltas) once the summary
+  actually streams. One "thinking is slower" constant (the original
+  placeholder's assumption) gets both phases wrong; `syntheticDelayMs` models
+  them separately.
+
+Re-run the experiment and adjust `testing/timing.ts`'s constants if the
+deployment's model changes, or if the numbers drift over time — this is an
+order-of-magnitude model from a couple of runs, not a statistically rigorous
+one.
+
 ## Recording
 
 ```bash
@@ -122,6 +210,8 @@ personal content that does not belong in the repository.
 | `error-429`             | Rate limit. **Synthetic** — see below.                                     |
 | `error-529`             | Overloaded (top-level, at connection time). **Synthetic** — see below.     |
 | `overloaded-mid-stream` | Overloaded _inside_ an open stream. **Synthetic** — see below.             |
+| `routing-render`        | Serves `thread-routing`'s render-after-navigation case. **Synthetic**.     |
+| `long-response`         | Long, complete stream for `multiuser-interrupt`. **Synthetic**.            |
 | `triage`                | Non-streaming `shouldRespond()` classification through forced tool use.    |
 | `title`                 | Non-streaming `generateTitle()` call.                                      |
 

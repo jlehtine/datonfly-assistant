@@ -95,20 +95,32 @@ export interface ChatHistoryEmbedProps {
  */
 export function ChatHistoryEmbed({ config }: ChatHistoryEmbedProps): ReactElement {
     const { url, basePath } = config;
-    const { client, userId, features } = useChatConnection({ url, basePath });
+    const connection = useChatConnection({ url, basePath });
+    const { client, userId, features } = connection;
 
     return (
         <AssistantI18nProvider locale={config.locale}>
             <ChatClientContext.Provider value={client}>
                 <CurrentUserIdContext.Provider value={userId}>
-                    <ChatHistoryInner config={config} searchEnabled={features.search === true} />
+                    <ChatHistoryInner
+                        config={config}
+                        connection={connection}
+                        searchEnabled={features.search === true}
+                    />
                 </CurrentUserIdContext.Provider>
             </ChatClientContext.Provider>
         </AssistantI18nProvider>
     );
 }
 
-function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { searchEnabled: boolean }): ReactElement {
+function ChatHistoryInner({
+    config,
+    connection,
+    searchEnabled,
+}: ChatHistoryEmbedProps & {
+    connection: ReturnType<typeof useChatConnection>;
+    searchEnabled: boolean;
+}): ReactElement {
     const {
         url,
         basePath,
@@ -329,6 +341,7 @@ function ChatHistoryInner({ config, searchEnabled }: ChatHistoryEmbedProps & { s
             )}
             <Box sx={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
                 <ChatEmbed
+                    connection={connection}
                     config={{
                         url,
                         basePath,

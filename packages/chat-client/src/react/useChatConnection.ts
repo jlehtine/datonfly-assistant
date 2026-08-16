@@ -13,6 +13,13 @@ export interface UseChatConnectionConfig {
      * @see {@link ChatClientConfig.basePath}
      */
     basePath?: string | undefined;
+    /**
+     * When `false`, the client is created but never connected — use when the
+     * caller will supply an already-established connection instead. Defaults
+     * to `true`. Kept as a flag rather than skipping the hook call so it can
+     * still be called unconditionally.
+     */
+    enabled?: boolean | undefined;
 }
 
 /**
@@ -30,6 +37,9 @@ export function useChatConnection(config: UseChatConnectionConfig): {
     features: ServerFeatures;
 } {
     const clientRef = useRef<ChatClient | null>(null);
+    // Holds a pending, deferred disconnect (see below) so a same-tick
+    // remount can cancel it instead of reconnecting.
+    const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [connected, setConnected] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
     const [features, setFeatures] = useState<ServerFeatures>({});
@@ -39,8 +49,22 @@ export function useChatConnection(config: UseChatConnectionConfig): {
         basePath: config.basePath,
     });
     const client = clientRef.current;
+    const enabled = config.enabled ?? true;
 
     useEffect(() => {
+        if (!enabled) return;
+
+        // React StrictMode runs this effect's cleanup and setup back to back
+        // in dev, to surface non-symmetric effects. If the deferred disconnect
+        // below is still pending, the socket never actually went down —
+        // cancel it rather than reconnecting, so the rapid unmount/remount
+        // can't leave two overlapping connections both joined to the same
+        // thread room server-side.
+        if (disconnectTimerRef.current !== null) {
+            clearTimeout(disconnectTimerRef.current);
+            disconnectTimerRef.current = null;
+        }
+
         const onConnect = (): void => {
             setConnected(true);
         };
@@ -63,9 +87,13 @@ export function useChatConnection(config: UseChatConnectionConfig): {
             client.off("connect", onConnect);
             client.off("disconnect", onDisconnect);
             client.off("welcome", onWelcome);
-            client.disconnect();
+            // Deferred: see the cancellation above.
+            disconnectTimerRef.current = setTimeout(() => {
+                disconnectTimerRef.current = null;
+                client.disconnect();
+            }, 0);
         };
-    }, [client]);
+    }, [client, enabled]);
 
     return { client, connected, userId, features };
 }

@@ -14,7 +14,8 @@ pnpm install
 
 # Copy environment file
 cp .env.example .env
-# Edit .env — at minimum set ANTHROPIC_API_KEY
+# By default this points at a local fixture playback harness (no API key or
+# billing needed) — see "Fixture Playback Harness" below to use the real API.
 
 # Start infrastructure services
 docker compose up -d
@@ -55,9 +56,9 @@ Datonfly Assistant supports two authentication modes, controlled by the
 
 > All Datonfly configuration variables use the `DF_` prefix. The only exceptions
 > are `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, which keep their canonical names
-> because the vendor SDKs read them directly. Legacy unprefixed names are still
-> accepted during a deprecation window — see
-> [ENV_MIGRATION.md](ENV_MIGRATION.md).
+> because the vendor SDKs read them directly, and `PORT` / `DATABASE_URL`, whose
+> unprefixed forms remain accepted as a fallback. Unprefixed legacy names are no
+> longer read — see [ENV_MIGRATION.md](ENV_MIGRATION.md).
 
 ### Fake Mode (`DF_AUTH_MODE=fake`)
 
@@ -111,21 +112,49 @@ DF_JWT_SECRET=a-strong-random-secret
 
 ## AI Model Configuration
 
-The AI agent is powered by Anthropic models. Configure the model and optional
-title generation model:
+The AI agent is powered by Anthropic models. `.env.example` ships pointed at a
+local fixture playback harness by default (see "Fixture Playback Harness"
+below), so a fresh checkout runs with no key and no billing. For real usage,
+comment out the two `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` lines under
+"Fixture playback harness" in `.env` and configure the model and a real key
+instead:
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
-DF_ANTHROPIC_MODEL=claude-opus-4-6
-DF_ANTHROPIC_TITLE_MODEL=claude-haiku-4-5
+DF_AGENT_MODEL=claude-opus-4-6
+DF_AGENT_TITLE_MODEL=claude-haiku-4-5
 ```
 
-- **`ANTHROPIC_API_KEY`** — Required. Your Anthropic API key (canonical name,
-  read by the SDK — no `DF_` prefix).
-- **`DF_ANTHROPIC_MODEL`** _(optional, default: claude-opus-4-6)_ — The model
-  used for chat responses.
-- **`DF_ANTHROPIC_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
-  titles. Omit to disable title generation.
+- **`ANTHROPIC_API_KEY`** — Required for real use. Your Anthropic API key
+  (canonical name, read by the SDK — no `DF_` prefix).
+- **`DF_AGENT_MODEL`** _(optional, default: claude-opus-4-6)_ — The model used
+  for chat responses.
+- **`DF_AGENT_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
+  titles. Omit to title with `DF_AGENT_MODEL` instead; titling is always on. Set
+  it to a cheaper model to keep titling off the main model's bill.
+
+### Fixture Playback Harness
+
+`.env.example` ships with `ANTHROPIC_BASE_URL=http://localhost:4010` and a dummy
+`ANTHROPIC_API_KEY=sk-ant-test` active by default:
+
+```env
+ANTHROPIC_BASE_URL=http://localhost:4010
+ANTHROPIC_API_KEY=sk-ant-test
+```
+
+`ANTHROPIC_BASE_URL` is read by the Anthropic SDK itself — there is no `DF_`
+variable or application wiring for it. It points at a local playback server
+(`packages/agent-anthropic`'s `fake-api` script) that `pnpm dev` starts
+automatically, which replays recorded/synthesised fixtures instead of calling
+the real API: deterministic, free, and fast, and what a fresh checkout runs
+against out of the box with no key and no billing.
+
+To develop or test against the real Anthropic API — required for genuine live
+usage, and for anything beyond the fixed set of recorded scenarios — comment out
+both lines above and set a real `ANTHROPIC_API_KEY` instead (see "AI Model
+Configuration" above). Never leave a real key set while `ANTHROPIC_BASE_URL`
+points somewhere other than Anthropic's own API.
 
 ## Agent Tools and MCP
 
@@ -134,10 +163,10 @@ The agent can call tools while answering. Anthropic's built-in server-side tools
 corresponding flag to `"false"` to disable any of them:
 
 ```env
-DF_ENABLE_COMPACTION=true
-DF_ENABLE_CODE_EXECUTION=true
-DF_ENABLE_WEB_SEARCH=true
-DF_ENABLE_WEB_FETCH=true
+DF_ANTHROPIC_ENABLE_COMPACTION=true
+DF_ANTHROPIC_ENABLE_CODE_EXECUTION=true
+DF_ANTHROPIC_ENABLE_WEB_SEARCH=true
+DF_ANTHROPIC_ENABLE_WEB_FETCH=true
 ```
 
 Custom tools can additionally be provided through external **MCP (Model Context

@@ -38,94 +38,65 @@ those entries have been migrated into the permanent docs
 Cleanup is a documentation step, not a plain deletion: nothing of lasting value
 should be lost when entries are removed.
 
-## Configuration — environment variable naming convention
+## Thread list scalability with an ever-growing history
 
-Apply a consistent naming convention for environment variables: a **single
-suite-wide `DF_` prefix** for all Datonfly-owned config, with canonical
-(unprefixed) names kept only for the two secrets that the official SDKs read
-directly from the environment. This gives one unambiguous namespace shared by
-the standalone assistant and the wider Datonfly suite (`datonfly-autocode`),
-behaves identically whether shared library packages run standalone or embedded,
-and still "just works" for the provider SDKs.
+Not tackled now — recorded while investigating E2E flakiness against a dev
+database that had grown to ~1500 threads. The sidebar itself is **not** the
+naive case: `useThreadList` pages 20 at a time by offset with load-on-scroll,
+and the ordering is indexed (`thread_updated_at_idx (updated_at DESC, id)`), so
+the initial load does not grow with history size. Two real issues remain, both
+of which only bite once a user has a long history:
 
-Status: implemented, deprecation window open. All reads go through `EnvReader`
-in `packages/backend/src/config.ts`, which resolves `DF_*` with a legacy
-unprefixed fallback. Only the final cleanup step (dropping the legacy fallbacks
-and their deprecation warnings) remains, pending migration of existing test
-deployments.
+- [ ] **Offset pagination over a list that reorders while paging.** Threads are
+      ordered by `updated_at DESC` and move to the top whenever they receive a
+      message, so `LIMIT 20 OFFSET n` can return duplicates or silently skip
+      threads when activity arrives mid-scroll. Switch to keyset (seek)
+      pagination on `(updated_at, id)` — the index is already in the right
+      shape. This is a correctness issue, not just performance.
+- [ ] **No virtualization in the rendered list.** `ThreadListPanel` renders
+      every loaded thread (`filtered.map(...)`), and `useThreadList` keeps all
+      loaded pages plus any threads prepended by `thread-created` events, so DOM
+      nodes and in-memory state grow without bound as the user scrolls. Add
+      windowing, and/or cap what is retained in memory.
+- [ ] **`thread-created` grows the list without bound, independent of
+      scrolling.** The handler prepends every newly created thread to `threads`
+      and nothing ever evicts. A tab left open accumulates every thread the user
+      creates from any device or tab, for the lifetime of the tab — **observed:
+      a dev-UI tab left open during an E2E run crashed Chrome with
+      out-of-memory** after the suite created ~1500 threads under the shared
+      fake user. Cap or evict, and reconcile against the loaded window rather
+      than growing it.
+- [ ] **`loadMore` derives its offset from `threads.length`,** which the
+      unbounded `thread-created` prepending inflates, so the next page is
+      fetched from the wrong offset and skips threads. Keyset pagination (above)
+      removes this coupling; until then the two bugs compound.
 
-### Decisions (resolved)
+Worth revisiting the message list on the same grounds: it pages history on
+scroll-up and never drops what it has loaded.
 
-- **Prefix:** single suite-wide `DF_` (not a per-app prefix). Each app runs in
-  its own container, so the env namespace is already isolated; the prefix is for
-  clarity and consistency across shared packages, not collision avoidance. A
-  per-app prefix would be ambiguous for packages (`core`, `agent-langchain`,
-  `chat-server`, `agent-mcp`) used by both products.
-- **Keep canonical (no prefix):** `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` only
-  — auto-read by the official SDKs and recognised by secret scanners.
-- **Canonical fallback (rename + accept legacy):** `PORT` → `DF_PORT` and
-  `DATABASE_URL` → `DF_DATABASE_URL`, read as `DF_X ?? X` so platform-injected
-  `PORT` (Cloud Run/Render/etc.) and `DATABASE_URL` tooling conventions keep
-  working where present. All other infra vars (`LOG_LEVEL`, `LOG_FORMAT`,
-  `QDRANT_URL`, `INFINITY_URL`, …) are read only by our own code and become
-  plain `DF_*`.
-- **Embedded assistant:** when Assistant runs inside Autocode it is consumed as
-  a library; Autocode is the composition root and passes config as objects, so
-  the standalone `DF_*` names do not apply there. The only env reads that leak
-  into the Autocode process are those currently in shared library packages (see
-  the architectural step below), which is why those should move out.
+## Unresolved: composer text can be lost between typing and send
 
-### Variables to rename to `DF_*`
+`chat-response.spec.ts`'s "keeps markdown soft breaks and paragraph spacing"
+fails intermittently (roughly 1 in 3 full-suite runs, load-dependent). It fills
+the composer and clicks Send immediately, and on failure the composer is empty
+and Send is disabled.
 
-- Auth: `AUTH_MODE`, `JWT_SECRET`, `SESSION_TTL_SECONDS`, `FRONTEND_URL`,
-  `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
-  `OIDC_REDIRECT_URI`, `OIDC_ALLOWED_EMAIL_DOMAIN`, `OIDC_ALLOWED_EMAILS`,
-  `FAKE_USER_EMAIL`, `FAKE_USER_NAME`.
-- Model / agent: `ANTHROPIC_MODEL`, `ANTHROPIC_TRIAGE_MODEL`,
-  `ANTHROPIC_TITLE_MODEL`, `ANTHROPIC_THINKING_TYPE`,
-  `ANTHROPIC_THINKING_DISPLAY`, `ANTHROPIC_THINKING_BUDGET_TOKENS`,
-  `ANTHROPIC_THINKING_EFFORT`, `ENABLE_COMPACTION`, `ENABLE_CODE_EXECUTION`,
-  `ENABLE_WEB_SEARCH`, `ENABLE_WEB_FETCH`, `AGENT_MAX_TOOL_ITERATIONS`,
-  `DEBUG_API_CONTENT`. (The `ANTHROPIC_*` knobs here are _our_ config, not
-  SDK-read — only the bare `ANTHROPIC_API_KEY` stays canonical.)
-- MCP: `MCP_SERVERS`, `MCP_TOOL_TIMEOUT_MS`.
-- Transcription: `OPENAI_TRANSCRIBE_MODEL`.
-- Search: `MEMBER_SEARCH_STRATEGY`, `SEARCH_STEMMER_LANGUAGE`,
-  `EMBEDDINGS_TIMEOUT_MS`, `SEARCH_RECENCY_HALF_LIFE_DAYS`.
-- Logging / infra: `LOG_LEVEL`, `LOG_FORMAT`, `QDRANT_URL`, `INFINITY_URL`.
-- Infra with canonical fallback (`DF_X ?? X`): `PORT`, `DATABASE_URL`.
-- Ops/admin: `TRUSTED_REVERSE_PROXY`, `ADMIN_SECRET`, `ADMIN_IPS`.
-- Frontend (Vite): audit `import.meta.env.VITE_*` usage; Vite enforces its own
-  `VITE_` prefix, so keep that prefix (do not apply `DF_` there).
+What was established:
 
-### Implementation steps
+- Not data loss and not a wrong-thread send: the DB shows the second message was
+  never persisted, so nothing was sent anywhere.
+- Not rate limiting (`DF_RATE_LIMIT_FACTOR=100` changed nothing) and not the
+  accumulated-test-data slowdown (it still reproduces against a truncated
+  database).
+- The thread is still selected and its messages are intact at failure, so the
+  `key={threadId ?? "new"}` on `Composer` did not change.
+- Nothing resets `useComposer`'s `text` except submitting, so the state can only
+  have been lost by the `Composer` remounting — but Playwright's log reporting
+  the send button "detached from the DOM" is the only evidence of that, and a
+  mount/unmount trace added to `Composer` failed to reproduce across a full
+  suite run.
 
-- [x] Move env reads out of shared library packages so the prefix governs only
-      the standalone entrypoint and embedded Autocode controls config via
-      objects. Specifically, lift `LOG_LEVEL` / `LOG_FORMAT` out of
-      `packages/chat-server/src/chat.module.ts` and `DEBUG_API_CONTENT` out of
-      `packages/agent-langchain/src/agent.ts` into explicit config passed from
-      the composition root. Library packages should not read `process.env`.
-- [x] Add a single typed config loader (e.g. `packages/backend/src/config.ts`)
-      that centralises all `process.env` reads, the `DF_` prefix, validation,
-      and defaults. Replace the inline `process.env.*` reads in
-      `packages/backend/src/main.ts` with it.
-- [x] Implement a backward-compatible read helper:
-      `read("FOO") => process.env.DF_FOO ?? process.env.FOO`. When only the
-      legacy name is present, log a one-time deprecation warning naming the new
-      variable. (`PORT` and `DATABASE_URL` use the same helper, but their
-      canonical fallback is permanent rather than deprecated.)
-- [x] Update `.env.example`, `README.md`, `INSTALL.md`, `docker-compose.yml`,
-      and any deployment manifests to the new names. All other documentation
-      must refer to the new `DF_*` names only (no legacy names except where the
-      permanent `PORT` / `DATABASE_URL` canonical fallback is explained).
-- [x] Write `ENV_MIGRATION.md` documenting every renamed variable (old → new),
-      the keep-canonical exceptions (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), the
-      permanent `PORT` / `DATABASE_URL` canonical fallbacks, and step-by-step
-      instructions for migrating an existing deployment to the new names,
-      including the deprecation window and warning behaviour.
-- [x] Add a unit test for the config loader: prefixed name wins, legacy fallback
-      works and warns, validation errors are raised for malformed values.
-- [ ] After test deployments have migrated, remove the legacy fallbacks and
-      deprecation warnings (except the permanent `PORT` / `DATABASE_URL`
-      canonical fallbacks) in a follow-up change.
+- [ ] Find the remount (or whatever else drops the typed text) and fix it. If it
+      is real, a user typing while a background re-render lands would silently
+      lose their message. Until then the spec stays as-is rather than being
+      papered over with a retry, so the flake keeps surfacing it.

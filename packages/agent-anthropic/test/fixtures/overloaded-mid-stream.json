@@ -1,0 +1,32 @@
+{
+    "scenario": "overloaded-mid-stream",
+    "synthetic": true,
+    "note": "Hand-written: the connection succeeds (200, text/event-stream) and the turn starts normally — a signed thinking block, then a text block streaming an answer — but instead of completing, Anthropic sends a mid-stream `event: error` carrying `overloaded_error`. Because the HTTP response already succeeded, SDK-level retries never see this; the SDK surfaces it from inside the SSE parser as a bare APIError with `status: undefined` (see errors.ts `isOverloadedError`). Pair with a normal fixture (e.g. `plain-text`) as the second exchange to play the retried request's response.",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages?beta=true",
+        "headers": {
+            "content-type": "application/json",
+            "accept": "application/json"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "stream": true,
+            "max_tokens": 1024,
+            "thinking": { "type": "adaptive", "display": "summarized" },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{ "type": "text", "text": "Explain how a bicycle derailleur works." }]
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-opus-5\",\"id\":\"msg_fixture_overloaded\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":30,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":1,\"service_tier\":\"standard\"}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"A derailleur moves the chain between sprockets.\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"fixture-signature-overloaded-01\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"A derailleur is a mechanical arm that pushes the chain sideways off one sprocket and onto\"}}\n\nevent: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n"
+    }
+}

@@ -35,9 +35,11 @@ export {
 } from "./attachments/index.js";
 
 // Interfaces
-export { formatLoggedError, NOOP_PROVIDER_LOGGER } from "./interfaces/index.js";
+export { formatLoggedError, NOOP_PROVIDER_LOGGER, zodTool } from "./interfaces/index.js";
 export type {
     IAgentProvider,
+    AgentCapabilities,
+    AgentConfig,
     ProviderLogger,
     AgentMessage,
     AgentMessageRole,
@@ -70,6 +72,8 @@ export type {
     SemanticSearchOptions,
     IEmbeddingsProvider,
     ITool,
+    JsonSchema,
+    ZodToolDefinition,
     IMemoryProvider,
     SaveMemoryOptions,
     SearchMemoryOptions,

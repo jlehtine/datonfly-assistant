@@ -6,7 +6,13 @@ import type {
     ThreadMessage,
 } from "@datonfly-assistant/core";
 
-/** Default alias used when a member has not configured an agent alias. */
+/**
+ * Alias used for a member who has not configured one.
+ *
+ * Members are anonymous to the agent by default: real names are never sent, so
+ * an unaliased member is deliberately indistinguishable rather than falling back
+ * to their display name.
+ */
 const DEFAULT_ALIAS = "Unidentified user";
 
 /** Extract the concatenated text from an array of content parts, ignoring tool calls, results, and opaque parts. */
@@ -108,21 +114,6 @@ export function threadMessagesToAgentMessages(
     const result: AgentMessage[] = [buildSystemPrompt(authorAliases)];
 
     for (const [i, msg] of messages.entries()) {
-        // Skip messages that have been compacted (replaced by a summary).
-        if (msg.metadata?.compacted === true) continue;
-
-        // Compaction summaries are inserted as human messages so they don't
-        // violate the single-system-message constraint. content_at places
-        // them before preserved messages, right after the system prompt.
-        if (msg.metadata?.compactionSummary === true) {
-            const text = extractText(msg.content);
-            result.push({
-                role: "human",
-                content: [{ type: "text", text: `[Summary of previous conversation]\n\n${text}` }],
-            });
-            continue;
-        }
-
         const text = extractText(msg.content);
         switch (msg.role) {
             case "human": {

@@ -267,6 +267,8 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                                 return (
                                     <Box
                                         key={`${message.id}-thinking-${String(run.runIndex)}`}
+                                        className="datonfly-message-thinking"
+                                        data-collapsed={collapsed}
                                         role="button"
                                         tabIndex={0}
                                         onClick={() => {

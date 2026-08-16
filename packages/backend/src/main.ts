@@ -10,7 +10,7 @@ import { config } from "dotenv";
 import { Logger } from "nestjs-pino";
 import pino from "pino";
 
-import { AnthropicAgent, createTitleGenerateFn } from "@datonfly-assistant/agent-langchain";
+import { AnthropicAgent } from "@datonfly-assistant/agent-anthropic";
 import { McpServerSet } from "@datonfly-assistant/agent-mcp";
 import { ChatModule } from "@datonfly-assistant/chat-server";
 import type { ISearchProvider, ProviderLogger } from "@datonfly-assistant/core";
@@ -32,8 +32,7 @@ for (const candidate of [".env", "../../.env"]) {
 }
 
 async function bootstrap(): Promise<void> {
-    const deprecationWarnings: string[] = [];
-    const cfg = loadBackendConfig(process.env, (message) => deprecationWarnings.push(message));
+    const cfg = loadBackendConfig(process.env);
 
     // ─── Persistence ───
     const pg = await createPostgresPersistence({ connectionString: cfg.databaseUrl });
@@ -51,10 +50,6 @@ async function bootstrap(): Promise<void> {
             censor: "[REDACTED]",
         },
     }).child({ component: "assistant-api" });
-
-    for (const message of deprecationWarnings) {
-        agentLogger.warn({}, message);
-    }
 
     // Optional: external MCP servers whose tools are exposed to the agent on
     // every call. Disabled (no behaviour change) unless DF_MCP_SERVERS is set.
@@ -74,27 +69,13 @@ async function bootstrap(): Promise<void> {
         modelName: cfg.agent.modelName,
         apiKey: cfg.anthropicApiKey,
         triageModelName: cfg.agent.triageModelName,
-        enableCompaction: cfg.agent.enableCompaction,
-        enableCodeExecution: cfg.agent.enableCodeExecution,
-        enableWebSearch: cfg.agent.enableWebSearch,
-        enableWebFetch: cfg.agent.enableWebFetch,
-        thinkingType: cfg.agent.thinkingType,
-        thinkingDisplay: cfg.agent.thinkingDisplay,
-        thinkingBudgetTokens: cfg.agent.thinkingBudgetTokens,
-        thinkingEffort: cfg.agent.thinkingEffort,
+        titleModelName: cfg.agent.titleModelName,
         debugApiContent: cfg.agent.debugApiContent,
         ...(cfg.agent.maxToolIterations !== undefined ? { maxToolIterations: cfg.agent.maxToolIterations } : {}),
         ...(mcpServerSet ? { defaultTools: mcpServerSet.tools } : {}),
         logger: agentLogger,
+        providerOptions: cfg.agent.anthropic,
     });
-
-    // Optional: separate (cheaper) model for automatic thread title generation.
-    const generateTitle = cfg.titleModelName
-        ? createTitleGenerateFn({
-              modelName: cfg.titleModelName,
-              apiKey: cfg.anthropicApiKey,
-          })
-        : undefined;
 
     // Optional: audio input transcription backed by OpenAI. Enabled when an API
     // key is present; advertised to clients via the welcome event feature flag.
@@ -123,7 +104,6 @@ async function bootstrap(): Promise<void> {
         agent,
         persistence,
         validateToken: (token: string) => authService.authenticateToken(token),
-        generateTitle,
         transcribe,
         cors: { origin: cfg.frontendUrl, credentials: true },
         memberSearchStrategy: cfg.memberSearchStrategy,

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { composerInput, createThreadAndSend, sendAndWaitForReply, threadItemByTitle } from "./helpers";
+import { composerInput, createThreadAndSend, openThread, sendAndWaitForReply, threadItemByTitle } from "./helpers";
 
 test.describe("thread unread count and ordering", () => {
     test("thread moves to top of list when a new message is sent while viewing it", async ({ page }) => {
@@ -34,8 +34,14 @@ test.describe("thread unread count and ordering", () => {
             .toBeTruthy();
 
         // ── Switch to thread A and send a new message ──
-        await threadItemByTitle(page, titleA).click();
-        await expect(page.locator(".datonfly-message-human").first()).toBeVisible({ timeout: 10_000 });
+        // Use openThread: it waits for the selection to commit. Asserting on a
+        // human message alone would pass immediately, since the thread being
+        // switched away from has one too, and the send would then still target
+        // the previous thread.
+        await openThread(page, titleA);
+        await expect(page.locator(".datonfly-message-human", { hasText: "hello from thread A" })).toBeVisible({
+            timeout: 10_000,
+        });
 
         await sendAndWaitForReply(page, "Say exactly: second message in thread A");
 

@@ -2,6 +2,8 @@ export type { ProviderLogger } from "./logger.js";
 export { formatLoggedError, NOOP_PROVIDER_LOGGER } from "./logger.js";
 export type {
     IAgentProvider,
+    AgentCapabilities,
+    AgentConfig,
     AgentMessage,
     AgentMessageRole,
     AgentRunOptions,
@@ -37,5 +39,7 @@ export type {
     SemanticSearchOptions,
 } from "./search.js";
 export type { IEmbeddingsProvider } from "./embeddings.js";
-export type { ITool } from "./tool.js";
+export type { ITool, JsonSchema } from "./tool.js";
+export type { ZodToolDefinition } from "./zod-tool.js";
+export { zodTool } from "./zod-tool.js";
 export type { IMemoryProvider, SaveMemoryOptions, SearchMemoryOptions, ListMemoryOptions } from "./memory.js";

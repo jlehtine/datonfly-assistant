@@ -33,7 +33,7 @@ export class AdminController {
         };
 
         if (!this.searchProvider) {
-            write("Error: No search provider configured. Set QDRANT_URL to enable search.");
+            write("Error: No search provider configured. Set DF_QDRANT_URL to enable search.");
             res.end();
             return;
         }

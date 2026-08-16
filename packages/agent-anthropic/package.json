@@ -1,5 +1,5 @@
 {
-    "name": "@datonfly-assistant/agent-langchain",
+    "name": "@datonfly-assistant/agent-anthropic",
     "version": "0.0.1",
     "type": "module",
     "publishConfig": {
@@ -14,6 +14,10 @@
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
+        },
+        "./testing": {
+            "types": "./dist/testing/index.d.ts",
+            "import": "./dist/testing/index.js"
         }
     },
     "scripts": {
@@ -21,18 +25,23 @@
         "build": "tsc --project tsconfig.build.json",
         "dev": "tsc --watch --project tsconfig.build.json",
         "test": "vitest run --dir src",
+        "record:fixtures": "pnpm run build && node dist/fixtures/record-fixtures.js",
+        "experiment:compaction": "pnpm run build && node dist/fixtures/compaction-experiment.js",
+        "experiment:continuation": "pnpm run build && node dist/fixtures/continuation-experiment.js",
+        "experiment:timing": "pnpm run build && node dist/fixtures/timing-experiment.js",
+        "fake-api": "pnpm run build && node --watch dist/bin/fake-api-server.js",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
-        "@langchain/anthropic": "^1.3.0",
-        "@langchain/core": "^1.1.39"
+        "@anthropic-ai/sdk": "^0.74.0"
     },
     "peerDependencies": {
         "@datonfly-assistant/core": "workspace:*"
     },
     "devDependencies": {
         "@datonfly-assistant/core": "workspace:*",
+        "@types/node": "^25.5.2",
         "typescript": "^6.0.2",
         "vitest": "^4.1.2",
         "zod": "^4.3.6"

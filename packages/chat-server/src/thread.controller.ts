@@ -166,7 +166,6 @@ export class ThreadController {
             threadId,
             limit: query.limit,
             before: query.before,
-            excludeCompactionSummaries: true,
         });
 
         // Strip opaque content parts — they are internal provider data

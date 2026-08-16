@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { sql, type Kysely, type QueryCreator, type SqlBool } from "kysely";
+import { sql, type Kysely, type QueryCreator } from "kysely";
 
 import type {
     AppendMessageOptions,
@@ -382,12 +382,6 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
         if (options.before) {
             query = query.where("message.content_at", "<", options.before);
-        }
-        if (options.excludeCompacted) {
-            query = query.where(sql<SqlBool>`coalesce(message.metadata->>'compacted', '') != 'true'`);
-        }
-        if (options.excludeCompactionSummaries) {
-            query = query.where(sql<SqlBool>`coalesce(message.metadata->>'compactionSummary', '') != 'true'`);
         }
 
         query = query.orderBy("message.content_at", "asc");

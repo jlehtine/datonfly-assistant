@@ -20,7 +20,6 @@ import {
     ADMIN_SECRET,
     AGENT_PROVIDER,
     CHAT_CORS_OPTIONS,
-    GENERATE_TITLE_FN,
     MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
     RATE_LIMIT_CONFIG,
@@ -42,7 +41,6 @@ import {
     type ResolvedRateLimitConfig,
 } from "./rate-limit/tiers.js";
 import { TrustedProxyService, type TrustedReverseProxy } from "./trusted-proxy.service.js";
-import type { GenerateTitleFn } from "./title-generator.js";
 import { ThreadController } from "./thread.controller.js";
 import { TranscriptionController, type TranscribeFn } from "./transcription.controller.js";
 import { UserController } from "./user.controller.js";
@@ -96,8 +94,6 @@ export interface ChatModuleConfig {
     persistence: IPersistenceProvider;
     /** Token validation callback for WebSocket authentication. */
     validateToken?: ValidateTokenFn | undefined;
-    /** Callback that generates a thread title from conversation messages. */
-    generateTitle?: GenerateTitleFn | undefined;
     /**
      * Callback that transcribes uploaded audio to text.
      *
@@ -214,7 +210,6 @@ export class ChatModule {
                 { provide: AGENT_PROVIDER, useValue: config.agent },
                 { provide: PERSISTENCE_PROVIDER, useValue: config.persistence },
                 { provide: VALIDATE_TOKEN_FN, useValue: config.validateToken ?? null },
-                { provide: GENERATE_TITLE_FN, useValue: config.generateTitle ?? null },
                 { provide: TRANSCRIBE_FN, useValue: config.transcribe ?? null },
                 { provide: CHAT_CORS_OPTIONS, useValue: config.cors ?? null },
                 { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },

@@ -90,6 +90,7 @@ const en = {
         tool_code_execution: "Running code…",
         tool_web_fetch: "Fetching page…",
         tool_web_search: "Searching the web…",
+        retrying_overloaded: "Server overloaded, retrying…",
         unspecified: "Working…",
     },
 

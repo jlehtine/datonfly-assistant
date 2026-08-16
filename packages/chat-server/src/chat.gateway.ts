@@ -46,10 +46,8 @@ import {
 } from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
-import { CompactionService } from "./compaction.js";
 import {
     AGENT_PROVIDER,
-    GENERATE_TITLE_FN,
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
     TRANSCRIBE_FN,
@@ -58,7 +56,7 @@ import {
 import { buildAuthorAliases, extractText, resolveAttachmentData, threadMessagesToAgentMessages } from "./messages.js";
 import { RateLimitService } from "./rate-limit/rate-limit.service.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
-import { ThreadTitleGenerator, type GenerateTitleFn } from "./title-generator.js";
+import { ThreadTitleGenerator } from "./title-generator.js";
 import type { TranscribeFn } from "./transcription.controller.js";
 
 /** Callback that validates a raw token string and returns the user identity, or `null` on failure. */
@@ -104,8 +102,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     @WebSocketServer()
     private readonly server!: Server;
 
-    private titleGenerator: ThreadTitleGenerator | null = null;
-    private compactionService: CompactionService | null = null;
+    private titleGenerator!: ThreadTitleGenerator;
     private roomManager!: ThreadRoomManager;
 
     /** Per-thread mutex: thread IDs for which the lock is currently held. */
@@ -120,7 +117,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Inject(AGENT_PROVIDER) private readonly agent: IAgentProvider,
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
-        @Optional() @Inject(GENERATE_TITLE_FN) private readonly generateTitleFn: GenerateTitleFn | null,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
         @Optional() @Inject(TRANSCRIBE_FN) private readonly transcribeFn: TranscribeFn | null,
         private readonly auditLogger: AuditLogger,
@@ -172,30 +168,21 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             });
         }
 
-        // Set up compaction service
-        this.compactionService = new CompactionService({
-            agent: this.agent,
-            persistence: this.persistence,
-            auditLogger: this.auditLogger,
-        });
-
         // Set up title generator
-        if (this.generateTitleFn) {
-            this.titleGenerator = new ThreadTitleGenerator({
-                persistence: this.persistence,
-                generateTitle: this.generateTitleFn,
-                auditLogger: this.auditLogger,
-                onTitleUpdated: (threadId: string, title: string, titleManuallySet: boolean): void => {
-                    const event: ThreadUpdatedEvent = {
-                        event: "thread-updated",
-                        threadId,
-                        title,
-                        titleManuallySet,
-                    };
-                    void this.emitToThreadMembers(threadId, "thread-updated", event);
-                },
-            });
-        }
+        this.titleGenerator = new ThreadTitleGenerator({
+            persistence: this.persistence,
+            agent: this.agent,
+            auditLogger: this.auditLogger,
+            onTitleUpdated: (threadId: string, title: string, titleManuallySet: boolean): void => {
+                const event: ThreadUpdatedEvent = {
+                    event: "thread-updated",
+                    threadId,
+                    title,
+                    titleManuallySet,
+                };
+                void this.emitToThreadMembers(threadId, "thread-updated", event);
+            },
+        });
     }
 
     handleConnection(socket: Socket): void {
@@ -444,10 +431,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         });
 
         // Load full history and convert to AgentMessage[]
-        const history = await this.persistence.loadMessages({
-            threadId,
-            excludeCompacted: this.agent.externalCompaction,
-        });
+        const history = await this.persistence.loadMessages({ threadId });
         const members = await this.persistence.listMembersWithUser(threadId);
         const authorAliases = buildAuthorAliases(members);
         const messages: AgentMessage[] = threadMessagesToAgentMessages(history, authorAliases);
@@ -498,7 +482,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         this.activeStreams.set(threadId, streamState);
 
         // Resolve attachment bytes into the agent messages only now, on the
-        // stream path, so title/compaction paths never load file bytes.
+        // stream path, so the title path never loads file bytes.
         await resolveAttachmentData(messages, this.persistence);
 
         const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
@@ -551,7 +535,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                                 type: "thinking",
                                 delta: chunk.delta,
                             };
-                            void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                            // Awaited so a straggler can't arrive after message-complete and be
+                            // mistaken client-side for the start of a new message.
+                            await this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
                         } else {
                             let delta = chunk.delta;
                             if (streamState.pendingToolBoundaryBreak) {
@@ -572,7 +558,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                                 type: "text",
                                 delta,
                             };
-                            void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                            await this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
                         }
                     } else if (chunk.type === "status") {
                         if (streamState.hasTextSinceToolBoundary) {
@@ -587,7 +573,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             status: chunk.status,
                             statusText: chunk.statusText,
                         };
-                        void this.emitToThreadMembers(threadId, "message-status", statusEvent);
+                        await this.emitToThreadMembers(threadId, "message-status", statusEvent);
                     } else if (chunk.type === "thinking-part") {
                         streamState.thinkingPartsByIndex.set(chunk.partIndex, chunk.part);
                     } else if (chunk.type === "opaque-part") {
@@ -713,14 +699,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 });
 
                 // Fire-and-forget title generation.
-                if (this.titleGenerator) {
-                    void this.titleGenerator.maybeGenerateTitle(threadId);
-                }
-
-                // Fire-and-forget compaction check (only for external compaction providers).
-                if (this.compactionService && this.agent.externalCompaction && streamState.usage) {
-                    void this.compactionService.maybeCompact(threadId, streamState.usage.inputTokens);
-                }
+                void this.titleGenerator.maybeGenerateTitle(threadId);
             } finally {
                 this.releaseThreadLock(threadId);
             }

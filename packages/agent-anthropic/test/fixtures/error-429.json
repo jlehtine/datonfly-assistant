@@ -1,0 +1,27 @@
+{
+    "scenario": "error-429",
+    "synthetic": true,
+    "note": "Hand-written from Anthropic's documented rate-limit response; a 429 cannot be triggered on demand.",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages?beta=true",
+        "headers": {
+            "content-type": "application/json",
+            "accept": "application/json"
+        },
+        "body": {
+            "model": "claude-haiku-4-5",
+            "max_tokens": 1024,
+            "stream": true,
+            "messages": [{ "role": "user", "content": "Say hello." }]
+        }
+    },
+    "response": {
+        "status": 429,
+        "headers": {
+            "content-type": "application/json",
+            "retry-after": "26"
+        },
+        "body": "{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"Number of request tokens has exceeded your per-minute rate limit.\"}}"
+    }
+}

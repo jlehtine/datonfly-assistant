@@ -1,0 +1,26 @@
+{
+    "scenario": "error-529",
+    "synthetic": true,
+    "note": "Hand-written from Anthropic's documented overloaded response; a 529 cannot be triggered on demand. The mid-stream variant is the `overloaded_error` SSE event, captured separately if it is ever observed.",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages?beta=true",
+        "headers": {
+            "content-type": "application/json",
+            "accept": "application/json"
+        },
+        "body": {
+            "model": "claude-haiku-4-5",
+            "max_tokens": 1024,
+            "stream": true,
+            "messages": [{ "role": "user", "content": "Say hello." }]
+        }
+    },
+    "response": {
+        "status": 529,
+        "headers": {
+            "content-type": "application/json"
+        },
+        "body": "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}"
+    }
+}

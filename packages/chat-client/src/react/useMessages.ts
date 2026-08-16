@@ -128,6 +128,11 @@ export function useMessages(
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [hasMore, setHasMore] = useState(false);
     const streamingIdRef = useRef<string | null>(null);
+    // Message IDs whose message-complete has already been handled, so a
+    // straggling part-delta that arrives afterward (the two travel over
+    // different emit paths server-side) is dropped instead of being mistaken
+    // for the start of a new message.
+    const completedMessageIdsRef = useRef(new Set());
     const resolvedThreadIdRef = useRef(threadId);
     const previousThreadIdRef = useRef(threadId);
     // Tracks the createdAt of the oldest loaded message for scroll-up pagination
@@ -135,8 +140,9 @@ export function useMessages(
     // Synchronous loading guard to prevent concurrent history fetches (state updates are async)
     const isLoadingHistoryRef = useRef(false);
     // Flag set synchronously in sendMessage to signal that the upcoming
-    // threadId null→value transition should NOT reset isStreaming.
-    // Safe with React StrictMode because it is never mutated inside effects.
+    // threadId null→value transition should NOT reset isStreaming. Stays set
+    // until that transition consumes it: it can land after the first deltas,
+    // so clearing it any earlier would let the reset through.
     const pendingSendRef = useRef(false);
 
     /**
@@ -168,23 +174,34 @@ export function useMessages(
         const previousThreadId = previousThreadIdRef.current;
         previousThreadIdRef.current = threadId;
 
+        // Lazily-created thread for a send already in flight (null → new id).
+        // Local state is the only copy of this conversation: the optimistic
+        // message, plus any deltas already streaming in. The server has no
+        // history worth loading yet, so resetting and re-fetching here only
+        // races the stream — an overwrite that lands after the first deltas
+        // discards the reply, and nothing arrives later to rebuild it.
+        // pendingSendRef is set synchronously in sendMessage. It is cleared
+        // below, but only on the null→id transition, which never happens on a
+        // mount — so StrictMode's remount cannot consume it early.
+        if (pendingSendRef.current && previousThreadId == null && threadId != null) {
+            // Consumed: leaving it set would make a later null→id transition
+            // (opening a thread from the new-conversation view) skip its
+            // history fetch too, leaving that thread rendered empty.
+            pendingSendRef.current = false;
+            setHasMore(false);
+            oldestCreatedAtRef.current = null;
+            isLoadingHistoryRef.current = false;
+            return;
+        }
+
         setMessages([]);
         setHasMore(false);
         oldestCreatedAtRef.current = null;
         isLoadingHistoryRef.current = false;
         streamingIdRef.current = null;
-        const shouldPreserveStreaming = pendingSendRef.current && previousThreadId == null && threadId != null;
-        // When a send is pending and we're transitioning to a thread
-        // (null → value, lazy-created thread), preserve isStreaming so the
-        // thinking indicator stays visible. For any other thread switch,
-        // reset streaming state so the indicator does not leak into
-        // unrelated conversations. pendingSendRef is set
-        // synchronously in sendMessage and is never mutated inside effects,
-        // so it works correctly with React StrictMode double-invocation.
-        if (!shouldPreserveStreaming) {
-            setIsStreaming(false);
-            setStreamingStatus(null);
-        }
+        completedMessageIdsRef.current.clear();
+        setIsStreaming(false);
+        setStreamingStatus(null);
 
         if (!threadId) return;
 
@@ -193,7 +210,17 @@ export function useMessages(
         void (async () => {
             try {
                 const result = await fetchHistory(threadId);
-                setMessages(result.messages);
+                setMessages((prev) => {
+                    // Anything already in local state that the fetched snapshot
+                    // does not contain arrived while the request was in flight
+                    // (streamed over the websocket, filtered to this thread by
+                    // the handlers above). Overwriting outright would discard a
+                    // live reply — only observable when the response arrives as
+                    // fast as the REST round trip.
+                    const fetched = new Set(result.messages.map((message) => message.id));
+                    const newer = prev.filter((message) => !fetched.has(message.id));
+                    return [...result.messages, ...newer];
+                });
                 setHasMore(result.hasMore);
                 oldestCreatedAtRef.current = result.messages[0]?.createdAt ?? null;
             } catch (e: unknown) {
@@ -247,7 +274,9 @@ export function useMessages(
     useEffect(() => {
         const handleDelta = (event: PartDeltaEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
-            pendingSendRef.current = false;
+            // A straggler for a message that already completed — drop it rather
+            // than reopening it as a new streaming message.
+            if (completedMessageIdsRef.current.has(event.messageId)) return;
             // Clear tool-status indicator as soon as actual text arrives
             setStreamingStatus(null);
 
@@ -327,6 +356,7 @@ export function useMessages(
                 ];
             });
             streamingIdRef.current = null;
+            completedMessageIdsRef.current.add(event.messageId);
             pendingSendRef.current = false;
             setIsStreaming(false);
             setStreamingStatus(null);

@@ -12,50 +12,35 @@ import type { AuthConfig } from "./auth/index.js";
  * exceptions keep their canonical names because the official SDKs read them
  * directly from the environment: `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`.
  *
- * For a deprecation window, the legacy unprefixed names are still accepted as a
- * fallback. When only a legacy name is present, a one-time warning is emitted —
- * except for `PORT` and `DATABASE_URL`, whose unprefixed names are kept as a
- * permanent canonical fallback (platform-injected `PORT`, `DATABASE_URL`
- * tooling) and therefore do not warn.
+ * `PORT` and `DATABASE_URL` additionally accept their unprefixed names as a
+ * permanent fallback, because hosting platforms and database tooling inject
+ * them that way. No other unprefixed name is read.
  */
-
-/** Behaviour of a logical variable's legacy (unprefixed) name. */
-export type LegacyMode = "deprecated" | "permanent";
 
 /** A minimal, readonly view of the environment for testability. */
 export type EnvSource = Readonly<Record<string, string | undefined>>;
 
 /**
- * Reads environment variables under the `DF_` prefix with a legacy fallback.
+ * Reads environment variables under the `DF_` prefix.
  *
  * Centralises the naming convention so every `process.env` read shares the same
- * prefix, fallback, and deprecation-warning behaviour.
+ * prefix and the two documented exceptions stay explicit at the call site.
  */
 export class EnvReader {
-    private readonly warnedKeys = new Set<string>();
+    constructor(private readonly env: EnvSource) {}
 
-    constructor(
-        private readonly env: EnvSource,
-        private readonly warn: (message: string) => void = () => undefined,
-    ) {}
+    /** Read a `DF_`-prefixed variable. */
+    prefixed(name: string): string | undefined {
+        return this.env[`DF_${name}`];
+    }
 
     /**
-     * Read a `DF_`-prefixed variable, falling back to its legacy unprefixed
-     * name. When `legacy` is `"deprecated"` and only the legacy name is set, a
-     * one-time deprecation warning is emitted.
+     * Read a `DF_`-prefixed variable, falling back to its unprefixed canonical
+     * name. Reserved for `PORT` and `DATABASE_URL`, which hosting platforms
+     * inject unprefixed.
      */
-    prefixed(name: string, legacy: LegacyMode = "deprecated"): string | undefined {
-        const prefixedName = `DF_${name}`;
-        const prefixedValue = this.env[prefixedName];
-        if (prefixedValue !== undefined) {
-            return prefixedValue;
-        }
-        const legacyValue = this.env[name];
-        if (legacyValue !== undefined && legacy === "deprecated" && !this.warnedKeys.has(name)) {
-            this.warnedKeys.add(name);
-            this.warn(`Environment variable "${name}" is deprecated; use "${prefixedName}" instead.`);
-        }
-        return legacyValue;
+    prefixedWithCanonicalFallback(name: string): string | undefined {
+        return this.env[`DF_${name}`] ?? this.env[name];
     }
 
     /** Read a canonical (never-prefixed) variable, such as an SDK-read API key. */
@@ -239,18 +224,20 @@ export interface BackendConfig {
     agent: {
         modelName: string;
         triageModelName: string | undefined;
-        enableCompaction: boolean;
-        enableCodeExecution: boolean;
-        enableWebSearch: boolean;
-        enableWebFetch: boolean;
-        thinkingType: "adaptive" | "enabled" | undefined;
-        thinkingDisplay: "summarized" | "omitted" | undefined;
-        thinkingBudgetTokens: number | undefined;
-        thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
+        titleModelName: string | undefined;
         maxToolIterations: number | undefined;
         debugApiContent: boolean;
+        /** Anthropic-only knobs, grouped so they map onto provider options. */
+        anthropic: {
+            enableCompaction: boolean;
+            enableCodeExecution: boolean;
+            enableWebSearch: boolean;
+            enableWebFetch: boolean;
+            thinkingType: "adaptive" | "disabled" | undefined;
+            thinkingDisplay: "summarized" | "omitted" | undefined;
+            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
+        };
     };
-    titleModelName: string | undefined;
     mcp: { servers: McpServerConfig[]; toolTimeoutMs: number | undefined };
     transcription: { apiKey: string; model: string } | undefined;
     memberSearchStrategy: MemberSearchStrategy;
@@ -279,22 +266,18 @@ const DEFAULT_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
  * Load and validate the backend configuration from an environment source.
  *
  * @param env - The environment to read from (defaults to `process.env`).
- * @param warn - Callback invoked once per deprecated legacy variable that is in use.
  */
-export function loadBackendConfig(
-    env: EnvSource = process.env,
-    warn: (message: string) => void = () => undefined,
-): BackendConfig {
-    const reader = new EnvReader(env, warn);
+export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
+    const reader = new EnvReader(env);
 
     const authMode = reader.prefixed("AUTH_MODE") ?? "fake";
     if (authMode !== "fake" && authMode !== "oidc") {
         throw new Error(`DF_AUTH_MODE must be "fake" or "oidc", got "${authMode}"`);
     }
 
-    const port = parsePort(reader.prefixed("PORT", "permanent"));
+    const port = parsePort(reader.prefixedWithCanonicalFallback("PORT"));
 
-    const databaseUrl = reader.prefixed("DATABASE_URL", "permanent");
+    const databaseUrl = reader.prefixedWithCanonicalFallback("DATABASE_URL");
     if (!databaseUrl) {
         throw new Error("DF_DATABASE_URL environment variable is required");
     }
@@ -356,9 +339,9 @@ export function loadBackendConfig(
                 : undefined,
     };
 
-    const modelName = reader.prefixed("ANTHROPIC_MODEL");
+    const modelName = reader.prefixed("AGENT_MODEL");
     if (!modelName) {
-        throw new Error("DF_ANTHROPIC_MODEL environment variable is required");
+        throw new Error("DF_AGENT_MODEL environment variable is required");
     }
 
     const anthropicApiKey = reader.canonical("ANTHROPIC_API_KEY");
@@ -410,37 +393,35 @@ export function loadBackendConfig(
         anthropicApiKey,
         agent: {
             modelName,
-            triageModelName: reader.prefixed("ANTHROPIC_TRIAGE_MODEL"),
-            enableCompaction: reader.prefixed("ENABLE_COMPACTION") !== "false",
-            enableCodeExecution: reader.prefixed("ENABLE_CODE_EXECUTION") !== "false",
-            enableWebSearch: reader.prefixed("ENABLE_WEB_SEARCH") !== "false",
-            enableWebFetch: reader.prefixed("ENABLE_WEB_FETCH") !== "false",
-            thinkingType: parseEnum(
-                reader.prefixed("ANTHROPIC_THINKING_TYPE"),
-                ["adaptive", "enabled"] as const,
-                "DF_ANTHROPIC_THINKING_TYPE",
-            ),
-            thinkingDisplay: parseEnum(
-                reader.prefixed("ANTHROPIC_THINKING_DISPLAY"),
-                ["summarized", "omitted"] as const,
-                "DF_ANTHROPIC_THINKING_DISPLAY",
-            ),
-            thinkingBudgetTokens: parsePositiveNumber(
-                reader.prefixed("ANTHROPIC_THINKING_BUDGET_TOKENS"),
-                "DF_ANTHROPIC_THINKING_BUDGET_TOKENS",
-            ),
-            thinkingEffort: parseEnum(
-                reader.prefixed("ANTHROPIC_THINKING_EFFORT"),
-                ["low", "medium", "high", "xhigh", "max"] as const,
-                "DF_ANTHROPIC_THINKING_EFFORT",
-            ),
+            triageModelName: reader.prefixed("AGENT_TRIAGE_MODEL"),
+            titleModelName: reader.prefixed("AGENT_TITLE_MODEL"),
             maxToolIterations: parseOptionalPositiveInt(
                 reader.prefixed("AGENT_MAX_TOOL_ITERATIONS"),
                 "DF_AGENT_MAX_TOOL_ITERATIONS",
             ),
             debugApiContent: reader.prefixed("DEBUG_API_CONTENT") === "true",
+            anthropic: {
+                enableCompaction: reader.prefixed("ANTHROPIC_ENABLE_COMPACTION") !== "false",
+                enableCodeExecution: reader.prefixed("ANTHROPIC_ENABLE_CODE_EXECUTION") !== "false",
+                enableWebSearch: reader.prefixed("ANTHROPIC_ENABLE_WEB_SEARCH") !== "false",
+                enableWebFetch: reader.prefixed("ANTHROPIC_ENABLE_WEB_FETCH") !== "false",
+                thinkingType: parseEnum(
+                    reader.prefixed("ANTHROPIC_THINKING_TYPE"),
+                    ["adaptive", "disabled"] as const,
+                    "DF_ANTHROPIC_THINKING_TYPE",
+                ),
+                thinkingDisplay: parseEnum(
+                    reader.prefixed("ANTHROPIC_THINKING_DISPLAY"),
+                    ["summarized", "omitted"] as const,
+                    "DF_ANTHROPIC_THINKING_DISPLAY",
+                ),
+                thinkingEffort: parseEnum(
+                    reader.prefixed("ANTHROPIC_THINKING_EFFORT"),
+                    ["low", "medium", "high", "xhigh", "max"] as const,
+                    "DF_ANTHROPIC_THINKING_EFFORT",
+                ),
+            },
         },
-        titleModelName: reader.prefixed("ANTHROPIC_TITLE_MODEL"),
         mcp: { servers: mcpServers, toolTimeoutMs: mcpToolTimeoutMs },
         transcription,
         memberSearchStrategy,

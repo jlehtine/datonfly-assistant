@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState, type ComponentType, type Rea
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
+import type { ChatClient } from "@datonfly-assistant/chat-client";
 import {
     ChatClientContext,
     CurrentUserIdContext,
@@ -21,7 +22,13 @@ import {
     useMembers,
     useMessages,
 } from "@datonfly-assistant/chat-client/react";
-import type { AttachmentLimits, MemberLeftEvent, Thread, ThreadUpdatedEvent } from "@datonfly-assistant/core";
+import type {
+    AttachmentLimits,
+    MemberLeftEvent,
+    ServerFeatures,
+    Thread,
+    ThreadUpdatedEvent,
+} from "@datonfly-assistant/core";
 
 import { audioInputTool } from "./AudioInputTool.js";
 import { Composer, type ComposerInputProps } from "./Composer.js";
@@ -96,6 +103,19 @@ export interface ChatEmbedConfig {
 export interface ChatEmbedProps {
     /** Chat configuration object. */
     config: ChatEmbedConfig;
+    /**
+     * Reuse an already-established connection instead of opening a new one —
+     * e.g. when embedded inside {@link ChatHistoryEmbed}, which maintains its
+     * own. When omitted, `ChatEmbed` creates and manages its own connection.
+     */
+    connection?:
+        | {
+              client: ChatClient;
+              connected: boolean;
+              userId: string | null;
+              features: ServerFeatures;
+          }
+        | undefined;
 }
 
 /**
@@ -104,11 +124,15 @@ export interface ChatEmbedProps {
  * Renders a message list and a composer inside a flex column that fills its
  * parent's height. Wrap the parent in a fixed-height container.
  */
-export function ChatEmbed({ config }: ChatEmbedProps): ReactElement {
-    const { client, connected, userId, features } = useChatConnection({
+export function ChatEmbed({ config, connection }: ChatEmbedProps): ReactElement {
+    // Always called, so `enabled: !connection` — never a raw conditional call
+    // — is what skips actually connecting when an external one is supplied.
+    const ownConnection = useChatConnection({
         url: config.url,
         basePath: config.basePath,
+        enabled: !connection,
     });
+    const { client, connected, userId, features } = connection ?? ownConnection;
     const threadId = config.threadId ?? null;
 
     const audioEnabled = (config.enableAudioInput ?? true) && features.audioInput === true;

@@ -55,12 +55,13 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   the host app, or provided through external MCP (Model Context Protocol)
   servers via the `DF_MCP_SERVERS` configuration.
 - **Context management** — Long conversations are automatically compacted to
-  stay within context limits. Compaction can be handled natively by the AI
-  provider (e.g. Claude's built-in compaction) or externally by the gateway
-  using AI-generated summaries.
+  stay within context limits, handled natively by the AI provider (e.g. Claude's
+  built-in compaction).
 - **Emoji picker** — Quick emoji insertion from an integrated picker.
 - **User customization** — Set a personal alias for how the AI addresses you,
-  choose between simple or rich text input, and manage profile settings.
+  choose between simple or rich text input, and manage profile settings. Real
+  names are never sent to the AI model: users are anonymous to it until they
+  choose an alias.
 - **Flexible authentication** — Supports OIDC (Google, Azure AD, Keycloak,
   Auth0, etc.) for production and a zero-config fake mode for development.
 - **Rate limiting** — Configurable per-tier request limits protect login,
@@ -125,6 +126,23 @@ pnpm test:e2e
 > ```bash
 > pnpm exec playwright test tests/thread-management.spec.ts
 > ```
+
+By default, `.env.example` points the backend at a local fixture playback
+harness (`ANTHROPIC_BASE_URL=http://localhost:4010`, started automatically by
+`pnpm dev`) instead of the real Anthropic API: deterministic, free, and fast,
+which is also what sidesteps the rate-limit note above. To run the suite against
+the real API instead — to catch upstream API changes, or to exercise anything
+outside the fixed set of recorded scenarios — comment out the two
+`ANTHROPIC_BASE_URL`/`ANTHROPIC_API_KEY` lines in `.env` and set a real
+`ANTHROPIC_API_KEY`, then restart `pnpm dev`.
+
+A few specs assert on model-generated content rather than UI behaviour (that the
+assistant recalls an earlier turn, for example) and cannot be served by canned
+fixtures. They are skipped unless the suite is run against the real API:
+
+```bash
+DF_E2E_LIVE_API=true pnpm test:e2e
+```
 
 ## Package Structure
 
@@ -210,17 +228,25 @@ application features that build on assistant functionality.
 Dependencies: `@datonfly-assistant/core`, `@datonfly-assistant/chat-client`,
 React, MUI.
 
-#### `@datonfly-assistant/agent-langchain`
+#### `@datonfly-assistant/agent-anthropic`
 
-Provides an AI agent service implementation based on LangChain. Implements the
-AI agent service API declared by `core` and used by `chat-server`. When using
-Claude, leverages built-in provider compaction for context management; for other
-providers, external compaction via the gateway is used as a fallback.
+Provides an AI agent service implementation backed by Anthropic's Claude models,
+using the official `@anthropic-ai/sdk` directly. Implements the AI agent service
+API declared by `core` and used by `chat-server`. Leverages Claude's built-in
+provider-side compaction for context management; `chat-server` has no compaction
+logic of its own.
 
 Configured and initialized by application specific logic and passed to
-`chat-server` as AI agent service.
+`chat-server` as AI agent service. Anthropic-only settings (server-side tools,
+reasoning, compaction, prompt caching) live under a `providerOptions` bag, so
+the composition root can assemble the vendor-neutral part of the configuration
+without knowing which provider it targets.
 
-Dependencies: `@datonfly-assistant/core`, LangChain.
+Also exports a `./testing` subpath with a fixture replay server and a provider
+conformance suite, so any `IAgentProvider` implementation can be measured
+against the same behavioural contract.
+
+Dependencies: `@datonfly-assistant/core`, `@anthropic-ai/sdk`.
 
 #### `@datonfly-assistant/persistence-pg`
 
@@ -239,7 +265,7 @@ application.
 
 #### `@datonfly-assistant/backend`
 
-Standalone backend using `chat-server`, `agent-langchain` and `persistence-pg`.
+Standalone backend using `chat-server`, `agent-anthropic` and `persistence-pg`.
 Also hosts the static files of `frontend` for web users. Implements
 authentication (OIDC for production, fake mode for development) via a global JWT
 guard that populates `req.user` with a `UserIdentity` expected by `chat-server`.

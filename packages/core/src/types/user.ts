@@ -8,7 +8,12 @@ export interface User {
     name: string;
     /** URL to the user's profile picture, if available. */
     avatarUrl?: string | undefined;
-    /** Name shown to the AI agent in place of the user's real name. */
+    /**
+     * Name the AI agent sees for this user.
+     *
+     * Real names are never sent to the agent. Without an alias the user is
+     * anonymous to it, so this is the only identity it can address them by.
+     */
     agentAlias?: string | undefined;
     /** Timestamp when the user record was created. */
     createdAt: Date;

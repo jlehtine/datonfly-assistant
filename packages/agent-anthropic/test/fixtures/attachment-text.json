@@ -1,0 +1,60 @@
+{
+    "scenario": "attachment-text",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": {
+            "connection": "keep-alive",
+            "accept": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-timeout": "600",
+            "x-stainless-lang": "js",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-os": "Linux",
+            "x-stainless-arch": "x64",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v24.12.0",
+            "anthropic-dangerous-direct-browser-access": "true",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "accept-language": "*",
+            "sec-fetch-mode": "cors",
+            "accept-encoding": "gzip, deflate",
+            "content-length": "318"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "stream": true,
+            "max_tokens": 1024,
+            "thinking": {
+                "type": "disabled"
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Summarise the attached note."
+                        },
+                        {
+                            "type": "text",
+                            "text": "[Attachment: note.txt]\n\nDatonfly Assistant fixture note.\nSecond line.",
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-opus-5\",\"id\":\"msg_011CdqwbgpVPqviDXTpAoSfq\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":46,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":1,\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}  }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}      }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"It\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" looks like the\"}            }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" attachment came through as just a short placeholder rather than actual content. Here's what I received in full:\\n\\n> Datonfly Assistant fixture\"}  }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" note.\\n> Second line.\\n\\nThat's the entire file — two lines, with no substantive information to summarise. The first line appears to be a label or title (\\\"Datonfly Ass\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"istant fixture note\\\"), and the second is literally just \\\"Second line,\\\" which reads like filler text used to pad out a test file.\\n\\nThis looks like a test\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" fixture or placeholder file rather than a real note. If you intended to send a different document, it may not have attached correctly — feel free to try u\"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ploading it again and I'll summarise it for you.\"}     }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null},\"usage\":{\"input_tokens\":46,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":201,\"output_tokens_details\":{\"thinking_tokens\":0}}   }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"   }\n\n"
+    }
+}

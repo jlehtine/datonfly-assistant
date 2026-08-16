@@ -535,7 +535,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                                 type: "thinking",
                                 delta: chunk.delta,
                             };
-                            void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                            // Awaited so a straggler can't arrive after message-complete and be
+                            // mistaken client-side for the start of a new message.
+                            await this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
                         } else {
                             let delta = chunk.delta;
                             if (streamState.pendingToolBoundaryBreak) {
@@ -556,7 +558,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                                 type: "text",
                                 delta,
                             };
-                            void this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                            await this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
                         }
                     } else if (chunk.type === "status") {
                         if (streamState.hasTextSinceToolBoundary) {
@@ -571,7 +573,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             status: chunk.status,
                             statusText: chunk.statusText,
                         };
-                        void this.emitToThreadMembers(threadId, "message-status", statusEvent);
+                        await this.emitToThreadMembers(threadId, "message-status", statusEvent);
                     } else if (chunk.type === "thinking-part") {
                         streamState.thinkingPartsByIndex.set(chunk.partIndex, chunk.part);
                     } else if (chunk.type === "opaque-part") {

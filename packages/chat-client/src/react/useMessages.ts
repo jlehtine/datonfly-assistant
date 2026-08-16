@@ -128,6 +128,11 @@ export function useMessages(
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [hasMore, setHasMore] = useState(false);
     const streamingIdRef = useRef<string | null>(null);
+    // Message IDs whose message-complete has already been handled, so a
+    // straggling part-delta that arrives afterward (the two travel over
+    // different emit paths server-side) is dropped instead of being mistaken
+    // for the start of a new message.
+    const completedMessageIdsRef = useRef(new Set());
     const resolvedThreadIdRef = useRef(threadId);
     const previousThreadIdRef = useRef(threadId);
     // Tracks the createdAt of the oldest loaded message for scroll-up pagination
@@ -188,6 +193,7 @@ export function useMessages(
         oldestCreatedAtRef.current = null;
         isLoadingHistoryRef.current = false;
         streamingIdRef.current = null;
+        completedMessageIdsRef.current.clear();
         setIsStreaming(false);
         setStreamingStatus(null);
 
@@ -262,6 +268,9 @@ export function useMessages(
     useEffect(() => {
         const handleDelta = (event: PartDeltaEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
+            // A straggler for a message that already completed — drop it rather
+            // than reopening it as a new streaming message.
+            if (completedMessageIdsRef.current.has(event.messageId)) return;
             pendingSendRef.current = false;
             // Clear tool-status indicator as soon as actual text arrives
             setStreamingStatus(null);
@@ -342,6 +351,7 @@ export function useMessages(
                 ];
             });
             streamingIdRef.current = null;
+            completedMessageIdsRef.current.add(event.messageId);
             pendingSendRef.current = false;
             setIsStreaming(false);
             setStreamingStatus(null);

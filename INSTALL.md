@@ -130,7 +130,8 @@ DF_AGENT_TITLE_MODEL=claude-haiku-4-5
 - **`DF_AGENT_MODEL`** _(optional, default: claude-opus-4-6)_ — The model used
   for chat responses.
 - **`DF_AGENT_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
-  titles. Omit to disable title generation.
+  titles. Omit to title with `DF_AGENT_MODEL` instead; titling is always on. Set
+  it to a cheaper model to keep titling off the main model's bill.
 
 ### Fixture Playback Harness
 

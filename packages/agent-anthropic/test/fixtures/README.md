@@ -54,11 +54,16 @@ instead of requiring a re-recording.
 
 `packages/agent-anthropic/src/testing/playback-server.ts` replays these fixtures
 over real HTTP, so a real backend can be pointed at it via the Anthropic SDK's
-own `ANTHROPIC_BASE_URL` for deterministic, free, fast E2E testing — see
-`TODO.md` section 5 for the full design. It runs automatically as part of
-`pnpm dev` (the `fake-api` turbo task, `agent-anthropic`'s own `fake-api`
-script) on `http://localhost:4010`, whether or not anything is currently pointed
-at it.
+own `ANTHROPIC_BASE_URL` for deterministic, free, fast E2E testing. It runs
+automatically as part of `pnpm dev` (the `fake-api` turbo task,
+`agent-anthropic`'s own `fake-api` script) on `http://localhost:4010`, whether
+or not anything is currently pointed at it.
+
+`FAKE_API_SPEED` divides the replayed delays (default `8`, so replay is eight
+times faster than the recording); set it to `1` for a spec that needs realistic
+pacing. The server reloads fixtures when the directory changes, and the script
+runs under `node --watch`, so neither editing a fixture nor editing the server
+needs a manual restart.
 
 Selection is content-based, not positional: each scenario's trigger is simply
 the human text its own first exchange was recorded with (see
@@ -151,6 +156,28 @@ proxy on localhost and points the agent at it via `AgentConfig.baseUrl`, so the
 capture is the exact wire format rather than whatever the client library
 surfaces.
 
+### Live experiments
+
+Alongside the recorder, `src/fixtures/` keeps a few scripts that answer
+questions about the live API which no fixture can settle, and that are worth
+re-running when the model or API version changes. They are kept as an executable
+record of how each conclusion was reached — the findings they produced are cited
+where the behaviour is documented.
+
+```bash
+pnpm --filter @datonfly-assistant/agent-anthropic experiment:compaction
+pnpm --filter @datonfly-assistant/agent-anthropic experiment:continuation
+pnpm --filter @datonfly-assistant/agent-anthropic experiment:timing
+```
+
+`compaction` runs the paused and transparent compaction modes back to back over
+the same long conversation and reports the raw wire facts for each;
+`continuation` establishes what the API accepts when resuming a cut-off answer
+(see "Mid-stream overload" below); `timing` gathers the pacing statistics behind
+the timing model above. **All of them make real, billable API calls** — the
+compaction one deliberately builds a context large enough to cross the trigger,
+so it is the most expensive here.
+
 ### Choosing the model
 
 The model comes from `--model <name>`, falling back to `DF_AGENT_MODEL` in the
@@ -226,23 +253,38 @@ reported and **not written** rather than becoming a misleading baseline.
 
 `compaction-01` stops with `stop_reason: "compaction"` and returns the block;
 `compaction-02` resumes with that block standing in for the compacted history.
-Capturing it took five attempts and exposed three defects, all now fixed:
+These two were captured with `pause_after_compaction` set, which is what splits
+a compaction into two exchanges and makes it recordable as two fixtures. **That
+is a recording device, not the production setting** — see below. Capturing it
+took five attempts and exposed three defects, all now fixed:
 
 - The `compact_20260112` edit needs the **`compact-2026-01-12` beta header** in
   addition to `context-management-2025-06-27`. Without it the API rejects the
   edit type outright with a 400.
-- **`pause_after_compaction` must be set** for the block to come back at all.
-  Otherwise the API compacts internally and returns nothing, so there is nothing
-  to persist and the next request resends the full history.
+- **`pause_after_compaction` changes the shape of the exchange**, and an earlier
+  version of this file wrongly claimed it was required for the block to come
+  back at all. `experiment:compaction` disproved that: with it unset the API
+  returns content blocks `["compaction", "thinking", "text"]` with
+  `stop_reason: "end_turn"` — the summary _and_ the answer in one request, and
+  `agent.stream()` emits the `opaque-part` either way. With it set, the first
+  exchange returns only the compaction block and a second round trip fetches the
+  answer. Production leaves it unset, because the extra round trip buys nothing
+  unless specific messages must survive verbatim or a budget is tracked across
+  several compactions.
 - **`stop_reason: "compaction"` has to be handled.** That turn answers nothing;
   treating it as final yields an empty response.
 
 Two traps worth remembering when re-recording:
 
 - **`applied_edits` stays empty even on success**, so it is useless as a signal.
+  It belongs to `clear_tool_uses` / `clear_thinking` rather than to compaction.
   The scenario checks `stop_reason` instead.
 - **A compacting turn zeroes the top-level usage counts** and reports the real
   numbers under `usage.iterations[]`.
+- **Prompt caching does not starve the trigger.** A turn whose input was almost
+  entirely `cache_creation_input_tokens` (151,098 of 151,188) still compacted,
+  so the threshold is compared against the whole submitted context rather than
+  an uncached subset.
 
 The history must also be spread across several turns: compaction summarises
 _earlier_ turns, so one oversized message crosses the trigger without producing

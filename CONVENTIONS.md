@@ -77,7 +77,11 @@ it "for safety" where a downstream service already validates.
 ## AI Agent Providers
 
 An agent provider implements `IAgentProvider` from `core` and is the only place
-that may know a vendor's API. Rules that apply to every provider:
+that may know a vendor's API. Besides streaming a turn it also answers the two
+non-streaming questions the server has — `generateTitle()` and `shouldRespond()`
+— so no caller ever constructs a second vendor client of its own, and each
+provider keeps its own choice of model and strategy for them. Rules that apply
+to every provider:
 
 - **Split the configuration.** Neutral fields live in `AgentConfig`; anything
   vendor-specific goes under a `providerOptions` bag. The composition root
@@ -87,6 +91,22 @@ that may know a vendor's API. Rules that apply to every provider:
   describes the configuration the provider was constructed with, so a feature
   that exists but is switched off reads as unsupported. Callers adapt to the
   descriptor rather than naming a vendor.
+- **Context compaction belongs to the provider.** `AgentCapabilities.compaction`
+  is `"provider"` or `"none"`; there is no in-app fallback implementation, and a
+  provider that cannot compact should report `"none"` rather than have the
+  server improvise. The compaction summary round-trips as an
+  `OpaqueContentPart`, and `trimBeforeCompaction()` drops everything before it
+  when assembling a later request, so a compacted thread stops resending the
+  history the summary replaced.
+- **Prefer a provider's transparent compaction over a paused one.** Where the
+  API offers both, the transparent path returns the summary and the answer in
+  one request; pausing costs an extra round trip for the same output and is only
+  worth it to preserve specific messages verbatim or to track a budget across
+  several compactions.
+- **Send optional sampling parameters only when configured.** Newer models
+  reject parameters older ones accepted — `claude-opus-5` errors on
+  `temperature: 0` — so an unset option must be omitted from the request rather
+  than sent as a default.
 - **Round-trip provider-specific state through `OpaqueContentPart`.** It is the
   only sanctioned escape hatch for data the server must store and hand back
   without understanding it. Persisted encodings are a compatibility surface:

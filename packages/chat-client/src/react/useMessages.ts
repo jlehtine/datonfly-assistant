@@ -140,8 +140,9 @@ export function useMessages(
     // Synchronous loading guard to prevent concurrent history fetches (state updates are async)
     const isLoadingHistoryRef = useRef(false);
     // Flag set synchronously in sendMessage to signal that the upcoming
-    // threadId null→value transition should NOT reset isStreaming.
-    // Safe with React StrictMode because it is never mutated inside effects.
+    // threadId null→value transition should NOT reset isStreaming. Stays set
+    // until that transition consumes it: it can land after the first deltas,
+    // so clearing it any earlier would let the reset through.
     const pendingSendRef = useRef(false);
 
     /**
@@ -179,9 +180,14 @@ export function useMessages(
         // history worth loading yet, so resetting and re-fetching here only
         // races the stream — an overwrite that lands after the first deltas
         // discards the reply, and nothing arrives later to rebuild it.
-        // pendingSendRef is set synchronously in sendMessage and is never
-        // mutated inside effects, so this works with React StrictMode.
+        // pendingSendRef is set synchronously in sendMessage. It is cleared
+        // below, but only on the null→id transition, which never happens on a
+        // mount — so StrictMode's remount cannot consume it early.
         if (pendingSendRef.current && previousThreadId == null && threadId != null) {
+            // Consumed: leaving it set would make a later null→id transition
+            // (opening a thread from the new-conversation view) skip its
+            // history fetch too, leaving that thread rendered empty.
+            pendingSendRef.current = false;
             setHasMore(false);
             oldestCreatedAtRef.current = null;
             isLoadingHistoryRef.current = false;
@@ -271,7 +277,6 @@ export function useMessages(
             // A straggler for a message that already completed — drop it rather
             // than reopening it as a new streaming message.
             if (completedMessageIdsRef.current.has(event.messageId)) return;
-            pendingSendRef.current = false;
             // Clear tool-status indicator as soon as actual text arrives
             setStreamingStatus(null);
 

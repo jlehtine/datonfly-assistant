@@ -31,6 +31,7 @@ import { describeApiError } from "./errors.js";
 import { agentMessagesToParams, trimBeforeCompaction } from "./messages.js";
 import { streamAgent } from "./stream.js";
 import { serverToolParams, toolToParam } from "./tools.js";
+import { createTrafficDumpingFetch } from "./traffic-dump.js";
 
 /** Result of the triage classifier, returned through forced tool use. */
 const TRIAGE_TOOL_NAME = "record_decision";
@@ -127,6 +128,7 @@ export class AnthropicAgent implements IAgentProvider {
             ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
             ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
             ...(options.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+            ...(options.trafficDumpDir ? { fetch: createTrafficDumpingFetch(options.trafficDumpDir) } : {}),
         });
 
         this.capabilities = {

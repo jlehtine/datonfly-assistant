@@ -236,6 +236,7 @@ export interface BackendConfig {
             thinkingType: "adaptive" | "disabled" | undefined;
             thinkingDisplay: "summarized" | "omitted" | undefined;
             thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
+            trafficDumpDir: string | undefined;
         };
     };
     mcp: { servers: McpServerConfig[]; toolTimeoutMs: number | undefined };
@@ -420,6 +421,7 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
                     ["low", "medium", "high", "xhigh", "max"] as const,
                     "DF_ANTHROPIC_THINKING_EFFORT",
                 ),
+                trafficDumpDir: reader.prefixed("ANTHROPIC_TRAFFIC_DUMP_DIR"),
             },
         },
         mcp: { servers: mcpServers, toolTimeoutMs: mcpToolTimeoutMs },

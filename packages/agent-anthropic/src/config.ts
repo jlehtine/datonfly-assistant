@@ -90,6 +90,16 @@ export interface AnthropicProviderOptions {
     maxRetries?: number | undefined;
     /** Per-request timeout in milliseconds. Defaults to the SDK's own default. */
     timeoutMs?: number | undefined;
+    /**
+     * Directory to dump raw API traffic (requests, responses, and streamed
+     * bytes, each with a capture timestamp) to, for debugging failures that
+     * aren't recovered automatically. Off unless set.
+     *
+     * Dumped files contain full, unredacted conversation content — only
+     * credentials are stripped. Enable only for as long as needed to capture a
+     * failure, and treat the directory as sensitive.
+     */
+    trafficDumpDir?: string | undefined;
 }
 
 /**

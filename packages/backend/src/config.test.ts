@@ -143,6 +143,16 @@ describe("loadBackendConfig", () => {
         expect(config.agent.anthropic).toMatchObject({ thinkingType: "adaptive", thinkingEffort: "high" });
     });
 
+    it("leaves the traffic dump directory undefined by default", () => {
+        const config = loadBackendConfig(validEnv());
+        expect(config.agent.anthropic.trafficDumpDir).toBeUndefined();
+    });
+
+    it("reads the Anthropic traffic dump directory", () => {
+        const config = loadBackendConfig(validEnv({ DF_ANTHROPIC_TRAFFIC_DUMP_DIR: "/tmp/df-traffic" }));
+        expect(config.agent.anthropic.trafficDumpDir).toBe("/tmp/df-traffic");
+    });
+
     it("throws on a malformed port", () => {
         expect(() => loadBackendConfig(validEnv({ DF_PORT: "not-a-port" }))).toThrow(
             'DF_PORT must be an integer between 1 and 65535, got "not-a-port"',

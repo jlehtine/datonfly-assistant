@@ -224,6 +224,24 @@ DF_LOG_LEVEL=info
 - **`DF_LOG_LEVEL`** _(optional, default: info)_ — One of `"trace"`, `"debug"`,
   `"info"`, `"warn"`, `"error"`, `"fatal"`.
 
+### Anthropic Traffic Dump
+
+Occasional assistant failures that aren't recovered automatically (a mid-stream
+disconnect, a malformed response, …) can be hard to reproduce after the fact.
+Setting `DF_ANTHROPIC_TRAFFIC_DUMP_DIR` makes the agent write every raw
+Anthropic API request, response, and streamed chunk to that directory as a
+timestamped JSON file, so a failure can be inspected — and replayed through
+`startFixtureServer()` in `@datonfly-assistant/agent-anthropic/testing` — later.
+Off unless set.
+
+```env
+DF_ANTHROPIC_TRAFFIC_DUMP_DIR=/tmp/datonfly-traffic-dump
+```
+
+Dumped files contain full, unredacted conversation content — only credentials
+(the API key, auth headers) are stripped. Enable this only for as long as needed
+to capture a failure, and treat the directory as sensitive.
+
 ---
 
 ## Rate Limiting

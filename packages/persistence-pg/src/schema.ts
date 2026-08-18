@@ -1,5 +1,7 @@
 import type { ColumnType, Generated, Insertable, Selectable } from "kysely";
 
+import type { ProviderReplayData } from "@datonfly-assistant/core";
+
 // ─── Table Definitions ───
 
 /** Kysely table definition for the `user` database table. */
@@ -43,6 +45,13 @@ export interface MessagesTable {
     created_at: ColumnType<Date, Date | undefined, never>;
     content_at: ColumnType<Date, Date | undefined, never>;
     metadata: ColumnType<Record<string, unknown> | null, string | null | undefined, string | null>;
+    /**
+     * Provider-native data for verbatim replay of an AI turn (see
+     * {@link ProviderReplayData}). Stored separately from `content` so it can
+     * be purged independently — e.g. after a retention period — without
+     * rewriting the human-facing content.
+     */
+    provider_replay_data: ColumnType<ProviderReplayData | null, string | null | undefined, string | null>;
 }
 
 /** Kysely table definition for the `thread_user_state` database table. */

@@ -24,6 +24,7 @@ import type {
     NewMessageEvent,
     OpaqueContentPart,
     PartDeltaEvent,
+    ProviderReplayData,
     RemoveMemberEvent,
     SendMessageEvent,
     Thread,
@@ -81,6 +82,8 @@ interface ActiveStream {
     toolParts: ContentPart[];
     citations: Citation[];
     usage: AgentUsage | null;
+    /** Provider-native data for verbatim replay of this turn, set once the turn completes. */
+    replayData: ProviderReplayData | null;
     hasTextSinceToolBoundary: boolean;
     pendingToolBoundaryBreak: boolean;
 }
@@ -476,6 +479,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             thinkingPartsByIndex: new Map(),
             opaqueParts: [],
             toolParts: [],
+            replayData: null,
             hasTextSinceToolBoundary: false,
             pendingToolBoundaryBreak: false,
         };
@@ -578,6 +582,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                         streamState.thinkingPartsByIndex.set(chunk.partIndex, chunk.part);
                     } else if (chunk.type === "opaque-part") {
                         streamState.opaqueParts.push(chunk.part);
+                    } else if (chunk.type === "replay-data") {
+                        streamState.replayData = chunk.data;
                     } else if (chunk.type === "citations") {
                         streamState.citations.push(...chunk.citations);
                     } else if (chunk.type === "tool-call") {
@@ -665,6 +671,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     content: contentParts,
                     authorId: null,
                     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+                    ...(streamState.replayData ? { replayData: streamState.replayData } : {}),
                 });
 
                 const completeEvent: MessageCompleteEvent = {

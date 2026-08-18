@@ -11,7 +11,7 @@ import type {
 } from "@datonfly-assistant/core";
 
 import { isOverloadedError } from "./errors.js";
-import { compactionBlockToOpaquePart } from "./messages.js";
+import { compactionBlockToOpaquePart, rawTurnsToReplayData } from "./messages.js";
 import { executeToolCall, toolNameToStatus, type ToolCall } from "./tools.js";
 
 /** Bounded retries for a mid-stream `overloaded_error`, not the initial connection (the SDK already retries that). */
@@ -214,7 +214,8 @@ function continuationInstruction(salvage: Anthropic.Beta.BetaContentBlockParam[]
  * Emits provider-neutral {@link AgentStreamChunk} values: incremental text and
  * thinking deltas plus server-tool status while a turn streams, tool calls and
  * results as they execute, and the accumulated thinking parts, opaque parts,
- * citations, and usage once the model stops requesting tools.
+ * raw-turn replay data, citations, and usage once the model stops requesting
+ * tools.
  *
  * Content-block indices come straight from the API, so each thinking block maps
  * to a stable part index without reassembly guesswork. All text collapses into
@@ -228,6 +229,10 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
     const thinkingParts: { partIndex: number; part: ThinkingContentPart }[] = [];
     const opaqueParts: OpaqueContentPart[] = [];
     const citations: Citation[] = [];
+    // Every message param appended to `conversation` during this call, plus the
+    // final answer (which the loop never pushes to `conversation` since nothing
+    // continues after it) — captured verbatim for replay on a later turn.
+    const rawTurns: Anthropic.Beta.BetaMessageParam[] = [];
     const totals: TurnUsage = {
         inputTokens: 0,
         outputTokens: 0,
@@ -426,11 +431,15 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
         // block stands in for everything before it.
         if (finalMessage.stop_reason === "pause_turn" || finalMessage.stop_reason === "compaction") {
             conversation.push({ role: "assistant", content: finalMessage.content });
+            rawTurns.push({ role: "assistant", content: finalMessage.content });
             continue;
         }
 
         const toolCalls = readToolCalls(finalMessage);
-        if (toolCalls.length === 0) break;
+        if (toolCalls.length === 0) {
+            rawTurns.push({ role: "assistant", content: finalMessage.content });
+            break;
+        }
 
         signal?.throwIfAborted();
 
@@ -438,6 +447,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
         // bytes and signature the API produced, which it requires when tool
         // results follow.
         conversation.push({ role: "assistant", content: finalMessage.content });
+        rawTurns.push({ role: "assistant", content: finalMessage.content });
 
         const results: Anthropic.Beta.BetaContentBlockParam[] = [];
         for (const call of toolCalls) {
@@ -458,6 +468,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
             });
         }
         conversation.push({ role: "user", content: results });
+        rawTurns.push({ role: "user", content: results });
 
         if (turn === maxToolIterations - 1) {
             throw new Error(`Tool-calling loop exceeded the maximum of ${maxToolIterations.toString()} iterations.`);
@@ -469,6 +480,9 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
     }
     for (const [index, part] of opaqueParts.entries()) {
         yield { type: "opaque-part", partIndex: index, part };
+    }
+    if (rawTurns.length > 0) {
+        yield { type: "replay-data", data: rawTurnsToReplayData(rawTurns) };
     }
     const uniqueCitations = deduplicateCitations(citations);
     if (uniqueCitations.length > 0) {

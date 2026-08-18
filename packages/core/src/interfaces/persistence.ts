@@ -1,4 +1,4 @@
-import type { ContentPart, MessageRole, ThreadMessage } from "../types/message.js";
+import type { ContentPart, MessageRole, ProviderReplayData, ThreadMessage } from "../types/message.js";
 import type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole } from "../types/thread.js";
 import type { User } from "../types/user.js";
 
@@ -45,6 +45,8 @@ export interface AppendMessageOptions {
     metadata?: Record<string, unknown> | undefined;
     /** Override the logical ordering timestamp. Defaults to the current time. */
     contentAt?: Date | undefined;
+    /** Provider-native data for verbatim replay of an AI turn. */
+    replayData?: ProviderReplayData | undefined;
 }
 
 /** Options for loading messages from a thread with cursor-based pagination. */

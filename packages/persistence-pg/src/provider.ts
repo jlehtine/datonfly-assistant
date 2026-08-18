@@ -343,6 +343,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                 created_at: now,
                 content_at: options.contentAt ?? now,
                 metadata: options.metadata ? JSON.stringify(options.metadata) : null,
+                provider_replay_data: options.replayData ? JSON.stringify(options.replayData) : null,
             })
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -375,6 +376,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                 "message.created_at",
                 "message.content_at",
                 "message.metadata",
+                "message.provider_replay_data",
                 "user.name as author_name",
                 "user.avatar_url as author_avatar_url",
             ])
@@ -402,6 +404,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             createdAt: row.created_at,
             contentAt: row.content_at,
             metadata: row.metadata ?? undefined,
+            replayData: row.provider_replay_data ?? undefined,
         }));
     }
 
@@ -442,6 +445,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                     "message.created_at",
                     "message.content_at",
                     "message.metadata",
+                    "message.provider_replay_data",
                     "user.name as author_name",
                     "user.avatar_url as author_avatar_url",
                 ])
@@ -463,6 +467,7 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
                 createdAt: row.created_at,
                 contentAt: row.content_at,
                 metadata: row.metadata ?? undefined,
+                replayData: row.provider_replay_data ?? undefined,
             }));
 
             offset += rows.length;
@@ -646,6 +651,7 @@ function toMessage(row: MessageRow): ThreadMessage {
         createdAt: row.created_at,
         contentAt: row.content_at,
         metadata: row.metadata ?? undefined,
+        replayData: row.provider_replay_data ?? undefined,
     };
 }
 

@@ -5,6 +5,7 @@ import {
     type AgentMessage,
     type AttachmentContentPart,
     type OpaqueContentPart,
+    type ProviderReplayData,
 } from "@datonfly-assistant/core";
 
 import { PROVIDER_ID } from "./config.js";
@@ -39,6 +40,37 @@ export function compactionBlockToOpaquePart(block: Anthropic.Beta.BetaCompaction
         provider: PROVIDER_ID,
         data: { type: "compaction", content: block.content ?? "" } satisfies CompactionOpaqueData,
     };
+}
+
+/**
+ * Payload carried by an Anthropic raw-turn replay record: the exact sequence
+ * of message params exchanged with the API while producing an AI turn
+ * (assistant content, tool-result turns, pause_turn/compaction continuations,
+ * and the final answer), captured so it can be replayed verbatim on a later
+ * turn without re-deriving it from the decomposed {@link ContentPart}s.
+ */
+export interface RawTurnReplayData {
+    type: "raw-turn";
+    turns: Anthropic.Beta.BetaMessageParam[];
+}
+
+/** Wrap the raw message params exchanged for a turn as persistable replay data. */
+export function rawTurnsToReplayData(turns: Anthropic.Beta.BetaMessageParam[]): ProviderReplayData {
+    return { provider: PROVIDER_ID, data: { type: "raw-turn", turns } satisfies RawTurnReplayData };
+}
+
+/** Whether an {@link AgentMessage}'s replay data carries this provider's raw-turn record. */
+export function isRawTurnReplayData(
+    replayData: ProviderReplayData | undefined,
+): replayData is ProviderReplayData & { data: RawTurnReplayData } {
+    if (replayData?.provider !== PROVIDER_ID) return false;
+    const data: unknown = replayData.data;
+    return (
+        typeof data === "object" &&
+        data !== null &&
+        (data as { type?: unknown }).type === "raw-turn" &&
+        Array.isArray((data as { turns?: unknown }).turns)
+    );
 }
 
 /**
@@ -196,6 +228,15 @@ export function agentMessagesToParams(messages: AgentMessage[]): ConversationPar
                 break;
             }
             case "ai": {
+                // Raw-turn replay data, when present, is byte-for-byte what the provider
+                // produced/consumed and takes priority over the decomposed parts, which
+                // exist for rendering/search and lose provider-specific blocks (e.g.
+                // server-tool use/results). Older or purged messages have no replay
+                // data and fall back to reconstruction from the decomposed parts.
+                if (isRawTurnReplayData(message.replayData)) {
+                    turns.push(...message.replayData.data.turns);
+                    break;
+                }
                 const content = assistantBlocks(message);
                 if (content.length > 0) turns.push({ role: "assistant", content });
                 const results = toolResultBlocks(message);

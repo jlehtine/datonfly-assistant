@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentMessage, ITool } from "@datonfly-assistant/core";
+import type { AgentMessage, ITool, ProviderReplayData } from "@datonfly-assistant/core";
 
 import { AnthropicAgent } from "./agent.js";
 import { ADDER_TOOL, collectChunks, CONFORMANCE_CASES, joinText, userMessage } from "./testing/conformance.js";
@@ -266,6 +266,58 @@ describe("AnthropicAgent mid-stream overload recovery", () => {
 
             // One initial attempt plus two retries (bounded), then give up.
             expect(server.requests).toHaveLength(3);
+        });
+    });
+});
+
+describe("AnthropicAgent raw-turn replay", () => {
+    it("captures server-tool blocks as replay data for the completed turn", async () => {
+        await withServer(["web-search"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("Search the web.")]);
+
+            const replay = chunks.find((chunk) => chunk.type === "replay-data");
+            expect(replay).toBeDefined();
+            expect(replay?.type === "replay-data" ? replay.data.provider : "").toBe("anthropic");
+
+            const data = replay?.type === "replay-data" ? replay.data.data : undefined;
+            const turns = (data as { type: string; turns: { content: unknown }[] }).turns;
+            const blocks = turns.flatMap((turn) =>
+                Array.isArray(turn.content) ? (turn.content as { type: string }[]) : [],
+            );
+            expect(blocks.some((block) => block.type === "server_tool_use")).toBe(true);
+        });
+    });
+
+    it("replays server-tool blocks verbatim on a later turn instead of the decomposed parts", async () => {
+        let replayData: ProviderReplayData | undefined;
+        await withServer(["web-search"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("Search the web.")]);
+            const replay = chunks.find((chunk) => chunk.type === "replay-data");
+            replayData = replay?.type === "replay-data" ? replay.data : undefined;
+        });
+        expect(replayData).toBeDefined();
+
+        await withServer(["plain-text"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            await collectChunks(agent, [
+                userMessage("Search the web."),
+                {
+                    role: "ai",
+                    // Deliberately different from the raw turns, to prove the replay
+                    // data — not this decomposed summary — is what gets resent.
+                    content: [{ type: "text", text: "Here is what I found." }],
+                    replayData,
+                },
+                userMessage("Thanks, anything else?"),
+            ]);
+
+            const messages = server.requests[0]?.messages as { role: string; content: unknown }[];
+            const blocks = messages.flatMap((message) =>
+                Array.isArray(message.content) ? (message.content as { type: string }[]) : [],
+            );
+            expect(blocks.some((block) => block.type === "server_tool_use")).toBe(true);
         });
     });
 });

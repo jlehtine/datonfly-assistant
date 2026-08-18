@@ -89,6 +89,24 @@ export type ContentPart =
     | AttachmentContentPart
     | OpaqueContentPart;
 
+/**
+ * Provider-native data needed to replay an AI turn verbatim to the provider
+ * that produced it (e.g. Anthropic's raw content blocks for the turn).
+ *
+ * Stored separately from {@link ContentPart}s — rather than as an
+ * {@link OpaqueContentPart} — so it can be purged independently (e.g. after a
+ * retention period) without rewriting the human-facing content. A message
+ * without this field falls back to being reconstructed from its
+ * {@link ContentPart}s, which is also what happens for pre-existing messages
+ * and after a future purge.
+ */
+export interface ProviderReplayData {
+    /** Identifier of the provider that produced this data (e.g. `"anthropic"`). */
+    provider: string;
+    /** Provider-specific payload. */
+    data: unknown;
+}
+
 /** A single message within a thread. */
 export interface ThreadMessage {
     /** Unique message identifier (UUID). */
@@ -111,4 +129,6 @@ export interface ThreadMessage {
     contentAt?: Date | undefined;
     /** Arbitrary key-value metadata attached to the message. */
     metadata?: Record<string, unknown> | undefined;
+    /** Provider-native data for verbatim replay of an AI turn. `undefined` for non-AI messages. */
+    replayData?: ProviderReplayData | undefined;
 }

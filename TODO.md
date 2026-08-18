@@ -180,13 +180,13 @@ not a new pattern):
 
 ### Implementation steps
 
-- [ ] Add the `provider_replay_data` migration + `schema.ts` column in
+- [x] Add the `provider_replay_data` migration + `schema.ts` column in
       `persistence-pg`, and thread it through `appendMessage()` /
       `loadMessages()`.
-- [ ] Add `replayData` to `ThreadMessage`, `AppendMessageOptions`, and
+- [x] Add `replayData` to `ThreadMessage`, `AppendMessageOptions`, and
       `AgentMessage` in `core`; add the new `ReplayDataChunk` variant to
       `AgentStreamChunk`.
-- [ ] In `stream.ts`, accumulate every provider message param appended during
+- [x] In `stream.ts`, accumulate every provider message param appended during
       the tool-calling loop (assistant content, tool-result turns, pause_turn /
       compaction replays) into an ordered array for the turn, and — the current
       gap — also push the **final** assistant message's content once the loop
@@ -194,28 +194,34 @@ not a new pattern):
       likely to carry unpaired server-tool blocks. Emit the accumulated array as
       one `ReplayDataChunk`
       (`{ provider: "anthropic", data: { type: "raw-turn", turns: [...] } }`).
-- [ ] Wire the new chunk through `chat.gateway.ts`'s `ActiveStream` /
+- [x] Wire the new chunk through `chat.gateway.ts`'s `ActiveStream` /
       `appendMessage()` call, and through `threadMessagesToAgentMessages()` in
       `chat-server/src/messages.ts`.
-- [ ] In `agent-anthropic/src/messages.ts`, change `agentMessagesToParams()` so
+- [x] In `agent-anthropic/src/messages.ts`, change `agentMessagesToParams()` so
       an "ai" message with `replayData` contributes its `turns` verbatim to the
       output instead of going through `assistantBlocks()`/`toolResultBlocks()`;
       keep the decomposed-part path as the fallback for messages without one
       (pre-feature history, or a purged row). Confirm `mergeAdjacentRoles()`
       still behaves correctly when turns come from a mix of raw-sourced and
       decomposition-sourced messages.
-- [ ] Confirm `trimBeforeCompaction()` needs no changes: it already drops
+- [x] Confirm `trimBeforeCompaction()` needs no changes: it already drops
       everything before the last compaction boundary, replay data included.
-- [ ] Unit tests for the new helpers and the raw-first reconstruction, including
+- [x] Unit tests for the new helpers and the raw-first reconstruction, including
       the fallback path for a message without `replayData`.
-- [ ] Extend the fixture-based tests (`web-search.json`, `web-fetch.json`,
+- [x] Extend the fixture-based tests (`web-search.json`, `web-fetch.json`,
       `code-execution.json` already exist under
       `agent-anthropic/test/fixtures/`) with a two-turn scenario: turn 1
       exercises a server tool, turn 2 is a plain follow-up — assert the outgoing
       request for turn 2 includes turn 1's server-tool blocks. Add this as a
       conformance case if it fits `CONFORMANCE_CASES`, since this is exactly the
       behavioural contract other providers should also satisfy.
-- [ ] Update `CONVENTIONS.md`'s "AI Agent Providers" section: describe the
+
+      Done as regular tests in `agent.test.ts` (`AnthropicAgent raw-turn
+              replay`) rather than a `CONFORMANCE_CASES` entry: that suite's `check()`
+              only inspects the emitted chunk sequence, not a second follow-up call's
+              outgoing request, so the two-turn assertion didn't fit its shape.
+
+- [x] Update `CONVENTIONS.md`'s "AI Agent Providers" section: describe the
       raw-turn replay-data pattern (dedicated column) as the general mechanism
       for provider fidelity, alongside the narrower inline-opaque-part mechanism
       reserved for small/permanent data like compaction, and note the

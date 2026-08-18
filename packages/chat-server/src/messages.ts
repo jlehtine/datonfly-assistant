@@ -157,7 +157,7 @@ export function threadMessagesToAgentMessages(
                         parts = [...parts, { type: "text", text: tag }];
                     }
                 }
-                result.push({ role: "ai", content: parts });
+                result.push({ role: "ai", content: parts, replayData: msg.replayData });
                 break;
             }
         }

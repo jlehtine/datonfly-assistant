@@ -6,6 +6,8 @@ import {
     agentMessagesToParams,
     compactionBlockToOpaquePart,
     isCompactionPart,
+    isRawTurnReplayData,
+    rawTurnsToReplayData,
     trimBeforeCompaction,
 } from "./messages.js";
 
@@ -219,6 +221,57 @@ describe("isCompactionPart", () => {
 
     it("rejects the legacy signed-thinking opaque part found in live data", () => {
         expect(isCompactionPart(LEGACY_THINKING_OPAQUE_PART)).toBe(false);
+    });
+});
+
+describe("raw-turn replay data", () => {
+    it("replays raw turns verbatim, bypassing decomposed content", () => {
+        const replayData = rawTurnsToReplayData([
+            {
+                role: "assistant",
+                content: [{ type: "server_tool_use", id: "srv1", name: "web_search", input: { query: "x" } }],
+            },
+            { role: "user", content: [{ type: "text", text: "irrelevant continuation" }] },
+        ]);
+        const messages: AgentMessage[] = [
+            {
+                role: "ai",
+                // Deliberately different from the raw turns, to prove replay data wins.
+                content: [{ type: "text", text: "decomposed answer" }],
+                replayData,
+            },
+        ];
+
+        const { messages: turns } = agentMessagesToParams(messages);
+        expect(turns).toEqual([
+            {
+                role: "assistant",
+                content: [{ type: "server_tool_use", id: "srv1", name: "web_search", input: { query: "x" } }],
+            },
+            { role: "user", content: [{ type: "text", text: "irrelevant continuation" }] },
+        ]);
+    });
+
+    it("falls back to decomposed content when replay data is absent", () => {
+        const messages: AgentMessage[] = [{ role: "ai", content: [{ type: "text", text: "The answer." }] }];
+
+        expect(agentMessagesToParams(messages).messages[0]?.content).toEqual([{ type: "text", text: "The answer." }]);
+    });
+});
+
+describe("isRawTurnReplayData", () => {
+    it("accepts this provider's raw-turn encoding", () => {
+        const replayData = rawTurnsToReplayData([{ role: "assistant", content: [{ type: "text", text: "hi" }] }]);
+        expect(isRawTurnReplayData(replayData)).toBe(true);
+    });
+
+    it("rejects replay data from another provider or shape", () => {
+        expect(isRawTurnReplayData(undefined)).toBe(false);
+        expect(isRawTurnReplayData({ provider: "openai", data: { type: "raw-turn", turns: [] } })).toBe(false);
+        expect(isRawTurnReplayData({ provider: "anthropic", data: { type: "compaction", content: "x" } })).toBe(false);
+        expect(isRawTurnReplayData({ provider: "anthropic", data: { type: "raw-turn", turns: "not-an-array" } })).toBe(
+            false,
+        );
     });
 });
 

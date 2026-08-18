@@ -108,9 +108,23 @@ to every provider:
   `temperature: 0` — so an unset option must be omitted from the request rather
   than sent as a default.
 - **Round-trip provider-specific state through `OpaqueContentPart`.** It is the
-  only sanctioned escape hatch for data the server must store and hand back
-  without understanding it. Persisted encodings are a compatibility surface:
-  live threads contain them, so changing one needs a migration.
+  sanctioned escape hatch for small, permanent data the server must store and
+  hand back without understanding it (e.g. a compaction summary). Persisted
+  encodings are a compatibility surface: live threads contain them, so changing
+  one needs a migration.
+- **Round-trip a full turn's provider-native exchange through
+  `AgentMessage.replayData`.** Where `OpaqueContentPart` covers one hand-picked
+  block type, `replayData` (backed by its own `provider_replay_data` column, not
+  `content`) captures everything the provider produced/consumed for an AI turn,
+  so any current or future block type survives for verbatim replay without
+  needing its own mapping — this is what lets a later turn replay server-side
+  tool use/results (`server_tool_use`, `web_search_tool_result`, …) instead of
+  silently losing them. Prefer `replayData` when present when reconstructing a
+  request; fall back to reconstructing from the decomposed `ContentPart`s
+  otherwise (older messages, or ones with their replay data purged — a plain
+  column write, safe because the fallback is exactly the pre-feature behavior).
+  Use the narrower `OpaqueContentPart` mechanism instead only for small data
+  meant to live for the lifetime of the thread.
 - **Honour the usage contract.** See `AgentUsage` — `inputTokens` means the size
   of the submitted context including cached tokens, because the gateway compares
   it against the compaction threshold.

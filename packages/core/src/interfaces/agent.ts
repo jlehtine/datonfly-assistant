@@ -1,4 +1,4 @@
-import type { ContentPart, MessageRole, OpaqueContentPart } from "../types/message.js";
+import type { ContentPart, MessageRole, OpaqueContentPart, ProviderReplayData } from "../types/message.js";
 import type { StatusCode } from "../types/status-code.js";
 import type { ProviderLogger } from "./logger.js";
 import type { ITool } from "./tool.js";
@@ -12,6 +12,8 @@ export interface AgentMessage {
     role: AgentMessageRole;
     /** Ordered content parts of the message. */
     content: ContentPart[];
+    /** Provider-native data for verbatim replay of this turn. `undefined` for non-AI messages. */
+    replayData?: ProviderReplayData | undefined;
 }
 
 /** A URL + title pair for a web-search citation. */
@@ -80,6 +82,18 @@ export interface OpaquePartChunk {
     part: OpaqueContentPart;
 }
 
+/**
+ * The full provider-native exchange for the turn, emitted once a turn
+ * completes, for verbatim replay on a later turn (see {@link AgentMessage.replayData}).
+ * Not a {@link ContentPart} — it never appears in persisted message content and
+ * is never sent to clients.
+ */
+export interface ReplayDataChunk {
+    type: "replay-data";
+    /** The provider-native payload to store and replay verbatim. */
+    data: ProviderReplayData;
+}
+
 /** A transient status update during streaming (e.g. "Running code…"). Not persisted. */
 export interface StatusChunk {
     type: "status";
@@ -130,6 +144,7 @@ export type AgentStreamChunk =
     | TextDeltaChunk
     | ThinkingPartChunk
     | OpaquePartChunk
+    | ReplayDataChunk
     | StatusChunk
     | CitationsChunk
     | ToolCallChunk

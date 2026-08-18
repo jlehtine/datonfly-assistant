@@ -192,6 +192,12 @@ DF_MCP_SERVERS=[{"transport":"http","name":"remote","url":"https://mcp.example.c
   milliseconds. Omit to use the MCP SDK default.
 - **`DF_AGENT_MAX_TOOL_ITERATIONS`** _(optional, default: 10)_ — Maximum number
   of model turns in a tool-calling loop before the agent aborts the request.
+- **`DF_AGENT_MAX_TOKENS`** _(optional, default: 64000)_ — Maximum tokens in a
+  chat response. Thinking tokens are billed as output and count against this
+  budget, so a low value can cut a response off with `stop_reason: "max_tokens"`
+  before the model is done. 64000 is the lowest max-output ceiling among the
+  models this project ships with (Haiku 4.5); Opus 5 and Sonnet 5 allow up
+  to 128000.
 
 ## Audio Input (Transcription)
 

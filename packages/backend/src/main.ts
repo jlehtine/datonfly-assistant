@@ -71,6 +71,7 @@ async function bootstrap(): Promise<void> {
         triageModelName: cfg.agent.triageModelName,
         titleModelName: cfg.agent.titleModelName,
         debugApiContent: cfg.agent.debugApiContent,
+        ...(cfg.agent.maxTokens !== undefined ? { maxTokens: cfg.agent.maxTokens } : {}),
         ...(cfg.agent.maxToolIterations !== undefined ? { maxToolIterations: cfg.agent.maxToolIterations } : {}),
         ...(mcpServerSet ? { defaultTools: mcpServerSet.tools } : {}),
         logger: agentLogger,

@@ -225,6 +225,7 @@ export interface BackendConfig {
         modelName: string;
         triageModelName: string | undefined;
         titleModelName: string | undefined;
+        maxTokens: number | undefined;
         maxToolIterations: number | undefined;
         debugApiContent: boolean;
         /** Anthropic-only knobs, grouped so they map onto provider options. */
@@ -396,6 +397,7 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
             modelName,
             triageModelName: reader.prefixed("AGENT_TRIAGE_MODEL"),
             titleModelName: reader.prefixed("AGENT_TITLE_MODEL"),
+            maxTokens: parseOptionalPositiveInt(reader.prefixed("AGENT_MAX_TOKENS"), "DF_AGENT_MAX_TOKENS"),
             maxToolIterations: parseOptionalPositiveInt(
                 reader.prefixed("AGENT_MAX_TOOL_ITERATIONS"),
                 "DF_AGENT_MAX_TOOL_ITERATIONS",

@@ -8,8 +8,16 @@ export const PROVIDER_ID = "anthropic";
 /** Default context window assumed when the caller does not specify one. */
 export const DEFAULT_CONTEXT_WINDOW_SIZE = 200_000;
 
-/** Default response token budget. */
-export const DEFAULT_MAX_TOKENS = 4096;
+/**
+ * Default response token budget.
+ *
+ * 64k matches the lowest max-output ceiling among the models this agent is
+ * configured with (Haiku 4.5); Opus 5 and Sonnet 5 allow up to 128k. Thinking
+ * tokens are billed as output and count against this budget, so a low value
+ * (the SDK/API has no default of its own) truncates responses with
+ * `stop_reason: "max_tokens"` well before the model runs out of things to say.
+ */
+export const DEFAULT_MAX_TOKENS = 64_000;
 
 /** Default number of model turns allowed in a tool-calling loop. */
 export const DEFAULT_MAX_TOOL_ITERATIONS = 10;

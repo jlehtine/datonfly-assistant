@@ -100,3 +100,124 @@ What was established:
       is real, a user typing while a background re-render lands would silently
       lose their message. Until then the spec stays as-is rather than being
       papered over with a retry, so the flake keeps surfacing it.
+
+## Persist raw provider turns for reliable multi-turn replay
+
+**Problem.** Anthropic's server-side tools (`web_search`, `web_fetch`,
+`code_execution`) return extra content blocks (`server_tool_use`,
+`web_search_tool_result`, `web_fetch_tool_result`, `code_execution_tool_result`,
+…) embedded in the assistant's own response. None of these are captured today:
+`stream.ts` only reads them to emit a transient `"Searching the web…"` status,
+and when a stored AI message is turned back into a provider request
+(`assistantBlocks()`/`toolResultBlocks()` in `messages.ts`), there is no path
+back for anything but `text`, client-side `tool_use`, and the `compaction`
+opaque part. The entire server-tool exchange — queries and results — is silently
+dropped once the turn ends, so on a later turn the model has no memory of having
+searched or fetched anything and re-does the work.
+
+**Design.** Capture the full raw provider exchange for the turn — every
+assistant/user turn pushed internally during the tool-calling loop (client tool
+calls, pause_turn/compaction continuations), **plus the final answer's content
+array**, which today is never pushed anywhere once the loop breaks — so any
+current or future Anthropic block type is preserved for replay without needing
+its own mapping. `content: ContentPart[]` keeps holding the existing decomposed
+parts (text, thinking, tool-call, tool-result, citations) exactly as today,
+purely for rendering, search indexing, and title generation; the raw exchange is
+a second, parallel representation of the same turn, duplicating data on purpose.
+
+Store that raw exchange in a **new dedicated nullable column** rather than as an
+`OpaqueContentPart` inside `content`, mirroring the existing `message.metadata`
+column (already a sibling JSONB column with its own merge method,
+`updateMessageMetadata()`) rather than the compaction block's approach (an
+opaque part inline in `content`):
+
+- A message-level `content` rewrite to drop old data (needed if it were bundled
+  inside the `content` JSON array) means reading, filtering, and rewriting a
+  whole array per row. A dedicated column turns the same cleanup into
+  `UPDATE message SET provider_replay_data = NULL WHERE content_at < $1` — a
+  single indexed statement, no JSON surgery, trivially cheap even at scale. This
+  purge job is **not being built now** — just the column, so it's a one-line job
+  whenever it's needed.
+- Compaction blocks stay exactly where they are today (inline `opaque` part in
+  `content`): they're small, already deployed in live threads, and not a purge
+  target, so there's no reason to move them and take on a data migration for
+  existing rows. The dividing line going forward: small/permanent provider
+  metadata stays an inline opaque `ContentPart`; large/purgeable replay-only
+  data goes in the new column. Only the new raw-turn data uses the new column.
+- A `NULL` column is indistinguishable from a pre-feature row or a purged row,
+  so the existing "reconstruct from decomposed parts" path automatically serves
+  as the fallback for both — no special-casing needed for purge safety, it falls
+  out of the design for free.
+
+### Cross-package surface
+
+This does reach outside `agent-anthropic`, following the same shape as the
+existing `metadata` column end-to-end (small, mechanical changes per package,
+not a new pattern):
+
+- **`persistence-pg`**: new Kysely migration adding a nullable
+  `provider_replay_data` jsonb column to `message` (additive, no default, no
+  backfill — cheap metadata-only `ALTER TABLE` on Postgres). Add the column to
+  `MessagesTable` in `schema.ts`. `provider.ts`'s `appendMessage()` writes it
+  and `loadMessages()` selects/maps it, exactly like `metadata` today.
+- **`core`**: `ThreadMessage` and `AppendMessageOptions` gain an optional
+  `replayData?: { provider: string; data: unknown }` field alongside `metadata`.
+  `AgentMessage` (in `interfaces/agent.ts`) gains the same field so chat-server
+  can pass stored replay data into the provider and get it back out.
+  `AgentStreamChunk` gains a new variant (e.g. `ReplayDataChunk`) distinct from
+  the existing `OpaquePartChunk`, which continues to serve compaction only. None
+  of this is sent to clients — no `dto`/wire-schema change needed, it's simply
+  absent from `NewMessageEvent`/`MessageCompleteEvent`, which is simpler than
+  today's `content.filter((p) => p.type !== "opaque")`.
+- **`chat-server`**: `ActiveStream` gains a `replayData` slot set when the new
+  chunk type arrives; `appendMessage()` calls forward it. `messages.ts`
+  (`threadMessagesToAgentMessages`) copies `msg.replayData` onto the constructed
+  `AgentMessage` for "ai" role messages.
+- **`agent-anthropic`**: `stream.ts` emits the accumulated raw exchange as the
+  new replay-data chunk instead of an opaque `content` part. `messages.ts`'s
+  `agentMessagesToParams()` reads `message.replayData` (not a part scan) to
+  decide raw-verbatim vs. decomposed-reconstruction per message.
+
+### Implementation steps
+
+- [ ] Add the `provider_replay_data` migration + `schema.ts` column in
+      `persistence-pg`, and thread it through `appendMessage()` /
+      `loadMessages()`.
+- [ ] Add `replayData` to `ThreadMessage`, `AppendMessageOptions`, and
+      `AgentMessage` in `core`; add the new `ReplayDataChunk` variant to
+      `AgentStreamChunk`.
+- [ ] In `stream.ts`, accumulate every provider message param appended during
+      the tool-calling loop (assistant content, tool-result turns, pause_turn /
+      compaction replays) into an ordered array for the turn, and — the current
+      gap — also push the **final** assistant message's content once the loop
+      concludes with no further tool calls, since that's exactly the turn most
+      likely to carry unpaired server-tool blocks. Emit the accumulated array as
+      one `ReplayDataChunk`
+      (`{ provider: "anthropic", data: { type: "raw-turn", turns: [...] } }`).
+- [ ] Wire the new chunk through `chat.gateway.ts`'s `ActiveStream` /
+      `appendMessage()` call, and through `threadMessagesToAgentMessages()` in
+      `chat-server/src/messages.ts`.
+- [ ] In `agent-anthropic/src/messages.ts`, change `agentMessagesToParams()` so
+      an "ai" message with `replayData` contributes its `turns` verbatim to the
+      output instead of going through `assistantBlocks()`/`toolResultBlocks()`;
+      keep the decomposed-part path as the fallback for messages without one
+      (pre-feature history, or a purged row). Confirm `mergeAdjacentRoles()`
+      still behaves correctly when turns come from a mix of raw-sourced and
+      decomposition-sourced messages.
+- [ ] Confirm `trimBeforeCompaction()` needs no changes: it already drops
+      everything before the last compaction boundary, replay data included.
+- [ ] Unit tests for the new helpers and the raw-first reconstruction, including
+      the fallback path for a message without `replayData`.
+- [ ] Extend the fixture-based tests (`web-search.json`, `web-fetch.json`,
+      `code-execution.json` already exist under
+      `agent-anthropic/test/fixtures/`) with a two-turn scenario: turn 1
+      exercises a server tool, turn 2 is a plain follow-up — assert the outgoing
+      request for turn 2 includes turn 1's server-tool blocks. Add this as a
+      conformance case if it fits `CONFORMANCE_CASES`, since this is exactly the
+      behavioural contract other providers should also satisfy.
+- [ ] Update `CONVENTIONS.md`'s "AI Agent Providers" section: describe the
+      raw-turn replay-data pattern (dedicated column) as the general mechanism
+      for provider fidelity, alongside the narrower inline-opaque-part mechanism
+      reserved for small/permanent data like compaction, and note the
+      purge-safety property so a future storage-reclamation feature doesn't have
+      to re-derive it.

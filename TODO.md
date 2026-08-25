@@ -217,9 +217,9 @@ not a new pattern):
       behavioural contract other providers should also satisfy.
 
       Done as regular tests in `agent.test.ts` (`AnthropicAgent raw-turn
-                      replay`) rather than a `CONFORMANCE_CASES` entry: that suite's `check()`
-                      only inspects the emitted chunk sequence, not a second follow-up call's
-                      outgoing request, so the two-turn assertion didn't fit its shape.
+                          replay`) rather than a `CONFORMANCE_CASES` entry: that suite's `check()`
+                          only inspects the emitted chunk sequence, not a second follow-up call's
+                          outgoing request, so the two-turn assertion didn't fit its shape.
 
 - [x] Update `CONVENTIONS.md`'s "AI Agent Providers" section: describe the
       raw-turn replay-data pattern (dedicated column) as the general mechanism
@@ -235,7 +235,7 @@ channel computed **in Node**, and fuse it with the existing dense channel using
 weighted Reciprocal Rank Fusion inside Qdrant. Infinity and `BAAI/bge-m3` stay
 exactly as they are, so this adds no containers and no meaningful resource cost.
 
-Status: Phases 0–2 done. Phases 0–4 are the agreed scope; phases 5 and 6 are
+Status: Phases 0–3 done. Phases 0–4 are the agreed scope; phases 5 and 6 are
 deferred and undecided pending operational verification of phases 0–4.
 
 ### Why the current implementation underperforms
@@ -328,12 +328,12 @@ Blocking prerequisite for every later phase.
       compatibility is not maintained during initial development.
 
       `QdrantSearchProvider.search()` still runs the old dense + text-filter RRF
-              query internally (grouped by thread, `hitsPerThread` honoured via
-              `group_size`) — the real sparse/formula rework is Phase 2. Updated the
-              only two callers, `ThreadController.search()` and
-              `SearchResultItem` in `ThreadListPanel.tsx`, to the new shape; both kept
-              to their prior behaviour (app-side recency decay, single-snippet
-              display) since that rework is Phase 3.
+                  query internally (grouped by thread, `hitsPerThread` honoured via
+                  `group_size`) — the real sparse/formula rework is Phase 2. Updated the
+                  only two callers, `ThreadController.search()` and
+                  `SearchResultItem` in `ThreadListPanel.tsx`, to the new shape; both kept
+                  to their prior behaviour (app-side recency decay, single-snippet
+                  display) since that rework is Phase 3.
 
 ### 0.2 Wire schema
 
@@ -346,9 +346,9 @@ Blocking prerequisite for every later phase.
       vector.
 
       The contract is in place (`highlights: [number, number][]`, always
-              present, empty until populated); real highlight computation is Phase 2.4
-              (densest-window snippet selection) and is not implemented yet — the
-              controller currently always returns `[]`.
+                  present, empty until populated); real highlight computation is Phase 2.4
+                  (densest-window snippet selection) and is not implemented yet — the
+                  controller currently always returns `[]`.
 
 ## Phase 1 — Lexical BM25 sparse channel
 
@@ -378,13 +378,13 @@ with the Phase 2 design, but Phase 2 depends on it.
       with optional ASCII folding.
 
       Implemented as two independent passes over the full text (identifier
-              extraction + word segmentation), so a chunk like `ABC-1234` contributes
-              both the verbatim token and its sub-word segments (`abc`, `1234`) for
-              extra partial-match recall. Used locale `"und"` (undetermined) for
-              language-neutral generic Unicode word-boundary rules, consistent with no
-              language detection. ASCII folding emits an additional folded variant
-              alongside the surface form only when it differs (e.g. `café` → `café` +
-              `cafe`), mirroring how stems are added as extra terms.
+                  extraction + word segmentation), so a chunk like `ABC-1234` contributes
+                  both the verbatim token and its sub-word segments (`abc`, `1234`) for
+                  extra partial-match recall. Used locale `"und"` (undetermined) for
+                  language-neutral generic Unicode word-boundary rules, consistent with no
+                  language detection. ASCII folding emits an additional folded variant
+                  alongside the surface form only when it differs (e.g. `café` → `café` +
+                  `cafe`), mirroring how stems are added as extra terms.
 
 - [x] Do **not** build stopword lists. Qdrant's IDF modifier drives common terms
       to near-zero weight automatically.
@@ -458,8 +458,8 @@ Depends on Phase 1. All changes in
       `enable_hnsw: false` on `memberIds`, which is only ever used to filter.
 
       Verified against a live Qdrant v1.17 instance: `getCollection()` reports
-          `vectors.dense` (1024, Cosine) and `sparse_vectors.lexical` with
-          `modifier: "idf"`.
+              `vectors.dense` (1024, Cosine) and `sparse_vectors.lexical` with
+              `modifier: "idf"`.
 
 ### 2.2 Indexing
 
@@ -470,9 +470,9 @@ Depends on Phase 1. All changes in
       any means until someone reindexes.
 
       `indexBatch()`'s `skipped` counter now only counts genuinely-empty
-          documents (filtered before chunking); a dense-embedding failure inside
-          the chunk loop no longer increments it, since the document ends up
-          indexed (sparse-only), not skipped.
+              documents (filtered before chunking); a dense-embedding failure inside
+              the chunk loop no longer increments it, since the document ends up
+              indexed (sparse-only), not skipped.
 
 ### 2.3 Query
 
@@ -480,30 +480,30 @@ Depends on Phase 1. All changes in
       `queryGroups`:
 
       ```
-              prefetch: {                       // fusion nested in a prefetch
-                prefetch: [
-                  { query: denseVec,  using: "dense",   limit: K },
-                  { query: sparseVec, using: "lexical", limit: K },
-                ],
-                query: { rrf: { weights: [wDense, wSparse] } },
-                limit: K,
-              },
-              query: { formula: { sum: [ "$score",
-                       { mult: [ recencyWeight,
-                         { exp_decay: { x: { datetime_key: "createdAt" },
-                                        target: { datetime: now },
-                                        scale: halfLifeDays * 86400,
-                                        midpoint: 0.5 } } ] } ] } },
-              filter: membershipFilter,
-              group_by: "threadId", group_size: hitsPerThread, limit,
-              ```
+                  prefetch: {                       // fusion nested in a prefetch
+                    prefetch: [
+                      { query: denseVec,  using: "dense",   limit: K },
+                      { query: sparseVec, using: "lexical", limit: K },
+                    ],
+                    query: { rrf: { weights: [wDense, wSparse] } },
+                    limit: K,
+                  },
+                  query: { formula: { sum: [ "$score",
+                           { mult: [ recencyWeight,
+                             { exp_decay: { x: { datetime_key: "createdAt" },
+                                            target: { datetime: now },
+                                            scale: halfLifeDays * 86400,
+                                            midpoint: 0.5 } } ] } ] } },
+                  filter: membershipFilter,
+                  group_by: "threadId", group_size: hitsPerThread, limit,
+                  ```
 
-          The formula rescore only applies when the caller passes `options.recency`
-          — no caller does yet (that's Phase 3), so today's query is always the
-          plain fused (or single-source, degraded) form. `wDense`/`wSparse` are
-          fixed `1.0`/`1.0` constants for now (`DENSE_WEIGHT`/`SPARSE_WEIGHT` in
-          `qdrant-search.ts`); Phase 4 makes them configurable, it does not need to
-          introduce the fields themselves.
+              The formula rescore only applies when the caller passes `options.recency`
+              — no caller does yet (that's Phase 3), so today's query is always the
+              plain fused (or single-source, degraded) form. `wDense`/`wSparse` are
+              fixed `1.0`/`1.0` constants for now (`DENSE_WEIGHT`/`SPARSE_WEIGHT` in
+              `qdrant-search.ts`); Phase 4 makes them configurable, it does not need to
+              introduce the fields themselves.
 
 - [x] Calibrate `recencyWeight` against RRF magnitude. RRF scores are sums of
       `1/(k + rank)` and peak near `1.0` with `k = 2`, whereas `exp_decay`
@@ -511,9 +511,9 @@ Depends on Phase 1. All changes in
       Default to roughly `0.15`.
 
       Verified live: a same-instant document scored `1.0 + 0.15 * 1.0 = 1.15`
-          with `weight: 0.15`, confirming the formula composes as intended; `0.15`
-          is not hardcoded anywhere since `recency` is a per-call option, but this
-          confirms it's a reasonable default for Phase 4 to wire up.
+              with `weight: 0.15`, confirming the formula composes as intended; `0.15`
+              is not hardcoded anywhere since `recency` is a per-call option, but this
+              confirms it's a reasonable default for Phase 4 to wire up.
 
 - [x] Degrade instead of failing: if the embeddings call errors, run the query
       **sparse-only** rather than throwing. Search staying up without Infinity
@@ -527,22 +527,22 @@ Depends on Phase 1. All changes in
       snippet.
 
       New `packages/search-qdrant/src/snippet.ts` (`selectSnippet()`), unit
-          tested in `snippet.test.ts` (7 cases: no-match fallback, short-content
-          passthrough, exact-word offset, stemmed-inflection match, densest-window
-          selection, ellipsis + offset correctness, and an accented/ASCII-folded
-          case). Wired into `QdrantSearchProvider.search()`; `ThreadController`
-          updated to stop re-truncating `pageContent` and pass the provider's
-          snippet/highlights straight through.
+              tested in `snippet.test.ts` (7 cases: no-match fallback, short-content
+              passthrough, exact-word offset, stemmed-inflection match, densest-window
+              selection, ellipsis + offset correctness, and an accented/ASCII-folded
+              case). Wired into `QdrantSearchProvider.search()`; `ThreadController`
+              updated to stop re-truncating `pageContent` and pass the provider's
+              snippet/highlights straight through.
 
 - [x] Because the tokenizer is shared, Finnish inflections highlight correctly —
       a query for `Helsinki` marks `Helsingissä` in the snippet.
 
       **Not true with the real stemmer** — see the Phase 1.3 note above
-          (`helsingissä`/`helsinki` stem to `helsing`/`helsink`, not the same
-          value, because Snowball doesn't model Finnish consonant gradation).
-          Highlighting still works correctly for cases that _do_ share a stem or
-          surface form (verified live with `TICKET-4291` and `getUserById`); this
-          specific cross-inflection example just doesn't hold for Finnish.
+              (`helsingissä`/`helsinki` stem to `helsing`/`helsink`, not the same
+              value, because Snowball doesn't model Finnish consonant gradation).
+              Highlighting still works correctly for cases that _do_ share a stem or
+              surface form (verified live with `TICKET-4291` and `getUserById`); this
+              specific cross-inflection example just doesn't hold for Finnish.
 
 Verified end-to-end against a live Qdrant v1.17 + Infinity instance (temporary
 script, deleted after use): indexing three messages, then searching for a rare
@@ -556,27 +556,63 @@ Depends on phases 0 and 2.
 
 ### 3.1 Server
 
-- [ ] Delete the app-side decay, sort and dedup block from
+- [x] Delete the app-side decay, sort and dedup block from
       [packages/chat-server/src/thread.controller.ts](packages/chat-server/src/thread.controller.ts);
       Qdrant now does all of it.
-- [ ] Keep the read-time `persistence.isMember` check as an ACL safety net even
+- [x] Keep the read-time `persistence.isMember` check as an ACL safety net even
       though the query filters on `memberIds`.
-- [ ] Map provider groups to the new wire shape. Keep `@RateTier("search")`.
-- [ ] Pass the recency half-life **and** the new recency weight through
+- [x] Map provider groups to the new wire shape. Keep `@RateTier("search")`.
+- [x] Pass the recency half-life **and** the new recency weight through
       `packages/chat-server/src/chat.module.ts` to the provider rather than the
       controller.
 
+      New `SEARCH_RECENCY_WEIGHT` DI token (default `0.15`, matching the Phase
+          2.3 calibration) alongside the existing `SEARCH_RECENCY_HALF_LIFE_DAYS`;
+          both are read once in the controller constructor and passed as
+          `options.recency` on every `search()` call. `hitsPerThread` is a fixed
+          `HITS_PER_THREAD = 3` constant in the controller for now — Phase 4 makes
+          it configurable via `DF_SEARCH_HITS_PER_THREAD`, this just needed a
+          concrete value so the "remaining hits" tooltip (3.2) has something to
+          show.
+
 ### 3.2 Client and UI
 
-- [ ] Update types in `packages/chat-client/src/search.ts` and
+- [x] Update types in `packages/chat-client/src/search.ts` and
       `packages/chat-client/src/react/useThreadSearch.ts` — no behavioural
       change, the hook is a passthrough.
-- [ ] Update `SearchResultItem` in
+
+      No changes needed: both already relayed `ThreadSearchResultWire`
+          opaquely and compiled clean against the Phase 0 reshape without edits.
+
+- [x] Update `SearchResultItem` in
       [packages/chat-ui-mui/src/ThreadListPanel.tsx](packages/chat-ui-mui/src/ThreadListPanel.tsx)
       to render the first hit's snippet with mark spans built from the offsets,
       and to list the thread's remaining hits in the tooltip.
-- [ ] Add `datonfly-*` marker classes for the E2E selectors.
-- [ ] Keep this minimal — a broader search-UI redesign is out of scope.
+
+      New `HighlightedSnippet` helper renders `[start, end)` offsets as
+          `<mark>` spans around plain-text children (never raw HTML/`dangerouslySetInnerHTML`,
+          so message content can't inject markup). Compact row shows the first
+          hit only (CSS `nowrap`/ellipsis, no client-side re-slicing since that
+          would invalidate the server-computed offsets); the tooltip shows the
+          first hit in full plus every other hit below a divider.
+
+- [x] Add `datonfly-*` marker classes for the E2E selectors.
+
+      `datonfly-search-result-item`, `datonfly-search-result-snippet`,
+          `datonfly-search-result-highlight` (on each `<mark>`),
+          `datonfly-search-result-tooltip`, `datonfly-search-result-other-hit`.
+
+- [x] Keep this minimal — a broader search-UI redesign is out of scope.
+
+Verified against the running dev stack (`pnpm dev` + Qdrant/Infinity): the
+existing dev deployment's `messages` collection still had the pre-Phase-2
+unnamed-vector schema, so the first live search 500'd with
+`Wrong input: Not existing vector name error: dense` — expected per the Phase
+4.4 migration note, not a Phase 3 defect. Reindexed via a one-off script
+equivalent to `admin/reindex` (admin auth isn't configured in this dev env),
+then confirmed in the browser: searching surfaced the matching thread with the
+query term correctly wrapped in a `<mark>` in the rendered snippet, and clicking
+it navigated to the thread as expected.
 
 ## Phase 4 — Configuration, docs, tests and migration
 

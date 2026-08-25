@@ -38,26 +38,31 @@ import {
 
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
-import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER, SEARCH_RECENCY_HALF_LIFE_DAYS } from "./constants.js";
+import {
+    PERSISTENCE_PROVIDER,
+    SEARCH_PROVIDER,
+    SEARCH_RECENCY_HALF_LIFE_DAYS,
+    SEARCH_RECENCY_WEIGHT,
+} from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
 import { RateTier } from "./rate-limit/rate-tier.decorator.js";
 
+/** Hits returned per matching thread. Fixed for now — Phase 4 makes this configurable via `DF_SEARCH_HITS_PER_THREAD`. */
+const HITS_PER_THREAD = 3;
+
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
 export class ThreadController {
-    private readonly decayLambda: number;
-
     constructor(
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
-        @Inject(SEARCH_RECENCY_HALF_LIFE_DAYS) recencyHalfLifeDays: number,
+        @Inject(SEARCH_RECENCY_HALF_LIFE_DAYS) private readonly recencyHalfLifeDays: number,
+        @Inject(SEARCH_RECENCY_WEIGHT) private readonly recencyWeight: number,
         private readonly gateway: ChatGateway,
         private readonly auditLogger: AuditLogger,
-    ) {
-        this.decayLambda = Math.LN2 / recencyHalfLifeDays;
-    }
+    ) {}
 
     @Post()
     async create(
@@ -115,28 +120,11 @@ export class ThreadController {
             query: query.q,
             limit: limit * 3,
             filter: { memberUserId: user.id },
+            hitsPerThread: HITS_PER_THREAD,
+            recency: { halfLifeDays: this.recencyHalfLifeDays, weight: this.recencyWeight },
         });
 
-        // Apply recency decay per hit: finalScore = score * exp(-λ * days).
-        // TODO(search overhaul phase 3): pass `recency` to `search()` instead and delete this
-        // app-side decay/sort/dedup step — Qdrant's formula query now does the same thing.
-        // Snippets and highlights are already built by the provider (bm25.ts-backed, phase 2), so no
-        // further truncation is needed here.
-        const now = Date.now();
-        const scoredGroups = groups.map((group) => {
-            const decayedHits = group.hits
-                .map((hit) => {
-                    const createdAt = hit.metadata.createdAt as string | undefined;
-                    const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
-                    const finalScore = (hit.score ?? 0) * Math.exp(-this.decayLambda * daysSince);
-                    return { hit, createdAt, finalScore };
-                })
-                .sort((a, b) => b.finalScore - a.finalScore);
-            return { threadId: group.threadId, decayedHits };
-        });
-        scoredGroups.sort((a, b) => (b.decayedHits[0]?.finalScore ?? 0) - (a.decayedHits[0]?.finalScore ?? 0));
-
-        // Enrich with thread titles
+        // Qdrant already ranked, grouped and recency-decayed; just enrich with thread titles.
         const results: {
             threadId: string;
             title: string;
@@ -150,7 +138,7 @@ export class ThreadController {
                 score: number;
             }[];
         }[] = [];
-        for (const group of scoredGroups) {
+        for (const group of groups) {
             // Safety net: enforce membership at read time in case index ACL metadata is stale.
             const isMember = await this.persistence.isMember(group.threadId, user.id);
             if (!isMember) continue;
@@ -160,13 +148,13 @@ export class ThreadController {
                 threadId: group.threadId,
                 title: thread?.title ?? "Untitled",
                 updatedAt: thread?.updatedAt.toISOString() ?? new Date().toISOString(),
-                score: Math.round((group.decayedHits[0]?.finalScore ?? 0) * 1000) / 1000,
-                hits: group.decayedHits.map((d) => ({
-                    messageId: d.hit.id,
-                    createdAt: d.createdAt ?? new Date().toISOString(),
-                    snippet: d.hit.pageContent,
-                    highlights: d.hit.highlights ?? [],
-                    score: Math.round(d.finalScore * 1000) / 1000,
+                score: Math.round(group.score * 1000) / 1000,
+                hits: group.hits.map((hit) => ({
+                    messageId: hit.id,
+                    createdAt: (hit.metadata.createdAt as string | undefined) ?? new Date().toISOString(),
+                    snippet: hit.pageContent,
+                    highlights: hit.highlights ?? [],
+                    score: Math.round((hit.score ?? 0) * 1000) / 1000,
                 })),
             });
 

@@ -38,6 +38,7 @@ export type {
     IndexBatchResult,
     SemanticSearchFilter,
     SemanticSearchOptions,
+    SearchResultGroup,
 } from "./search.js";
 export type { IEmbeddingsProvider } from "./embeddings.js";
 export type { ITool, JsonSchema } from "./tool.js";

@@ -217,9 +217,9 @@ not a new pattern):
       behavioural contract other providers should also satisfy.
 
       Done as regular tests in `agent.test.ts` (`AnthropicAgent raw-turn
-              replay`) rather than a `CONFORMANCE_CASES` entry: that suite's `check()`
-              only inspects the emitted chunk sequence, not a second follow-up call's
-              outgoing request, so the two-turn assertion didn't fit its shape.
+                  replay`) rather than a `CONFORMANCE_CASES` entry: that suite's `check()`
+                  only inspects the emitted chunk sequence, not a second follow-up call's
+                  outgoing request, so the two-turn assertion didn't fit its shape.
 
 - [x] Update `CONVENTIONS.md`'s "AI Agent Providers" section: describe the
       raw-turn replay-data pattern (dedicated column) as the general mechanism
@@ -235,8 +235,8 @@ channel computed **in Node**, and fuse it with the existing dense channel using
 weighted Reciprocal Rank Fusion inside Qdrant. Infinity and `BAAI/bge-m3` stay
 exactly as they are, so this adds no containers and no meaningful resource cost.
 
-Status: planned, not started. Phases 0–4 are the agreed scope; phases 5 and 6
-are deferred and undecided pending operational verification of phases 0–4.
+Status: Phases 0–1 done. Phases 0–4 are the agreed scope; phases 5 and 6 are
+deferred and undecided pending operational verification of phases 0–4.
 
 ### Why the current implementation underperforms
 
@@ -313,29 +313,42 @@ Blocking prerequisite for every later phase.
 
 ### 0.1 Core search interfaces
 
-- [ ] In
+- [x] In
       [packages/core/src/interfaces/search.ts](packages/core/src/interfaces/search.ts),
       add `id: string` and `highlights?: [number, number][]` to
       `SearchDocument`.
-- [ ] Extend `SemanticSearchOptions` with `hitsPerThread?: number`,
+- [x] Extend `SemanticSearchOptions` with `hitsPerThread?: number`,
       `snippetChars?: number` and
       `recency?: { halfLifeDays: number; weight: number }`.
-- [ ] Introduce
+- [x] Introduce
       `SearchResultGroup { threadId: string; score: number; hits: SearchDocument[] }`
       and change the provider method to return `SearchResultGroup[]`.
-- [ ] Rename `ISearchProvider.semanticSearch` to `search`. The name no longer
+- [x] Rename `ISearchProvider.semanticSearch` to `search`. The name no longer
       describes the operation now that it is hybrid, and inter-package API
       compatibility is not maintained during initial development.
 
+      `QdrantSearchProvider.search()` still runs the old dense + text-filter RRF
+          query internally (grouped by thread, `hitsPerThread` honoured via
+          `group_size`) — the real sparse/formula rework is Phase 2. Updated the
+          only two callers, `ThreadController.search()` and
+          `SearchResultItem` in `ThreadListPanel.tsx`, to the new shape; both kept
+          to their prior behaviour (app-side recency decay, single-snippet
+          display) since that rework is Phase 3.
+
 ### 0.2 Wire schema
 
-- [ ] Reshape `threadSearchResultWireSchema` in
+- [x] Reshape `threadSearchResultWireSchema` in
       `packages/core/src/endpoints/schemas.ts` to
       `{ threadId, title, updatedAt, score, hits: [{ messageId, createdAt, snippet, highlights, score }] }`.
-- [ ] Define `highlights` as `[start, end]` offset pairs **relative to the
+- [x] Define `highlights` as `[start, end]` offset pairs **relative to the
       snippet**. Never return HTML or pre-marked text — the frontend builds the
       marks from offsets, which keeps message content from becoming an injection
       vector.
+
+      The contract is in place (`highlights: [number, number][]`, always
+          present, empty until populated); real highlight computation is Phase 2.4
+          (densest-window snippet selection) and is not implemented yet — the
+          controller currently always returns `[]`.
 
 ## Phase 1 — Lexical BM25 sparse channel
 
@@ -344,39 +357,51 @@ with the Phase 2 design, but Phase 2 depends on it.
 
 ### 1.1 Dependencies
 
-- [ ] Add `snowball-stemmers` as a dependency and `@types/snowball-stemmers` as
+- [x] Add `snowball-stemmers` as a dependency and `@types/snowball-stemmers` as
       a devDependency of `packages/search-qdrant`.
-- [ ] Import it with a **default import**
-      (`import snowball from "snowball-stemmers"`). It is a 2016 UMD build and
-      this workspace is `"type": "module"`, so named ESM imports may not
-      resolve. Verify at build time and fall back to `createRequire` if needed.
+- [x] ~~Import it with a **default import**~~ Verified at build and runtime: a
+      **named import** (`import { newStemmer } from "snowball-stemmers"`)
+      resolves and works correctly, both under `tsc`
+      (`module`/`moduleResolution:     Node16`) and at runtime (Node's
+      `cjs-module-lexer` picks up the UMD build's `exports.newStemmer = ...`
+      assignments). No `createRequire` fallback was needed.
 
 ### 1.2 Tokenizer
 
-- [ ] Split on whitespace first and emit lowercased **identifier-like** chunks
+- [x] Split on whitespace first and emit lowercased **identifier-like** chunks
       verbatim — those containing a digit, `_`, `-`, `.`, `/`, `@`, or mixed
       case. This keeps `ABC-1234`, `getUserById` and `user@example.com` intact,
       which is the whole point of the sparse channel.
-- [ ] Segment the full text with
+- [x] Segment the full text with
       `Intl.Segmenter(locale, { granularity: "word" })` — built into Node,
       multilingual, no dependency — keeping word-like segments only, lowercased,
       with optional ASCII folding.
-- [ ] Do **not** build stopword lists. Qdrant's IDF modifier drives common terms
+
+      Implemented as two independent passes over the full text (identifier
+          extraction + word segmentation), so a chunk like `ABC-1234` contributes
+          both the verbatim token and its sub-word segments (`abc`, `1234`) for
+          extra partial-match recall. Used locale `"und"` (undetermined) for
+          language-neutral generic Unicode word-boundary rules, consistent with no
+          language detection. ASCII folding emits an additional folded variant
+          alongside the surface form only when it differs (e.g. `café` → `café` +
+          `cafe`), mirroring how stems are added as extra terms.
+
+- [x] Do **not** build stopword lists. Qdrant's IDF modifier drives common terms
       to near-zero weight automatically.
 
 ### 1.3 Stemming without language detection
 
-- [ ] Run every configured language's stemmer over every word token, and emit
+- [x] Run every configured language's stemmer over every word token, and emit
       each stem as an additional term alongside the always-present surface form.
       Neither Snowball nor this code detects language: `newStemmer(lang)` is a
       fixed rule set that will happily apply Finnish rules to English text.
-- [ ] **Namespace stems by language** in the hash input (`fi:kissa`, `en:cat`),
+- [x] **Namespace stems by language** in the hash input (`fi:kissa`, `en:cat`),
       leaving the surface form un-namespaced. Without this, two unrelated words
       could collapse to the same junk stem across languages, and because such a
       term would be rare, IDF would score the spurious match _highly_.
       Namespacing removes the risk at zero cost — same term count, different
       hash input.
-- [ ] Construct stemmers once and cache them per language.
+- [x] Construct stemmers once and cache them per language.
 
 Rationale for rejecting per-message detection, recorded so it is not
 relitigated: chat messages are short, which is where detectors are least
@@ -385,17 +410,33 @@ misdetection at index time silently breaks that message until a reindex; and the
 query would need detection too, so any index/query mismatch breaks retrieval
 outright. Emitting all variants on both sides means the two always agree.
 
+**Verified with the real stemmer** (`bm25.test.ts`): English and Finnish
+inflections of the same word do share a stem (e.g. `running`/`run`), but
+consonant gradation defeats it in some Finnish cases — `Helsingissä` stems to
+`helsing`, `Helsinki` to `helsink`, which do **not** match. Snowball is pure
+suffix-stripping and does not model Finnish consonant gradation. This affects
+the specific example given under "Snippets and highlights" in Phase 2.4 below
+and the matching test case planned for 4.3 — flagged for awareness when that
+phase is implemented, not fixed here.
+
 ### 1.4 Vector construction
 
-- [ ] `documentVector(tokens)` → `{ indices, values }` carrying only the BM25
+- [x] `documentVector(tokens)` → `{ indices, values }` carrying only the BM25
       **term-frequency** component, since Qdrant supplies IDF:
       `w = tf * (k1 + 1) / (tf + k1 * (1 - b + b * len / avgLen))` with
       `k1 = 1.5`, `b = 0.75`, and `avgLen` a configurable constant (default
       `256`, matching FastEmbed's `Bm25` reference implementation).
-- [ ] `queryVector(tokens)` → weight `1.0` per distinct term.
-- [ ] Map tokens to `u32` indices with an inline 32-bit FNV-1a hash — no
+- [x] `queryVector(tokens)` → weight `1.0` per distinct term.
+- [x] Map tokens to `u32` indices with an inline 32-bit FNV-1a hash — no
       dependency. Collisions across a 2^32 space are negligible at this
       vocabulary size.
+
+Implemented in
+[packages/search-qdrant/src/bm25.ts](packages/search-qdrant/src/bm25.ts), unit
+tested in `bm25.test.ts` (15 cases: identifier/camelCase/email preservation,
+sub-word recall, stem namespacing, multi-language stemming, ASCII folding, hash
+determinism, and the BM25 weight formula). Not yet wired into `qdrant-search.ts`
+— that wiring is Phase 2.
 
 ## Phase 2 — Qdrant collection schema and hybrid query
 
@@ -430,23 +471,23 @@ Depends on Phase 1. All changes in
       `queryGroups`:
 
       ```
-      prefetch: {                       // fusion nested in a prefetch
-        prefetch: [
-          { query: denseVec,  using: "dense",   limit: K },
-          { query: sparseVec, using: "lexical", limit: K },
-        ],
-        query: { rrf: { weights: [wDense, wSparse] } },
-        limit: K,
-      },
-      query: { formula: { sum: [ "$score",
-               { mult: [ recencyWeight,
-                 { exp_decay: { x: { datetime_key: "createdAt" },
-                                target: { datetime: now },
-                                scale: halfLifeDays * 86400,
-                                midpoint: 0.5 } } ] } ] } },
-      filter: membershipFilter,
-      group_by: "threadId", group_size: hitsPerThread, limit,
-      ```
+          prefetch: {                       // fusion nested in a prefetch
+            prefetch: [
+              { query: denseVec,  using: "dense",   limit: K },
+              { query: sparseVec, using: "lexical", limit: K },
+            ],
+            query: { rrf: { weights: [wDense, wSparse] } },
+            limit: K,
+          },
+          query: { formula: { sum: [ "$score",
+                   { mult: [ recencyWeight,
+                     { exp_decay: { x: { datetime_key: "createdAt" },
+                                    target: { datetime: now },
+                                    scale: halfLifeDays * 86400,
+                                    midpoint: 0.5 } } ] } ] } },
+          filter: membershipFilter,
+          group_by: "threadId", group_size: hitsPerThread, limit,
+          ```
 
 - [ ] Calibrate `recencyWeight` against RRF magnitude. RRF scores are sums of
       `1/(k + rank)` and peak near `1.0` with `k = 2`, whereas `exp_decay`
@@ -500,8 +541,6 @@ Depends on phases 0 and 2.
 - [ ] In [packages/backend/src/config.ts](packages/backend/src/config.ts),
       replace the singular `DF_SEARCH_STEMMER_LANGUAGE` with
       `DF_SEARCH_LANGUAGES`, a comma-separated list defaulting to `english`.
-      This supersedes the `SEARCH_STEMMER_LANGUAGE` entry in the environment
-      variable naming section above.
 - [ ] Add `DF_SEARCH_DENSE_WEIGHT` (default `1.0`), `DF_SEARCH_SPARSE_WEIGHT`
       (default `1.0`), `DF_SEARCH_RECENCY_WEIGHT` (default `0.15`) and
       `DF_SEARCH_HITS_PER_THREAD` (default `3`).
@@ -512,8 +551,6 @@ Depends on phases 0 and 2.
 
 - [ ] Add `"test": "vitest run --dir src"` and a `vitest` devDependency to
       `packages/search-qdrant/package.json`, matching the other packages.
-- [ ] Bump `@qdrant/js-client-rest` from `^1.14.0` to `^1.17` for typed sparse
-      vectors and weighted RRF.
 
 ### 4.3 Tests
 

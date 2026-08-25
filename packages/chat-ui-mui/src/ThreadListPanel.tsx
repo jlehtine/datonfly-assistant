@@ -418,7 +418,9 @@ interface SearchResultItemProps {
 
 function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultItemProps): ReactElement {
     const relativeTime = formatTimestamp(result.updatedAt, undefined, locale, tsLabels);
-    const snippet = result.snippet.length > 160 ? `${result.snippet.slice(0, 160)}…` : result.snippet;
+    // First hit only for now — surfacing the rest of `result.hits` is Phase 3 UI work.
+    const firstHitSnippet = result.hits[0]?.snippet ?? "";
+    const snippet = firstHitSnippet.length > 160 ? `${firstHitSnippet.slice(0, 160)}…` : firstHitSnippet;
     const scorePercent = Math.max(0, Math.min(100, result.score * 100));
     const absoluteTime = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
         result.updatedAt,
@@ -434,9 +436,9 @@ function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultIt
             <Typography variant="body2" fontWeight={600} gutterBottom>
                 {result.title}
             </Typography>
-            {result.snippet && (
+            {firstHitSnippet && (
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                    {result.snippet}
+                    {firstHitSnippet}
                 </Typography>
             )}
             <Typography variant="caption" color="text.disabled">

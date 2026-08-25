@@ -8,7 +8,7 @@ import {
     type IndexDocumentOptions,
     type ISearchProvider,
     type ProviderLogger,
-    type SearchDocument,
+    type SearchResultGroup,
     type SemanticSearchOptions,
 } from "@datonfly-assistant/core";
 
@@ -136,10 +136,11 @@ export class QdrantSearchProvider implements ISearchProvider {
         });
     }
 
-    async semanticSearch(collection: string, options: SemanticSearchOptions): Promise<SearchDocument[]> {
+    async search(collection: string, options: SemanticSearchOptions): Promise<SearchResultGroup[]> {
         await this.ensureCollection(collection);
         const name = this.fullName(collection);
         const limit = options.limit ?? 50;
+        const hitsPerThread = options.hitsPerThread ?? 1;
 
         const queryVector = await this.embeddings.embedQuery(options.query.slice(0, MAX_EMBED_CHARS));
 
@@ -162,6 +163,8 @@ export class QdrantSearchProvider implements ISearchProvider {
         const membershipFilter = mustFilters.length > 0 ? { must: mustFilters } : undefined;
 
         // Hybrid query: semantic + keyword-boosted, fused via RRF, grouped by threadId.
+        // TODO(search overhaul phase 2): replace the keyword prefetch with real BM25
+        // sparse scoring and a recency formula rescore.
         const result = await this.client.queryGroups(name, {
             prefetch: [
                 { query: queryVector, limit: limit * 3 },
@@ -176,18 +179,21 @@ export class QdrantSearchProvider implements ISearchProvider {
             query: { fusion: "rrf" as const },
             group_by: "threadId",
             limit,
-            group_size: 1,
+            group_size: hitsPerThread,
             with_payload: true,
             ...(membershipFilter ? { filter: membershipFilter } : {}),
         });
 
-        return result.groups.flatMap((group) =>
-            group.hits.map((hit) => ({
+        return result.groups.map((group) => ({
+            threadId: String(group.id),
+            score: group.hits[0]?.score ?? 0,
+            hits: group.hits.map((hit) => ({
+                id: String(hit.id),
                 pageContent: (hit.payload?.content ?? "") as string,
                 metadata: hit.payload ?? {},
                 score: hit.score,
             })),
-        );
+        }));
     }
 
     async delete(collection: string, id: string): Promise<void> {

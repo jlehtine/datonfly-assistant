@@ -1,11 +1,15 @@
 /** A document returned by semantic search. */
 export interface SearchDocument {
+    /** Unique document identifier, as passed to {@link IndexDocumentOptions.id}. */
+    id: string;
     /** The document content. */
     pageContent: string;
     /** Metadata associated with the document. */
     metadata: Record<string, unknown>;
     /** Relevance score assigned by the search provider (higher is more relevant). */
     score?: number | undefined;
+    /** `[start, end]` offset pairs into `pageContent` marking matched regions. */
+    highlights?: [number, number][] | undefined;
 }
 
 /** Options for indexing a document for semantic search. */
@@ -30,10 +34,16 @@ export interface SemanticSearchFilter {
 export interface SemanticSearchOptions {
     /** Natural-language search query. */
     query: string;
-    /** Maximum number of results to return. */
+    /** Maximum number of result groups (threads) to return. */
     limit?: number | undefined;
     /** Metadata filter applied before ranking. */
     filter?: SemanticSearchFilter | undefined;
+    /** Maximum number of hits to return per thread. */
+    hitsPerThread?: number | undefined;
+    /** Maximum snippet length, in characters. */
+    snippetChars?: number | undefined;
+    /** Recency boost applied on top of relevance ranking. */
+    recency?: { halfLifeDays: number; weight: number } | undefined;
 }
 
 /** Result of a batch indexing operation. */
@@ -42,6 +52,16 @@ export interface IndexBatchResult {
     indexed: number;
     /** Number of documents skipped (e.g. empty content). */
     skipped: number;
+}
+
+/** A group of search hits belonging to the same thread. */
+export interface SearchResultGroup {
+    /** Thread the hits belong to. */
+    threadId: string;
+    /** Best score among the group's hits. */
+    score: number;
+    /** Matching documents within the thread, best first. */
+    hits: SearchDocument[];
 }
 
 /** Provider for vector-based semantic search over indexed documents. */
@@ -66,9 +86,10 @@ export interface ISearchProvider {
     ): Promise<IndexBatchResult>;
 
     /**
-     * Perform a semantic search over indexed documents.
+     * Perform a hybrid (dense + lexical) search over indexed documents, grouped
+     * by thread.
      */
-    semanticSearch(collection: string, options: SemanticSearchOptions): Promise<SearchDocument[]>;
+    search(collection: string, options: SemanticSearchOptions): Promise<SearchResultGroup[]>;
 
     /**
      * Drop and re-create a collection, applying current schema settings.

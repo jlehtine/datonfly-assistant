@@ -91,58 +91,85 @@ export class ThreadController {
     async search(
         @ResolvedUser() user: User,
         @Query(new ZodValidationPipe(threadSearchQuerySchema)) query: ThreadSearchQuery,
-    ): Promise<{ results: { threadId: string; title: string; snippet: string; score: number; updatedAt: string }[] }> {
+    ): Promise<{
+        results: {
+            threadId: string;
+            title: string;
+            updatedAt: string;
+            score: number;
+            hits: {
+                messageId: string;
+                createdAt: string;
+                snippet: string;
+                highlights: [number, number][];
+                score: number;
+            }[];
+        }[];
+    }> {
         if (!this.searchProvider) {
             return { results: [] };
         }
 
         const limit = query.limit ?? 50;
-        const docs = await this.searchProvider.semanticSearch("messages", {
+        const groups = await this.searchProvider.search("messages", {
             query: query.q,
             limit: limit * 3,
             filter: { memberUserId: user.id },
         });
 
-        // Apply recency decay: finalScore = score * exp(-λ * days)
+        // Apply recency decay per hit: finalScore = score * exp(-λ * days).
+        // TODO(search overhaul phase 2/3): this app-side decay, sort and dedup
+        // step moves into the Qdrant formula query and can be deleted here.
         const now = Date.now();
-        const scored = docs.map((doc) => {
-            const threadId = doc.metadata.threadId as string;
-            const createdAt = doc.metadata.createdAt as string | undefined;
-            const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
-            const rawScore = doc.score ?? 0;
-            const finalScore = rawScore * Math.exp(-this.decayLambda * daysSince);
-            const pageContent = doc.pageContent;
-            const snippetLimit = 400;
-            const snippet =
-                pageContent.length > snippetLimit ? `${pageContent.slice(0, snippetLimit)}...` : pageContent;
-            return { threadId, snippet, score: finalScore, createdAt };
+        const snippetLimit = 400;
+        const scoredGroups = groups.map((group) => {
+            const decayedHits = group.hits
+                .map((hit) => {
+                    const createdAt = hit.metadata.createdAt as string | undefined;
+                    const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
+                    const finalScore = (hit.score ?? 0) * Math.exp(-this.decayLambda * daysSince);
+                    const pageContent = hit.pageContent;
+                    const snippet =
+                        pageContent.length > snippetLimit ? `${pageContent.slice(0, snippetLimit)}...` : pageContent;
+                    return { hit, createdAt, finalScore, snippet };
+                })
+                .sort((a, b) => b.finalScore - a.finalScore);
+            return { threadId: group.threadId, decayedHits };
         });
-
-        // Sort by final score descending, take top `limit`, deduplicate by threadId
-        scored.sort((a, b) => b.score - a.score);
-        const seen = new Set<string>();
-        const topResults: typeof scored = [];
-        for (const item of scored) {
-            if (seen.has(item.threadId)) continue;
-            seen.add(item.threadId);
-            topResults.push(item);
-            if (topResults.length >= limit) break;
-        }
+        scoredGroups.sort((a, b) => (b.decayedHits[0]?.finalScore ?? 0) - (a.decayedHits[0]?.finalScore ?? 0));
 
         // Enrich with thread titles
-        const results: { threadId: string; title: string; snippet: string; score: number; updatedAt: string }[] = [];
-        for (const item of topResults) {
+        const results: {
+            threadId: string;
+            title: string;
+            updatedAt: string;
+            score: number;
+            hits: {
+                messageId: string;
+                createdAt: string;
+                snippet: string;
+                highlights: [number, number][];
+                score: number;
+            }[];
+        }[] = [];
+        for (const group of scoredGroups) {
             // Safety net: enforce membership at read time in case index ACL metadata is stale.
-            const isMember = await this.persistence.isMember(item.threadId, user.id);
+            const isMember = await this.persistence.isMember(group.threadId, user.id);
             if (!isMember) continue;
 
-            const thread = await this.persistence.getThread(item.threadId);
+            const thread = await this.persistence.getThread(group.threadId);
             results.push({
-                threadId: item.threadId,
+                threadId: group.threadId,
                 title: thread?.title ?? "Untitled",
-                snippet: item.snippet,
-                score: Math.round(item.score * 1000) / 1000,
                 updatedAt: thread?.updatedAt.toISOString() ?? new Date().toISOString(),
+                score: Math.round((group.decayedHits[0]?.finalScore ?? 0) * 1000) / 1000,
+                hits: group.decayedHits.map((d) => ({
+                    messageId: d.hit.id,
+                    createdAt: d.createdAt ?? new Date().toISOString(),
+                    snippet: d.snippet,
+                    highlights: d.hit.highlights ?? [],
+                    score: Math.round(d.finalScore * 1000) / 1000,
+                })),
             });
 
             if (results.length >= limit) break;

@@ -118,20 +118,18 @@ export class ThreadController {
         });
 
         // Apply recency decay per hit: finalScore = score * exp(-λ * days).
-        // TODO(search overhaul phase 2/3): this app-side decay, sort and dedup
-        // step moves into the Qdrant formula query and can be deleted here.
+        // TODO(search overhaul phase 3): pass `recency` to `search()` instead and delete this
+        // app-side decay/sort/dedup step — Qdrant's formula query now does the same thing.
+        // Snippets and highlights are already built by the provider (bm25.ts-backed, phase 2), so no
+        // further truncation is needed here.
         const now = Date.now();
-        const snippetLimit = 400;
         const scoredGroups = groups.map((group) => {
             const decayedHits = group.hits
                 .map((hit) => {
                     const createdAt = hit.metadata.createdAt as string | undefined;
                     const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
                     const finalScore = (hit.score ?? 0) * Math.exp(-this.decayLambda * daysSince);
-                    const pageContent = hit.pageContent;
-                    const snippet =
-                        pageContent.length > snippetLimit ? `${pageContent.slice(0, snippetLimit)}...` : pageContent;
-                    return { hit, createdAt, finalScore, snippet };
+                    return { hit, createdAt, finalScore };
                 })
                 .sort((a, b) => b.finalScore - a.finalScore);
             return { threadId: group.threadId, decayedHits };
@@ -166,7 +164,7 @@ export class ThreadController {
                 hits: group.decayedHits.map((d) => ({
                     messageId: d.hit.id,
                     createdAt: d.createdAt ?? new Date().toISOString(),
-                    snippet: d.snippet,
+                    snippet: d.hit.pageContent,
                     highlights: d.hit.highlights ?? [],
                     score: Math.round(d.finalScore * 1000) / 1000,
                 })),

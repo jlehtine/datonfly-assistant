@@ -77,6 +77,26 @@ function foldAscii(term: string): string {
 }
 
 /**
+ * Token variants contributed by a single word-like segment: its lowercased surface form, an
+ * ASCII-folded variant (if different), and one namespaced stem per configured `languages` entry
+ * (e.g. `en:cat`, `fi:kissa`). Shared with {@link tokenize} and with `snippet.ts`'s match detection,
+ * so the two always agree on what counts as a match.
+ */
+export function wordTokens(word: string, languages: readonly string[]): string[] {
+    const tokens: string[] = [];
+    const surface = word.toLowerCase();
+    tokens.push(surface);
+
+    const folded = foldAscii(surface);
+    if (folded !== surface) tokens.push(folded);
+
+    for (const language of languages) {
+        tokens.push(`${languageTag(language)}:${getStemmer(language).stem(surface)}`);
+    }
+    return tokens;
+}
+
+/**
  * Tokenize text for BM25 indexing/querying.
  *
  * Two independent passes contribute terms:
@@ -101,15 +121,7 @@ export function tokenize(text: string, languages: readonly string[]): string[] {
 
     for (const segment of WORD_SEGMENTER.segment(text)) {
         if (!segment.isWordLike) continue;
-        const surface = segment.segment.toLowerCase();
-        tokens.push(surface);
-
-        const folded = foldAscii(surface);
-        if (folded !== surface) tokens.push(folded);
-
-        for (const language of languages) {
-            tokens.push(`${languageTag(language)}:${getStemmer(language).stem(surface)}`);
-        }
+        tokens.push(...wordTokens(segment.segment, languages));
     }
 
     return tokens;

@@ -210,6 +210,7 @@ export function ThreadListPanel({
                                 onClick={inSearchMode ? handleCloseSearch : handleOpenSearch}
                                 aria-label={t("searchThreads")}
                                 color={inSearchMode ? "primary" : "default"}
+                                className="datonfly-search-toggle-button"
                             >
                                 {inSearchMode ? <ClearIcon fontSize="small" /> : <SearchIcon fontSize="small" />}
                             </IconButton>
@@ -252,6 +253,7 @@ export function ThreadListPanel({
                         size="small"
                         fullWidth
                         autoFocus
+                        className="datonfly-search-input"
                         slotProps={{
                             input: {
                                 startAdornment: (
@@ -282,7 +284,12 @@ export function ThreadListPanel({
                     <>
                         {isSearching && <LinearProgress />}
                         {!isSearching && searchQuery.length >= 2 && searchResults?.length === 0 && (
-                            <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: "center" }}>
+                            <Typography
+                                className="datonfly-search-no-results"
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ p: 2, textAlign: "center" }}
+                            >
                                 {t("noSearchResults")}
                             </Typography>
                         )}

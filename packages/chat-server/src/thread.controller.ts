@@ -40,6 +40,7 @@ import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
 import {
     PERSISTENCE_PROVIDER,
+    SEARCH_HITS_PER_THREAD,
     SEARCH_PROVIDER,
     SEARCH_RECENCY_HALF_LIFE_DAYS,
     SEARCH_RECENCY_WEIGHT,
@@ -49,9 +50,6 @@ import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
 import { RateTier } from "./rate-limit/rate-tier.decorator.js";
 
-/** Hits returned per matching thread. Fixed for now — Phase 4 makes this configurable via `DF_SEARCH_HITS_PER_THREAD`. */
-const HITS_PER_THREAD = 3;
-
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
 export class ThreadController {
@@ -60,6 +58,7 @@ export class ThreadController {
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
         @Inject(SEARCH_RECENCY_HALF_LIFE_DAYS) private readonly recencyHalfLifeDays: number,
         @Inject(SEARCH_RECENCY_WEIGHT) private readonly recencyWeight: number,
+        @Inject(SEARCH_HITS_PER_THREAD) private readonly hitsPerThread: number,
         private readonly gateway: ChatGateway,
         private readonly auditLogger: AuditLogger,
     ) {}
@@ -120,7 +119,7 @@ export class ThreadController {
             query: query.q,
             limit: limit * 3,
             filter: { memberUserId: user.id },
-            hitsPerThread: HITS_PER_THREAD,
+            hitsPerThread: this.hitsPerThread,
             recency: { halfLifeDays: this.recencyHalfLifeDays, weight: this.recencyWeight },
         });
 

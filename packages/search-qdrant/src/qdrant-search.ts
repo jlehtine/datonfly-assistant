@@ -29,16 +29,6 @@ const MAX_EMBED_CHARS = 10_000;
 /** Number of documents per embedding + upsert batch. */
 const BATCH_SIZE = 8;
 
-/**
- * RRF weights for the dense and sparse prefetch sources.
- *
- * Fixed for now — {@link QdrantSearchConfig} does not yet expose these, since nothing overrides the
- * defaults until the search overhaul plan's Phase 4 wires `DF_SEARCH_DENSE_WEIGHT` /
- * `DF_SEARCH_SPARSE_WEIGHT` through from config.
- */
-const DENSE_WEIGHT = 1.0;
-const SPARSE_WEIGHT = 1.0;
-
 /** Configuration for {@link QdrantSearchProvider}. */
 export interface QdrantSearchConfig {
     /** Qdrant REST base URL (e.g. `"http://localhost:6333"`). */
@@ -47,8 +37,12 @@ export interface QdrantSearchConfig {
     embeddings: IEmbeddingsProvider;
     /** Optional collection name prefix (e.g. `"prod_"`). */
     collectionPrefix?: string | undefined;
-    /** Snowball stemmer language for the lexical channel (e.g. `"finnish"`). Omit for no stemming. */
-    stemmerLanguage?: string | undefined;
+    /** Snowball stemmer languages for the lexical channel (e.g. `["english", "finnish"]`). Omit for no stemming. */
+    languages?: string[] | undefined;
+    /** RRF weight for the dense (semantic) channel. Defaults to `1.0`. */
+    denseWeight?: number | undefined;
+    /** RRF weight for the sparse (lexical/BM25) channel. Defaults to `1.0`. */
+    sparseWeight?: number | undefined;
     /** Logger for error/info reporting. */
     logger?: ProviderLogger | undefined;
 }
@@ -67,6 +61,8 @@ export class QdrantSearchProvider implements ISearchProvider {
     private readonly embeddings: IEmbeddingsProvider;
     private readonly collectionPrefix: string;
     private readonly languages: string[];
+    private readonly denseWeight: number;
+    private readonly sparseWeight: number;
     private readonly logger: ProviderLogger;
     private readonly readyCollections = new Set<string>();
 
@@ -74,7 +70,9 @@ export class QdrantSearchProvider implements ISearchProvider {
         this.client = new QdrantClient({ url: config.qdrantUrl });
         this.embeddings = config.embeddings;
         this.collectionPrefix = config.collectionPrefix ?? "";
-        this.languages = config.stemmerLanguage ? [config.stemmerLanguage] : [];
+        this.languages = config.languages ?? [];
+        this.denseWeight = config.denseWeight ?? 1.0;
+        this.sparseWeight = config.sparseWeight ?? 1.0;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
     }
 
@@ -172,8 +170,8 @@ export class QdrantSearchProvider implements ISearchProvider {
 
         // Dense stays primary; sparse (lexical) is fused in for names, identifiers and exact words that
         // semantic search misses. Degrades to sparse-only, rather than failing, if embedding is down.
-        const sparseSource = { query: sparseVector, using: "lexical", weight: SPARSE_WEIGHT };
-        const denseSource = denseVector ? { query: denseVector, using: "dense", weight: DENSE_WEIGHT } : undefined;
+        const sparseSource = { query: sparseVector, using: "lexical", weight: this.sparseWeight };
+        const denseSource = denseVector ? { query: denseVector, using: "dense", weight: this.denseWeight } : undefined;
         const rankedQuery = denseSource
             ? {
                   prefetch: [denseSource, sparseSource].map((source) => ({

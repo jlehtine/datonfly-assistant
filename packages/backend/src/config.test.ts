@@ -212,4 +212,58 @@ describe("loadBackendConfig", () => {
             );
         });
     });
+
+    describe("search", () => {
+        it("is undefined when DF_QDRANT_URL is unset", () => {
+            const config = loadBackendConfig(validEnv());
+            expect(config.search).toBeUndefined();
+        });
+
+        it("defaults languages to english and the weights to undefined", () => {
+            const config = loadBackendConfig(validEnv({ DF_QDRANT_URL: "http://localhost:6333" }));
+            expect(config.search).toMatchObject({
+                languages: ["english"],
+                denseWeight: undefined,
+                sparseWeight: undefined,
+            });
+        });
+
+        it("splits DF_SEARCH_LANGUAGES on commas, trimming whitespace", () => {
+            const config = loadBackendConfig(
+                validEnv({ DF_QDRANT_URL: "http://localhost:6333", DF_SEARCH_LANGUAGES: " english, finnish " }),
+            );
+            expect(config.search?.languages).toEqual(["english", "finnish"]);
+        });
+
+        it("parses the dense and sparse RRF weights", () => {
+            const config = loadBackendConfig(
+                validEnv({
+                    DF_QDRANT_URL: "http://localhost:6333",
+                    DF_SEARCH_DENSE_WEIGHT: "0.8",
+                    DF_SEARCH_SPARSE_WEIGHT: "1.2",
+                }),
+            );
+            expect(config.search).toMatchObject({ denseWeight: 0.8, sparseWeight: 1.2 });
+        });
+
+        it("throws on a non-positive dense weight", () => {
+            expect(() =>
+                loadBackendConfig(validEnv({ DF_QDRANT_URL: "http://localhost:6333", DF_SEARCH_DENSE_WEIGHT: "0" })),
+            ).toThrow('DF_SEARCH_DENSE_WEIGHT must be a positive number, got "0"');
+        });
+
+        it("defaults recency weight and hits-per-thread to undefined, left to chat-server's own defaults", () => {
+            const config = loadBackendConfig(validEnv());
+            expect(config.searchRecencyWeight).toBeUndefined();
+            expect(config.searchHitsPerThread).toBeUndefined();
+        });
+
+        it("parses the recency weight and hits-per-thread overrides", () => {
+            const config = loadBackendConfig(
+                validEnv({ DF_SEARCH_RECENCY_WEIGHT: "0.25", DF_SEARCH_HITS_PER_THREAD: "5" }),
+            );
+            expect(config.searchRecencyWeight).toBe(0.25);
+            expect(config.searchHitsPerThread).toBe(5);
+        });
+    });
 });

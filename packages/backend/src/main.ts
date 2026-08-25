@@ -94,7 +94,9 @@ async function bootstrap(): Promise<void> {
         const { searchProvider: sp } = createQdrantSearch({
             qdrantUrl: cfg.search.qdrantUrl,
             infinityUrl: cfg.search.infinityUrl,
-            stemmerLanguage: cfg.search.stemmerLanguage,
+            languages: cfg.search.languages,
+            denseWeight: cfg.search.denseWeight,
+            sparseWeight: cfg.search.sparseWeight,
             embeddingsTimeoutMs: cfg.search.embeddingsTimeoutMs,
             logger: searchLogger,
         });
@@ -110,6 +112,8 @@ async function bootstrap(): Promise<void> {
         memberSearchStrategy: cfg.memberSearchStrategy,
         search: searchProvider,
         searchRecencyHalfLifeDays: cfg.searchRecencyHalfLifeDays,
+        searchRecencyWeight: cfg.searchRecencyWeight,
+        searchHitsPerThread: cfg.searchHitsPerThread,
         trustedReverseProxy: cfg.trustedReverseProxy,
         adminSecret: cfg.adminSecret,
         adminIps: cfg.adminIps,

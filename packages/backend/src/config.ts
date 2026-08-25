@@ -88,6 +88,15 @@ function parsePositiveNumber(raw: string | undefined, varName: string): number |
     return value;
 }
 
+/** Parse `DF_SEARCH_LANGUAGES` into a list of Snowball stemmer languages, defaulting to `["english"]`. */
+function parseLanguages(raw: string | undefined): string[] {
+    const languages = (raw ?? "english")
+        .split(",")
+        .map((language) => language.trim())
+        .filter(Boolean);
+    return languages.length > 0 ? languages : ["english"];
+}
+
 /** Parse an optional positive integer, throwing with the variable name on failure. */
 function parseOptionalPositiveInt(raw: string | undefined, varName: string): number | undefined {
     if (raw === undefined) {
@@ -247,11 +256,15 @@ export interface BackendConfig {
         | {
               qdrantUrl: string;
               infinityUrl: string;
-              stemmerLanguage: string | undefined;
+              languages: string[];
+              denseWeight: number | undefined;
+              sparseWeight: number | undefined;
               embeddingsTimeoutMs: number | undefined;
           }
         | undefined;
     searchRecencyHalfLifeDays: number | undefined;
+    searchRecencyWeight: number | undefined;
+    searchHitsPerThread: number | undefined;
     trustedReverseProxy: boolean | number | string | string[] | undefined;
     adminSecret: string | undefined;
     adminIps: string | undefined;
@@ -373,7 +386,9 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
         ? {
               qdrantUrl,
               infinityUrl: reader.prefixed("INFINITY_URL") ?? "http://localhost:8080",
-              stemmerLanguage: reader.prefixed("SEARCH_STEMMER_LANGUAGE"),
+              languages: parseLanguages(reader.prefixed("SEARCH_LANGUAGES")),
+              denseWeight: parsePositiveNumber(reader.prefixed("SEARCH_DENSE_WEIGHT"), "DF_SEARCH_DENSE_WEIGHT"),
+              sparseWeight: parsePositiveNumber(reader.prefixed("SEARCH_SPARSE_WEIGHT"), "DF_SEARCH_SPARSE_WEIGHT"),
               embeddingsTimeoutMs: parsePositiveNumber(
                   reader.prefixed("EMBEDDINGS_TIMEOUT_MS"),
                   "DF_EMBEDDINGS_TIMEOUT_MS",
@@ -384,6 +399,14 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
     const searchRecencyHalfLifeDays = parsePositiveNumber(
         reader.prefixed("SEARCH_RECENCY_HALF_LIFE_DAYS"),
         "DF_SEARCH_RECENCY_HALF_LIFE_DAYS",
+    );
+    const searchRecencyWeight = parsePositiveNumber(
+        reader.prefixed("SEARCH_RECENCY_WEIGHT"),
+        "DF_SEARCH_RECENCY_WEIGHT",
+    );
+    const searchHitsPerThread = parseOptionalPositiveInt(
+        reader.prefixed("SEARCH_HITS_PER_THREAD"),
+        "DF_SEARCH_HITS_PER_THREAD",
     );
 
     return {
@@ -431,6 +454,8 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
         memberSearchStrategy,
         search,
         searchRecencyHalfLifeDays,
+        searchRecencyWeight,
+        searchHitsPerThread,
         trustedReverseProxy: parseTrustedReverseProxy(reader.prefixed("TRUSTED_REVERSE_PROXY")),
         adminSecret: reader.prefixed("ADMIN_SECRET"),
         adminIps: reader.prefixed("ADMIN_IPS"),

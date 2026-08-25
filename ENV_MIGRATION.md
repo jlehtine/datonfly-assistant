@@ -146,11 +146,21 @@ unchanged. `ANTHROPIC_API_KEY` remains canonical and unprefixed.
 | Variable                              | Why it was removed                                                                                      |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `DF_ANTHROPIC_THINKING_BUDGET_TOKENS` | Only applied to `DF_ANTHROPIC_THINKING_TYPE=enabled`, which the Claude 5 generation no longer supports. |
+| `DF_SEARCH_STEMMER_LANGUAGE`          | Superseded by `DF_SEARCH_LANGUAGES` (see below).                                                        |
 
 `DF_ANTHROPIC_THINKING_TYPE` now accepts only `adaptive`; use
 `DF_ANTHROPIC_THINKING_EFFORT` to control how much the model thinks. Setting it
 to `enabled` fails at startup with an explicit error rather than 400-ing on
 every request.
+
+`DF_SEARCH_STEMMER_LANGUAGE` accepted a single language and, when unset,
+disabled stemming entirely (relying on Qdrant's own multilingual full-text
+index). The search overhaul replaced that full-text index with a real BM25
+lexical channel computed in the application, which has no per-message language
+detection: `DF_SEARCH_LANGUAGES` takes a comma-separated list, and every
+configured language's stemmer runs over every token unconditionally. It defaults
+to `english` rather than disabling stemming, since there is always at least a
+surface-form and ASCII-folded match even for an unconfigured language.
 
 ## How to migrate a deployment
 

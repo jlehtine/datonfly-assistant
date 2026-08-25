@@ -13,8 +13,12 @@ export interface QdrantSearchOptions {
     model?: string | undefined;
     /** Optional collection name prefix (e.g. `"prod_"`). */
     collectionPrefix?: string | undefined;
-    /** Snowball stemmer language for full-text indexing (e.g. `"finnish"`). Omit to disable stemming. */
-    stemmerLanguage?: string | undefined;
+    /** Snowball stemmer languages for the lexical channel (e.g. `["english", "finnish"]`). Every language's stemmer runs over every token; omit to disable stemming (surface-form + ASCII-folded matching only). */
+    languages?: string[] | undefined;
+    /** RRF weight for the dense (semantic) channel. Defaults to `1.0`. */
+    denseWeight?: number | undefined;
+    /** RRF weight for the sparse (lexical/BM25) channel. Defaults to `1.0`. */
+    sparseWeight?: number | undefined;
     /** Logger for error/info reporting. Defaults to a no-op logger. */
     logger?: ProviderLogger | undefined;
     /** Embeddings request timeout in milliseconds. Defaults to `120_000` (2 minutes). */
@@ -46,7 +50,9 @@ export function createQdrantSearch(options: QdrantSearchOptions): QdrantSearchRe
         qdrantUrl: options.qdrantUrl,
         embeddings: embeddingsProvider,
         collectionPrefix: options.collectionPrefix,
-        stemmerLanguage: options.stemmerLanguage,
+        languages: options.languages,
+        denseWeight: options.denseWeight,
+        sparseWeight: options.sparseWeight,
         logger: options.logger,
     });
 

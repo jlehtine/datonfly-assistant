@@ -72,6 +72,7 @@ export type {
     IndexBatchResult,
     SemanticSearchFilter,
     SemanticSearchOptions,
+    SearchResultGroup,
     IEmbeddingsProvider,
     ITool,
     JsonSchema,
@@ -179,6 +180,7 @@ export {
     threadMemberInfoWireSchema,
     threadMemberInfoListWireSchema,
     userProfileWireSchema,
+    threadSearchHitWireSchema,
     threadSearchResultWireSchema,
     threadSearchResponseWireSchema,
 } from "./endpoints/index.js";
@@ -188,6 +190,7 @@ export type {
     ThreadMessageWire,
     ThreadMemberInfoWire,
     UserProfileWire,
+    ThreadSearchHitWire,
     ThreadSearchResultWire,
     ThreadSearchResponseWire,
 } from "./endpoints/index.js";

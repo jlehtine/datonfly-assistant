@@ -38,7 +38,13 @@ import {
 
 import { AuditLogger } from "./audit-logger.js";
 import { ChatGateway } from "./chat.gateway.js";
-import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER, SEARCH_RECENCY_HALF_LIFE_DAYS } from "./constants.js";
+import {
+    PERSISTENCE_PROVIDER,
+    SEARCH_HITS_PER_THREAD,
+    SEARCH_PROVIDER,
+    SEARCH_RECENCY_HALF_LIFE_DAYS,
+    SEARCH_RECENCY_WEIGHT,
+} from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
@@ -47,17 +53,15 @@ import { RateTier } from "./rate-limit/rate-tier.decorator.js";
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
 export class ThreadController {
-    private readonly decayLambda: number;
-
     constructor(
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
-        @Inject(SEARCH_RECENCY_HALF_LIFE_DAYS) recencyHalfLifeDays: number,
+        @Inject(SEARCH_RECENCY_HALF_LIFE_DAYS) private readonly recencyHalfLifeDays: number,
+        @Inject(SEARCH_RECENCY_WEIGHT) private readonly recencyWeight: number,
+        @Inject(SEARCH_HITS_PER_THREAD) private readonly hitsPerThread: number,
         private readonly gateway: ChatGateway,
         private readonly auditLogger: AuditLogger,
-    ) {
-        this.decayLambda = Math.LN2 / recencyHalfLifeDays;
-    }
+    ) {}
 
     @Post()
     async create(
@@ -91,58 +95,66 @@ export class ThreadController {
     async search(
         @ResolvedUser() user: User,
         @Query(new ZodValidationPipe(threadSearchQuerySchema)) query: ThreadSearchQuery,
-    ): Promise<{ results: { threadId: string; title: string; snippet: string; score: number; updatedAt: string }[] }> {
+    ): Promise<{
+        results: {
+            threadId: string;
+            title: string;
+            updatedAt: string;
+            score: number;
+            hits: {
+                messageId: string;
+                createdAt: string;
+                snippet: string;
+                highlights: [number, number][];
+                score: number;
+            }[];
+        }[];
+    }> {
         if (!this.searchProvider) {
             return { results: [] };
         }
 
         const limit = query.limit ?? 50;
-        const docs = await this.searchProvider.semanticSearch("messages", {
+        const groups = await this.searchProvider.search("messages", {
             query: query.q,
             limit: limit * 3,
             filter: { memberUserId: user.id },
+            hitsPerThread: this.hitsPerThread,
+            recency: { halfLifeDays: this.recencyHalfLifeDays, weight: this.recencyWeight },
         });
 
-        // Apply recency decay: finalScore = score * exp(-λ * days)
-        const now = Date.now();
-        const scored = docs.map((doc) => {
-            const threadId = doc.metadata.threadId as string;
-            const createdAt = doc.metadata.createdAt as string | undefined;
-            const daysSince = createdAt ? (now - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
-            const rawScore = doc.score ?? 0;
-            const finalScore = rawScore * Math.exp(-this.decayLambda * daysSince);
-            const pageContent = doc.pageContent;
-            const snippetLimit = 400;
-            const snippet =
-                pageContent.length > snippetLimit ? `${pageContent.slice(0, snippetLimit)}...` : pageContent;
-            return { threadId, snippet, score: finalScore, createdAt };
-        });
-
-        // Sort by final score descending, take top `limit`, deduplicate by threadId
-        scored.sort((a, b) => b.score - a.score);
-        const seen = new Set<string>();
-        const topResults: typeof scored = [];
-        for (const item of scored) {
-            if (seen.has(item.threadId)) continue;
-            seen.add(item.threadId);
-            topResults.push(item);
-            if (topResults.length >= limit) break;
-        }
-
-        // Enrich with thread titles
-        const results: { threadId: string; title: string; snippet: string; score: number; updatedAt: string }[] = [];
-        for (const item of topResults) {
+        // Qdrant already ranked, grouped and recency-decayed; just enrich with thread titles.
+        const results: {
+            threadId: string;
+            title: string;
+            updatedAt: string;
+            score: number;
+            hits: {
+                messageId: string;
+                createdAt: string;
+                snippet: string;
+                highlights: [number, number][];
+                score: number;
+            }[];
+        }[] = [];
+        for (const group of groups) {
             // Safety net: enforce membership at read time in case index ACL metadata is stale.
-            const isMember = await this.persistence.isMember(item.threadId, user.id);
+            const isMember = await this.persistence.isMember(group.threadId, user.id);
             if (!isMember) continue;
 
-            const thread = await this.persistence.getThread(item.threadId);
+            const thread = await this.persistence.getThread(group.threadId);
             results.push({
-                threadId: item.threadId,
+                threadId: group.threadId,
                 title: thread?.title ?? "Untitled",
-                snippet: item.snippet,
-                score: Math.round(item.score * 1000) / 1000,
                 updatedAt: thread?.updatedAt.toISOString() ?? new Date().toISOString(),
+                score: Math.round(group.score * 1000) / 1000,
+                hits: group.hits.map((hit) => ({
+                    messageId: hit.id,
+                    createdAt: (hit.metadata.createdAt as string | undefined) ?? new Date().toISOString(),
+                    snippet: hit.pageContent,
+                    highlights: hit.highlights ?? [],
+                    score: Math.round((hit.score ?? 0) * 1000) / 1000,
+                })),
             });
 
             if (results.length >= limit) break;

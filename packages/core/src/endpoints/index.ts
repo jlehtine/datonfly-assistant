@@ -22,6 +22,7 @@ export {
     threadMemberInfoWireSchema,
     threadMemberInfoListWireSchema,
     userProfileWireSchema,
+    threadSearchHitWireSchema,
     threadSearchResultWireSchema,
     threadSearchResponseWireSchema,
 } from "./schemas.js";
@@ -30,6 +31,7 @@ export type {
     ThreadMessageWire,
     ThreadMemberInfoWire,
     UserProfileWire,
+    ThreadSearchHitWire,
     ThreadSearchResultWire,
     ThreadSearchResponseWire,
 } from "./schemas.js";

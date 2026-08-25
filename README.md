@@ -258,6 +258,27 @@ Configured and initialized by application specific logic and passed to
 
 Dependencies: `@datonfly-assistant/core`, PostgreSQL drivers.
 
+#### `@datonfly-assistant/search-qdrant`
+
+Provides an optional thread search implementation based on Qdrant, backed by
+hybrid dense (semantic) and sparse (lexical/BM25) retrieval fused with
+Reciprocal Rank Fusion, plus a recency boost. Dense embeddings come from an
+`infinity-emb` server (`BAAI/bge-m3`); the sparse BM25 vectors are computed
+in-process, with no extra services required. Implements the search service API
+declared by `core` and used by `chat-server`.
+
+Degrades gracefully rather than failing outright: if Infinity is unreachable,
+indexing and querying both fall back to sparse-only. The hybrid ranking query
+combines a fused sub-query with a recency-decay formula in a single request,
+which is only valid on a single Qdrant shard — revisit if the collection is ever
+sharded.
+
+Configured and initialized by application specific logic and passed to
+`chat-server` as search service; omitted entirely to disable thread search.
+
+Dependencies: `@datonfly-assistant/core`, `@qdrant/js-client-rest`,
+`snowball-stemmers`.
+
 ### Standalone Implementation
 
 A thin shim over the generic libraries for running the assistant as a standalone

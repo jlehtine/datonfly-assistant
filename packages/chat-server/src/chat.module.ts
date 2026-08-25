@@ -23,8 +23,10 @@ import {
     MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
     RATE_LIMIT_CONFIG,
+    SEARCH_HITS_PER_THREAD,
     SEARCH_PROVIDER,
     SEARCH_RECENCY_HALF_LIFE_DAYS,
+    SEARCH_RECENCY_WEIGHT,
     TRANSCRIBE_FN,
     TRUSTED_REVERSE_PROXY,
     VALIDATE_TOKEN_FN,
@@ -121,6 +123,13 @@ export interface ChatModuleConfig {
      * Defaults to 360 days.
      */
     searchRecencyHalfLifeDays?: number | undefined;
+    /**
+     * Weight of the recency boost relative to relevance ranking, applied on top of the fused
+     * dense/sparse score. Defaults to `0.15`.
+     */
+    searchRecencyWeight?: number | undefined;
+    /** Maximum number of hits to return per matching thread. Defaults to `3`. */
+    searchHitsPerThread?: number | undefined;
     /** Shared secret for admin endpoints. Both `adminSecret` and `adminIps` must be set. */
     adminSecret?: string | undefined;
     /** Allowed IP addresses or CIDR ranges for admin endpoints (whitespace/comma-delimited). */
@@ -215,6 +224,8 @@ export class ChatModule {
                 { provide: MEMBER_SEARCH_STRATEGY, useValue: config.memberSearchStrategy ?? "default" },
                 { provide: SEARCH_PROVIDER, useValue: config.search ?? null },
                 { provide: SEARCH_RECENCY_HALF_LIFE_DAYS, useValue: config.searchRecencyHalfLifeDays ?? 360 },
+                { provide: SEARCH_RECENCY_WEIGHT, useValue: config.searchRecencyWeight ?? 0.15 },
+                { provide: SEARCH_HITS_PER_THREAD, useValue: config.searchHitsPerThread ?? 3 },
                 { provide: TRUSTED_REVERSE_PROXY, useValue: config.trustedReverseProxy ?? null },
                 { provide: ADMIN_SECRET, useValue: config.adminSecret ?? null },
                 {

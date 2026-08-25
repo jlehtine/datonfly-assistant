@@ -24,7 +24,7 @@ import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Thread, ThreadSearchResultWire } from "@datonfly-assistant/core";
+import type { Thread, ThreadSearchHitWire, ThreadSearchResultWire } from "@datonfly-assistant/core";
 
 import { ChatUserSettings } from "./ChatUserSettings.js";
 import { formatTimestamp, type FormatTimestampLabels } from "./formatTimestamp.js";
@@ -210,6 +210,7 @@ export function ThreadListPanel({
                                 onClick={inSearchMode ? handleCloseSearch : handleOpenSearch}
                                 aria-label={t("searchThreads")}
                                 color={inSearchMode ? "primary" : "default"}
+                                className="datonfly-search-toggle-button"
                             >
                                 {inSearchMode ? <ClearIcon fontSize="small" /> : <SearchIcon fontSize="small" />}
                             </IconButton>
@@ -252,6 +253,7 @@ export function ThreadListPanel({
                         size="small"
                         fullWidth
                         autoFocus
+                        className="datonfly-search-input"
                         slotProps={{
                             input: {
                                 startAdornment: (
@@ -282,7 +284,12 @@ export function ThreadListPanel({
                     <>
                         {isSearching && <LinearProgress />}
                         {!isSearching && searchQuery.length >= 2 && searchResults?.length === 0 && (
-                            <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: "center" }}>
+                            <Typography
+                                className="datonfly-search-no-results"
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ p: 2, textAlign: "center" }}
+                            >
                                 {t("noSearchResults")}
                             </Typography>
                         )}
@@ -416,9 +423,47 @@ interface SearchResultItemProps {
     tsLabels: FormatTimestampLabels;
 }
 
+/** `sx` fragment styling `<mark>` highlight spans within a Typography, merge into its own `sx` prop. */
+const highlightMarkSx = {
+    "& mark": {
+        backgroundColor: (theme: { palette: { warning: { main: string } } }) => alpha(theme.palette.warning.main, 0.4),
+        color: "inherit",
+        borderRadius: 0.5,
+    },
+} as const;
+
+/** Renders `snippet` as plain text with `[start, end)` `highlights` wrapped in `<mark>` — never HTML, so message content cannot inject markup. */
+function HighlightedSnippet({
+    snippet,
+    highlights,
+}: {
+    snippet: string;
+    highlights: [number, number][];
+}): ReactElement {
+    if (highlights.length === 0) return <>{snippet}</>;
+
+    const parts: ReactElement[] = [];
+    let cursor = 0;
+    for (const [rawStart, rawEnd] of [...highlights].sort((a, b) => a[0] - b[0])) {
+        const start = Math.max(rawStart, cursor);
+        const end = Math.max(rawEnd, start);
+        if (start > cursor) parts.push(<span key={`t${String(cursor)}`}>{snippet.slice(cursor, start)}</span>);
+        if (end > start) {
+            parts.push(
+                <mark className="datonfly-search-highlight" key={`m${String(start)}`}>
+                    {snippet.slice(start, end)}
+                </mark>,
+            );
+        }
+        cursor = end;
+    }
+    if (cursor < snippet.length) parts.push(<span key={`t${String(cursor)}`}>{snippet.slice(cursor)}</span>);
+    return <>{parts}</>;
+}
+
 function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultItemProps): ReactElement {
     const relativeTime = formatTimestamp(result.updatedAt, undefined, locale, tsLabels);
-    const snippet = result.snippet.length > 160 ? `${result.snippet.slice(0, 160)}…` : result.snippet;
+    const [firstHit, ...otherHits] = result.hits;
     const scorePercent = Math.max(0, Math.min(100, result.score * 100));
     const absoluteTime = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
         result.updatedAt,
@@ -426,7 +471,8 @@ function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultIt
 
     const tooltipContent = (
         <Box
-            sx={{ maxWidth: 280, cursor: "pointer" }}
+            className="datonfly-search-result-tooltip"
+            sx={{ maxWidth: 320, cursor: "pointer" }}
             onClick={() => {
                 onSelect(result.threadId);
             }}
@@ -434,14 +480,34 @@ function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultIt
             <Typography variant="body2" fontWeight={600} gutterBottom>
                 {result.title}
             </Typography>
-            {result.snippet && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                    {result.snippet}
+            {firstHit && (
+                <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mb: 0.5, ...highlightMarkSx }}
+                >
+                    <HighlightedSnippet snippet={firstHit.snippet} highlights={firstHit.highlights} />
                 </Typography>
             )}
             <Typography variant="caption" color="text.disabled">
                 {absoluteTime}
             </Typography>
+            {otherHits.length > 0 && (
+                <>
+                    <Divider sx={{ my: 1 }} />
+                    {otherHits.map((hit: ThreadSearchHitWire) => (
+                        <Typography
+                            className="datonfly-search-result-other-hit"
+                            key={hit.messageId}
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block", mb: 0.5, ...highlightMarkSx }}
+                        >
+                            <HighlightedSnippet snippet={hit.snippet} highlights={hit.highlights} />
+                        </Typography>
+                    ))}
+                </>
+            )}
         </Box>
     );
 
@@ -468,6 +534,7 @@ function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultIt
             }}
         >
             <ListItemButton
+                className="datonfly-search-result-item"
                 onClick={() => {
                     onSelect(result.threadId);
                 }}
@@ -477,8 +544,9 @@ function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultIt
                     primary={result.title}
                     secondary={
                         <>
-                            {snippet && (
+                            {firstHit && (
                                 <Typography
+                                    className="datonfly-search-result-snippet"
                                     component="span"
                                     variant="caption"
                                     color="text.secondary"
@@ -487,9 +555,10 @@ function SearchResultItem({ result, onSelect, locale, tsLabels }: SearchResultIt
                                         whiteSpace: "nowrap",
                                         overflow: "hidden",
                                         textOverflow: "ellipsis",
+                                        ...highlightMarkSx,
                                     }}
                                 >
-                                    {snippet}
+                                    <HighlightedSnippet snippet={firstHit.snippet} highlights={firstHit.highlights} />
                                 </Typography>
                             )}
                             <Typography component="span" variant="caption" color="text.disabled">

@@ -95,13 +95,25 @@ export type UserProfileWire = z.infer<typeof userProfileWireSchema>;
 
 // ─── Thread Search (wire format) ───
 
+/** Zod schema for a single hit within a thread search result, as serialized over JSON. */
+export const threadSearchHitWireSchema = z.object({
+    messageId: z.string(),
+    createdAt: z.string().transform((s) => new Date(s)),
+    snippet: z.string(),
+    highlights: z.array(z.tuple([z.number(), z.number()])),
+    score: z.number(),
+});
+
+/** A thread search hit parsed from its JSON wire representation. */
+export type ThreadSearchHitWire = z.infer<typeof threadSearchHitWireSchema>;
+
 /** Zod schema for a single thread search result as serialized over JSON. */
 export const threadSearchResultWireSchema = z.object({
     threadId: z.string(),
     title: z.string(),
-    snippet: z.string(),
-    score: z.number(),
     updatedAt: z.string().transform((s) => new Date(s)),
+    score: z.number(),
+    hits: z.array(threadSearchHitWireSchema),
 });
 
 /** A thread search result parsed from its JSON wire representation. */

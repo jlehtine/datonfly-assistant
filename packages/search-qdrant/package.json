@@ -18,16 +18,20 @@
     },
     "scripts": {
         "clean": "rm -rf dist",
-        "build": "tsc --project tsconfig.json",
-        "dev": "tsc --watch --project tsconfig.json",
+        "build": "tsc --project tsconfig.build.json",
+        "dev": "tsc --watch --project tsconfig.build.json",
+        "test": "vitest run --dir src",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },
     "dependencies": {
         "@datonfly-assistant/core": "workspace:*",
-        "@qdrant/js-client-rest": "^1.19.0"
+        "@qdrant/js-client-rest": "^1.19.0",
+        "snowball-stemmers": "^0.6.0"
     },
     "devDependencies": {
-        "typescript": "^6.0.3"
+        "@types/snowball-stemmers": "^0.6.2",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.10"
     }
 }

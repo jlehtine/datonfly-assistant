@@ -159,8 +159,17 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
         query = query.orderBy("thread.updated_at", "desc").orderBy("thread.id", "asc");
 
-        if (options.offset !== undefined) {
-            query = query.offset(options.offset);
+        if (options.cursor) {
+            const { updatedAt, id } = options.cursor;
+            // Seek past the last-seen row in the `(updated_at desc, id asc)` ordering, rather than
+            // OFFSET-counting — immune to rows reordering (activity) or being inserted ahead of the
+            // cursor while the user pages further.
+            query = query.where((eb) =>
+                eb.or([
+                    eb("thread.updated_at", "<", updatedAt),
+                    eb("thread.updated_at", "=", updatedAt).and("thread.id", ">", id),
+                ]),
+            );
         }
         if (options.limit !== undefined) {
             query = query.limit(options.limit);

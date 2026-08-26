@@ -207,7 +207,7 @@ export class QdrantSearchProvider implements ISearchProvider {
         const membershipFilter = mustFilters.length > 0 ? { must: mustFilters } : undefined;
 
         // A main query cannot be both a fusion and a formula, so on recency the fusion above is nested in
-        // a prefetch and the formula becomes the main query. Only correct on a single shard (see TODO.md).
+        // a prefetch and the formula becomes the main query. Only correct on a single shard (see README).
         const recency = options.recency;
         const rescoredQuery = recency
             ? {

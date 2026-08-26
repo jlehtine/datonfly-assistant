@@ -15,6 +15,9 @@ import { typedFetch } from "../fetch.js";
 import { useChatClient } from "./context.js";
 import type { ChatErrorInfo } from "./useMessages.js";
 
+/** Default cap on how many threads are kept in memory (and rendered); see {@link UseThreadListOptions.maxLoadedThreads}. */
+const DEFAULT_MAX_LOADED_THREADS = 500;
+
 /** Options for {@link useThreadList}. */
 export interface UseThreadListOptions {
     /** Whether to include archived threads. Defaults to `false`. */
@@ -26,6 +29,17 @@ export interface UseThreadListOptions {
      * New-message events for this thread will not increment its unread count.
      */
     activelyViewingThreadId?: string | null | undefined;
+    /**
+     * Maximum number of threads kept in memory at once. Defaults to 500.
+     *
+     * Only enforced against `thread-created` events, which can arrive at any rate independent of
+     * user scrolling — a tab left open otherwise accumulates every thread created from any device
+     * or tab for its lifetime, unbounded, which crashed a dev-UI tab with out-of-memory during an
+     * E2E run that created ~1500 threads. `loadMore`-driven growth is deliberately left uncapped:
+     * it is paced by the user's own scrolling (self-limiting), and evicting from either end of the
+     * list would break either "just loaded" content or scroll continuity without real virtualization.
+     */
+    maxLoadedThreads?: number | undefined;
 }
 
 /** Return value of {@link useThreadList}. */
@@ -65,6 +79,7 @@ export function useThreadList({
     includeArchived = false,
     pageSize = 20,
     activelyViewingThreadId = null,
+    maxLoadedThreads = DEFAULT_MAX_LOADED_THREADS,
 }: UseThreadListOptions = {}): UseThreadListResult {
     const client = useChatClient();
     const [threads, setThreads] = useState<Thread[]>([]);
@@ -80,13 +95,24 @@ export function useThreadList({
         activelyViewingRef.current = activelyViewingThreadId;
     }, [activelyViewingThreadId]);
 
+    // Lets the thread-created handler check current length before deciding whether its prepend
+    // will evict, without needing `threads` as an effect/callback dependency.
+    const threadsRef = useRef<Thread[]>(threads);
+    useEffect(() => {
+        threadsRef.current = threads;
+    }, [threads]);
+
     const sortByUpdatedAt = (list: Thread[]): Thread[] =>
         [...list].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
     const fetchPage = useCallback(
-        async (offset: number): Promise<{ data: Thread[]; hasMore: boolean }> => {
-            const query: Record<string, string> = { limit: String(pageSize), offset: String(offset) };
+        async (cursor?: { updatedAt: Date; id: string }): Promise<{ data: Thread[]; hasMore: boolean }> => {
+            const query: Record<string, string> = { limit: String(pageSize) };
             if (includeArchived) query.includeArchived = "true";
+            if (cursor) {
+                query.cursorUpdatedAt = cursor.updatedAt.toISOString();
+                query.cursorId = cursor.id;
+            }
             const data = await typedFetch(client, THREADS_PATH, threadListWireSchema, { query });
             return { data, hasMore: data.length === pageSize };
         },
@@ -99,7 +125,7 @@ export function useThreadList({
         setLoading(true);
         setError(null);
         try {
-            const result = await fetchPage(0);
+            const result = await fetchPage();
             setThreads(sortByUpdatedAt(result.data));
             setHasMore(result.hasMore);
         } catch (e: unknown) {
@@ -121,11 +147,16 @@ export function useThreadList({
 
     const loadMore = useCallback(() => {
         if (loadingRef.current || !hasMore) return;
+        // Seek from the last-seen thread's own position rather than `threads.length`, which
+        // `thread-created` prepends can inflate independent of how many pages were actually
+        // fetched, skipping or duplicating rows at the wrong offset.
+        const last = threads[threads.length - 1];
+        if (!last) return;
         loadingRef.current = true;
         setLoading(true);
         void (async () => {
             try {
-                const result = await fetchPage(threads.length);
+                const result = await fetchPage({ updatedAt: last.updatedAt, id: last.id });
                 setThreads((prev) => {
                     // Deduplicate in case new threads were inserted via WS.
                     const existingIds = new Set(prev.map((t) => t.id));
@@ -141,7 +172,7 @@ export function useThreadList({
                 loadingRef.current = false;
             }
         })();
-    }, [fetchPage, hasMore, threads.length]);
+    }, [fetchPage, hasMore, threads]);
 
     const setArchived = useCallback(
         async (threadId: string, archived: boolean): Promise<void> => {
@@ -214,17 +245,26 @@ export function useThreadList({
             const parsed = threadWireSchema.safeParse(event.thread);
             if (!parsed.success) return;
             const newThread: Thread = { ...parsed.data, unreadCount: 0 };
+            if (threadsRef.current.some((t) => t.id === newThread.id)) return;
+            // A tab left open otherwise accumulates every thread created from any device or tab for
+            // its lifetime, unbounded — this crashed a dev-UI tab with out-of-memory during an E2E
+            // run that created ~1500 threads. Cap by evicting the oldest loaded thread.
+            const willEvict = threadsRef.current.length >= maxLoadedThreads;
             setThreads((prev) => {
-                // Avoid duplicates.
                 if (prev.some((t) => t.id === newThread.id)) return prev;
-                return [newThread, ...prev];
+                const next = [newThread, ...prev];
+                return next.length > maxLoadedThreads ? next.slice(0, maxLoadedThreads) : next;
             });
+            if (willEvict) {
+                // There is now definitely more history beyond what's cached, regardless of prior hasMore.
+                setHasMore(true);
+            }
         };
         client.on("thread-created", handler);
         return () => {
             client.off("thread-created", handler);
         };
-    }, [client]);
+    }, [client, maxLoadedThreads]);
 
     // Listen for new-message events to increment unread counts for threads not actively viewed.
     useEffect(() => {

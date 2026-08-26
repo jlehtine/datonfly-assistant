@@ -20,6 +20,7 @@ import {
     ERROR_CODES,
     createThreadRequestSchema,
     paginationQuerySchema,
+    threadListQuerySchema,
     threadSearchQuerySchema,
     updateThreadRequestSchema,
     updateThreadUserStateRequestSchema,
@@ -28,6 +29,7 @@ import {
     type ISearchProvider,
     type PaginationQuery,
     type Thread,
+    type ThreadListQuery,
     type ThreadMemberInfo,
     type ThreadMessage,
     type ThreadSearchQuery,
@@ -80,14 +82,18 @@ export class ThreadController {
     @Get()
     async list(
         @ResolvedUser() user: User,
-        @Query("includeArchived") includeArchivedStr?: string,
-        @Query("limit") limitStr?: string,
-        @Query("offset") offsetStr?: string,
+        @Query(new ZodValidationPipe(threadListQuerySchema)) query: ThreadListQuery,
     ): Promise<Thread[]> {
-        const includeArchived = includeArchivedStr === "true";
-        const limit = limitStr !== undefined ? Math.min(Math.max(parseInt(limitStr, 10) || 20, 1), 100) : undefined;
-        const offset = offsetStr !== undefined ? Math.max(parseInt(offsetStr, 10) || 0, 0) : undefined;
-        return this.persistence.listThreads({ userId: user.id, includeArchived, limit, offset });
+        const cursor =
+            query.cursorUpdatedAt !== undefined && query.cursorId !== undefined
+                ? { updatedAt: query.cursorUpdatedAt, id: query.cursorId }
+                : undefined;
+        return this.persistence.listThreads({
+            userId: user.id,
+            includeArchived: query.includeArchived,
+            limit: query.limit,
+            cursor,
+        });
     }
 
     @Get("search")

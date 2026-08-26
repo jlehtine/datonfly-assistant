@@ -25,6 +25,7 @@ export type {
     IPersistenceProvider,
     CreateThreadOptions,
     ListThreadsOptions,
+    ThreadListCursor,
     AppendMessageOptions,
     LoadMessagesOptions,
     SaveAttachmentOptions,

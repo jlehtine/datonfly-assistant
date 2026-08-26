@@ -10,6 +10,12 @@ export interface CreateThreadOptions {
     creatorId: string;
 }
 
+/** Seek-pagination position: the `(updatedAt, id)` of the last thread seen so far. */
+export interface ThreadListCursor {
+    updatedAt: Date;
+    id: string;
+}
+
 /** Options for listing threads visible to a user. */
 export interface ListThreadsOptions {
     /** Only return threads the user is a member of. */
@@ -18,8 +24,15 @@ export interface ListThreadsOptions {
     includeArchived?: boolean | undefined;
     /** Maximum number of threads to return. */
     limit?: number | undefined;
-    /** Number of threads to skip (for offset-based pagination). */
-    offset?: number | undefined;
+    /**
+     * Seek-pagination cursor. Only threads ordered strictly after this position in the
+     * `(updatedAt DESC, id ASC)` ordering are returned. Omit for the first page.
+     *
+     * Threads are re-ordered by activity (`updatedAt`), so `OFFSET`-based paging can skip or
+     * duplicate rows when activity arrives mid-scroll; seeking from the last-seen row's own
+     * position is immune to that.
+     */
+    cursor?: ThreadListCursor | undefined;
 }
 
 /** Options for appending a message to a thread. */

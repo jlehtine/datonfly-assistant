@@ -193,6 +193,24 @@ export const paginationQuerySchema = z.object({
 /** Validated pagination query parameters. */
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
+/**
+ * Zod schema for thread list seek-pagination query parameters. `cursorUpdatedAt` and `cursorId`
+ * must be supplied together (they jointly identify the last-seen row) or omitted together (first page).
+ */
+export const threadListQuerySchema = z
+    .object({
+        includeArchived: z.coerce.boolean().optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+        cursorUpdatedAt: z.coerce.date().optional(),
+        cursorId: z.uuid().optional(),
+    })
+    .refine((v) => (v.cursorUpdatedAt === undefined) === (v.cursorId === undefined), {
+        message: "cursorUpdatedAt and cursorId must be supplied together",
+    });
+
+/** Validated thread list query parameters. */
+export type ThreadListQuery = z.infer<typeof threadListQuerySchema>;
+
 // ─── User Search ───
 
 /** Zod schema for user search query parameters. */

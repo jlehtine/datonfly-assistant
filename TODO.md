@@ -47,18 +47,36 @@ and the ordering is indexed (`thread_updated_at_idx (updated_at DESC, id)`), so
 the initial load does not grow with history size. Two real issues remain, both
 of which only bite once a user has a long history:
 
-- [ ] **Offset pagination over a list that reorders while paging.** Threads are
+- [x] **Offset pagination over a list that reorders while paging.** Threads are
       ordered by `updated_at DESC` and move to the top whenever they receive a
       message, so `LIMIT 20 OFFSET n` can return duplicates or silently skip
       threads when activity arrives mid-scroll. Switch to keyset (seek)
       pagination on `(updated_at, id)` — the index is already in the right
       shape. This is a correctness issue, not just performance.
-- [ ] **No virtualization in the rendered list.** `ThreadListPanel` renders
+
+      Implemented as a `(updatedAt, id)` seek cursor end-to-end:
+          `ListThreadsOptions.cursor` (core), a keyset `WHERE` predicate replacing
+          `OFFSET` in `PostgresPersistenceProvider.listThreads()`, a new
+          `threadListQuerySchema` (`cursorUpdatedAt`/`cursorId`, required together)
+          replacing the old raw `offset` query param on `GET /threads`, and
+          `useThreadList`'s `fetchPage()` taking a cursor instead of an offset.
+
+- [x] **No virtualization in the rendered list.** `ThreadListPanel` renders
       every loaded thread (`filtered.map(...)`), and `useThreadList` keeps all
       loaded pages plus any threads prepended by `thread-created` events, so DOM
       nodes and in-memory state grow without bound as the user scrolls. Add
       windowing, and/or cap what is retained in memory.
-- [ ] **`thread-created` grows the list without bound, independent of
+
+      The `thread-created` half (unbounded, background growth) is fixed below
+          (capped at `maxLoadedThreads`, default 500). **Decided against** doing
+          anything further for `loadMore`-driven growth: that growth is paced by
+          the user's own deliberate scrolling, not background events, so it
+          naturally self-limits to however far someone actually scrolls — not the
+          unbounded, silent growth the other two bullets describe. A real fix would
+          need an actual windowing library (e.g. `react-window`); not worth adding
+          for a self-limiting case with no observed problem.
+
+- [x] **`thread-created` grows the list without bound, independent of
       scrolling.** The handler prepends every newly created thread to `threads`
       and nothing ever evicts. A tab left open accumulates every thread the user
       creates from any device or tab, for the lifetime of the tab — **observed:
@@ -66,10 +84,23 @@ of which only bite once a user has a long history:
       out-of-memory** after the suite created ~1500 threads under the shared
       fake user. Cap or evict, and reconcile against the loaded window rather
       than growing it.
-- [ ] **`loadMore` derives its offset from `threads.length`,** which the
+
+      New `UseThreadListOptions.maxLoadedThreads` (default 500). The
+          `thread-created` handler now evicts the oldest loaded thread (array tail,
+          since the list is sorted most-recent-first) once at capacity, and forces
+          `hasMore = true` when it does, since there is now provably more history
+          than what's cached. `loadMore`'s own growth is intentionally not capped
+          (see above).
+
+- [x] **`loadMore` derives its offset from `threads.length`,** which the
       unbounded `thread-created` prepending inflates, so the next page is
       fetched from the wrong offset and skips threads. Keyset pagination (above)
       removes this coupling; until then the two bugs compound.
+
+      `loadMore` now seeks from the last-loaded thread's own `(updatedAt, id)`
+          rather than counting `threads.length`, so `thread-created` prepends (or
+          the new eviction above) can no longer desync it from the server's
+          position.
 
 Worth revisiting the message list on the same grounds: it pages history on
 scroll-up and never drops what it has loaded.

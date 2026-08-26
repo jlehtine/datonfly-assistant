@@ -26,6 +26,7 @@ export {
     memorySearchRequestSchema,
     // Pagination
     paginationQuerySchema,
+    threadListQuerySchema,
     // User search
     userSearchQuerySchema,
     userSearchResultWireSchema,
@@ -49,6 +50,7 @@ export type {
     SearchRequest,
     MemorySearchRequest,
     PaginationQuery,
+    ThreadListQuery,
     UserSearchQuery,
     UserSearchResultWire,
     UpdateUserRequest,

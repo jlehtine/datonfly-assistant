@@ -114,6 +114,7 @@ export class ThreadController {
             return { results: [] };
         }
 
+        const searchStart = Date.now();
         const limit = query.limit ?? 50;
         const groups = await this.searchProvider.search("messages", {
             query: query.q,
@@ -159,6 +160,13 @@ export class ThreadController {
 
             if (results.length >= limit) break;
         }
+
+        this.auditLogger.audit("info", "thread.search", {
+            userId: user.id,
+            elapsedMs: Date.now() - searchStart,
+            resultCount: results.length,
+            requestedLimit: limit,
+        });
 
         return { results };
     }

@@ -156,8 +156,10 @@ export class QdrantSearchProvider implements ISearchProvider {
         const hitsPerThread = options.hitsPerThread ?? 1;
         const snippetChars = options.snippetChars ?? 400;
         const prefetchLimit = limit * 3;
+        const searchStart = Date.now();
 
         let denseVector: number[] | undefined;
+        const embedStart = Date.now();
         try {
             denseVector = await this.embeddings.embedQuery(options.query.slice(0, MAX_EMBED_CHARS));
         } catch (error) {
@@ -166,7 +168,9 @@ export class QdrantSearchProvider implements ISearchProvider {
                 "Dense embedding failed for search query, degrading to sparse-only",
             );
         }
-        const sparseVector = queryVector(tokenize(options.query, this.languages));
+        const embedLatencyMs = Date.now() - embedStart;
+        const queryTokens = tokenize(options.query, this.languages);
+        const sparseVector = queryVector(queryTokens);
 
         // Dense stays primary; sparse (lexical) is fused in for names, identifiers and exact words that
         // semantic search misses. Degrades to sparse-only, rather than failing, if embedding is down.
@@ -231,6 +235,7 @@ export class QdrantSearchProvider implements ISearchProvider {
               }
             : rankedQuery;
 
+        const qdrantStart = Date.now();
         const result = await this.client.queryGroups(name, {
             ...rescoredQuery,
             group_by: "threadId",
@@ -239,8 +244,9 @@ export class QdrantSearchProvider implements ISearchProvider {
             with_payload: true,
             ...(membershipFilter ? { filter: membershipFilter } : {}),
         });
+        const qdrantLatencyMs = Date.now() - qdrantStart;
 
-        return result.groups.map((group) => ({
+        const groups = result.groups.map((group) => ({
             threadId: String(group.id),
             score: group.hits[0]?.score ?? 0,
             hits: group.hits.map((hit) => {
@@ -255,6 +261,21 @@ export class QdrantSearchProvider implements ISearchProvider {
                 };
             }),
         }));
+
+        this.logger.info(
+            {
+                collection: name,
+                mode: denseVector ? "hybrid" : "sparse-only",
+                embedLatencyMs,
+                qdrantLatencyMs,
+                elapsedMs: Date.now() - searchStart,
+                groupCount: groups.length,
+                hitCount: groups.reduce((sum, group) => sum + group.hits.length, 0),
+            },
+            "Search query completed",
+        );
+
+        return groups;
     }
 
     async delete(collection: string, id: string): Promise<void> {

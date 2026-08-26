@@ -19,6 +19,8 @@ export interface AuditData {
     indexed?: number | undefined;
     skipped?: number | undefined;
     elapsedMs?: number | undefined;
+    resultCount?: number | undefined;
+    requestedLimit?: number | undefined;
     bytes?: number | undefined;
     attachmentId?: string | undefined;
 }

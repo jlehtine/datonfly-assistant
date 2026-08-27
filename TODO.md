@@ -78,7 +78,7 @@ container and writes real files there. Anthropic returns the ID of each
 generated file in the tool result block (`bash_code_execution_tool_result` →
 `bash_code_execution_result.content[].file_id`), and the bytes are retrievable
 through the Files API (`GET /v1/files/{file_id}/content`, beta header
-`files-api-2025-04-14`). `packages/agent-langchain/src/agent.ts` extracts only
+`files-api-2025-04-14`). `packages/agent-anthropic/src/stream.ts` extracts only
 text, thinking, citations, and compaction blocks from the response content — the
 code execution result blocks and their file IDs are dropped on the floor. So the
 model correctly reports what it did inside the container, and the application
@@ -178,9 +178,12 @@ test fixtures.
   `$OUTPUT_DIR` finding. `mime_type` and `size_bytes` are reliable and can feed
   `AttachmentContentPart` directly; generated files report `downloadable: true`.
 - **Container reuse works.** Passing `container` returned the same container ID
-  and files from the previous request were still present. The container ID is
-  also exposed by LangChain as `additional_kwargs.container` on both the
-  streaming and non-streaming paths, so Phase 4 is unblocked. Note that
+  and files from the previous request were still present. Since the LangChain
+  removal (see below), the container ID is read straight off the raw SDK
+  response as `finalMessage.container`
+  (`BetaMessage.container: BetaContainer | null`), and the request accepts
+  `container?: BetaContainerParams | string | null` directly — no
+  provider-wrapper plumbing needed. So Phase 4 is unblocked. Note that
   `expires_at` is a rolling value roughly an hour out; it does not report the
   30-day container lifetime, so it must not be used to decide whether a stored
   container ID is still usable.
@@ -215,47 +218,24 @@ Observed block shapes, to be used verbatim as Phase 1 fixtures:
 }
 ```
 
-#### Blocker: LangChain drops code execution results when streaming
+#### Former blocker: LangChain dropped code execution results when streaming (resolved)
 
-`@langchain/anthropic` surfaces `bash_code_execution_tool_result` blocks on the
-non-streaming `invoke()` path (file ID reachable at
-`content[i].content.content[j].file_id`) but **not** when streaming. Streamed
-`content` contains only `text`, `server_tool_use`, and `input_json_delta`; the
-result blocks are absent from `content`, `additional_kwargs`, and
-`response_metadata` alike.
-
-The cause is a hardcoded allowlist in the `content_block_start` handler of
-`dist/utils/message_outputs.js`:
-
-```js
-["tool_use", "document", "server_tool_use", "web_search_tool_result"];
-```
-
+This was flagged while the agent ran on `@langchain/anthropic`: its
+`content_block_start` handler used a hardcoded allowlist (`tool_use`,
+`document`, `server_tool_use`, `web_search_tool_result`) that silently dropped
 `bash_code_execution_tool_result`, `text_editor_code_execution_tool_result`, and
-`code_execution_tool_result` are missing, so those blocks are silently
-discarded. Verified identical in the latest release (1.5.4; the workspace is on
-1.3.26), so upgrading does not help. The chat gateway streams every response, so
-as things stand file IDs are unreachable in production regardless of the rest of
-the design.
+`code_execution_tool_result` blocks from streamed responses, making generated
+files unreachable in production.
 
-**Options (decide before Phase 1):**
-
-1. **`pnpm patch @langchain/anthropic`** adding the three block types to the
-   allowlist. Roughly a four-line change, pnpm-native, reversible. Must be
-   re-verified on every upgrade, and it patches compiled `dist` output.
-2. **Bypass LangChain on the streaming path**, calling `@anthropic-ai/sdk`
-   directly from `agent-langchain` for streamed completions. Full fidelity and
-   removes a whole class of pass-through gaps (the codebase already carries
-   workarounds for LangChain streaming bugs, e.g. the `invalid_tool_calls`
-   handling for LangChain #9911), but it is a substantial rewrite of the stream
-   method and adds a direct SDK dependency.
-3. **Upstream PR to LangChain**, with option 1 as the interim measure.
-
-**Status: undecided, deliberately.** The choice here is entangled with a broader
-question about whether LangChain earns its keep in this codebase at all (see
-"Agent provider layer" below), so it is deferred to that evaluation rather than
-settled in isolation. If the wider review lands later than this feature, option
-1 is the cheapest way to unblock generated files on their own.
+It is now resolved as a side effect of dropping LangChain entirely — the agent
+was cut over to `packages/agent-anthropic`, calling `@anthropic-ai/sdk` directly
+(see "Agent provider layer" below). `stream.ts` streams via the raw SDK client
+and calls `stream.finalMessage()` to get the complete accumulated `BetaMessage`,
+with no allowlist filtering: every block type, including
+`bash_code_execution_tool_result`, is present in `finalMessage.content`.
+`readCompactionParts` in `stream.ts` already relies on exactly this to extract
+`compaction` blocks, so Phase 1 can add a sibling function that extracts
+generated-file IDs the same way — no separate streaming fix is needed.
 
 ### Security constraints (non-negotiable)
 
@@ -280,8 +260,9 @@ settled in isolation. If the wider review lands later than this feature, option
       already reports exactly the files the model chose to deliver.
 - [x] Remove the throwaway probe scripts and dumps once their findings were
       documented above.
-- [ ] Decide how to recover result blocks from the streaming path (see the
-      blocker above).
+- [x] Recover result blocks from the streaming path — resolved for free by the
+      LangChain removal (see the former-blocker note above); no separate fix
+      needed.
 
 ### Phase 1 — Agent: surface generated files
 
@@ -292,14 +273,13 @@ settled in isolation. If the wider review lands later than this feature, option
 - [ ] Add an optional capability to the agent interface for fetching a generated
       file by reference (returning name, MIME type, and bytes), so the chat
       server stays provider-agnostic.
-- [ ] Implement the chosen fix for the streaming blocker so
-      `bash_code_execution_tool_result` blocks reach our code.
-- [ ] In `packages/agent-langchain/src/agent.ts`, extract file IDs from
-      `bash_code_execution_tool_result` blocks in both the streaming and
-      non-streaming paths, deduplicate them, and emit `generated-file` chunks.
-      No path filtering — every reported file ID is a deliberate deliverable.
+- [ ] In `packages/agent-anthropic/src/stream.ts`, add a function alongside
+      `readCompactionParts` that extracts file IDs from
+      `bash_code_execution_tool_result` blocks on the completed `finalMessage`,
+      deduplicates them, and emits `generated-file` chunks. No path filtering —
+      every reported file ID is a deliberate deliverable.
 - [ ] Implement the fetch side against the Files API using the
-      `@anthropic-ai/sdk` client already pulled in by `@langchain/anthropic`
+      `@anthropic-ai/sdk` client `agent-anthropic` already depends on directly
       (beta `files-api-2025-04-14`), with the size cap applied during download.
 - [ ] Unit-test extraction against the block shapes recorded in the Phase 0
       findings: bash results with and without files, error result blocks,
@@ -378,29 +358,27 @@ settled in isolation. If the wider review lands later than this feature, option
   Letting those tools emit files is a separate piece of work that should reuse
   whatever transport Phase 1 establishes.
 
-## Agent provider layer — re-evaluate LangChain
+## Agent provider layer — re-evaluate LangChain (resolved: dropped)
 
-Deferred to a separate session; nothing here blocks other work. The question is
-whether `@langchain/anthropic` still pays for itself, given that it abstracts a
-single provider that we already use provider-specific features of.
+Decided and executed on `main`: `@langchain/anthropic` was dropped entirely and
+replaced by `packages/agent-anthropic`, calling `@anthropic-ai/sdk` directly
+behind the existing `IAgent` interface (`packages/agent-langchain` no longer
+exists). The evidence below is kept for context; it is what motivated the
+cutover, including the streaming blocker recorded above.
 
-Evidence accumulated so far, all in `packages/agent-langchain/src/agent.ts`
-unless noted:
+Evidence that motivated the decision, all previously in
+`packages/agent-langchain/src/agent.ts`:
 
-- Streamed `bash_code_execution_tool_result` blocks are silently dropped by a
-  hardcoded allowlist, which blocks assistant-generated files entirely (see the
-  section above). Not fixed in the latest release.
-- `detectToolStatus` has to inspect `tool_call_chunks` and `invalid_tool_calls`
+- Streamed `bash_code_execution_tool_result` blocks were silently dropped by a
+  hardcoded allowlist, which blocked assistant-generated files entirely (see the
+  resolved blocker above).
+- `detectToolStatus` had to inspect `tool_call_chunks` and `invalid_tool_calls`
   in addition to `content`, working around LangChain #9911.
-- Server tools are constructed as `Record<string, unknown>` and cast with
-  `as ServerTool`, because the typed surface does not model them.
+- Server tools were constructed as `Record<string, unknown>` and cast with
+  `as ServerTool`, because the typed surface did not model them.
 - Anthropic-specific concepts (compaction blocks, thinking blocks, citations,
-  container IDs) are already handled by hand, so the abstraction is not
-  insulating us from the provider in the places that matter.
+  container IDs) were already handled by hand, so the abstraction was not
+  insulating the codebase from the provider in the places that mattered.
 
-Weigh that against what LangChain currently provides: client construction,
-message/content normalisation, streaming plumbing, and the `bindTools` surface.
-Decide between staying on LangChain (with patches), moving the Anthropic path
-onto `@anthropic-ai/sdk` directly behind the existing `IAgent` interface, or
-some split. The `IAgent` abstraction in `packages/core` is the real portability
-boundary and would survive either choice.
+The `IAgent` abstraction in `packages/core` remained the real portability
+boundary through the cutover.

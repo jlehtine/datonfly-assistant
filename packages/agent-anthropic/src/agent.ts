@@ -7,6 +7,7 @@ import {
     type AgentRunOptions,
     type AgentStreamChunk,
     type ContentPart,
+    type GeneratedFileData,
     type IAgentProvider,
     type ITool,
     type ProviderLogger,
@@ -28,6 +29,7 @@ import {
     type AnthropicProviderOptions,
 } from "./config.js";
 import { describeApiError } from "./errors.js";
+import { DEFAULT_MAX_GENERATED_FILE_BYTES, fetchGeneratedFile } from "./generated-files.js";
 import { agentMessagesToParams, trimBeforeCompaction } from "./messages.js";
 import { streamAgent } from "./stream.js";
 import { serverToolParams, toolToParam } from "./tools.js";
@@ -102,6 +104,7 @@ export class AnthropicAgent implements IAgentProvider {
     private readonly titleModelName: string | undefined;
     private readonly debugApiContent: boolean;
     private readonly logger: ProviderLogger;
+    private readonly maxGeneratedFileBytes: number;
 
     /** @inheritdoc */
     readonly capabilities: AgentCapabilities;
@@ -121,6 +124,7 @@ export class AnthropicAgent implements IAgentProvider {
         this.titleModelName = config.titleModelName;
         this.debugApiContent = config.debugApiContent ?? false;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
+        this.maxGeneratedFileBytes = options.maxGeneratedFileBytes ?? DEFAULT_MAX_GENERATED_FILE_BYTES;
         this.serverTools = serverToolParams(options);
 
         this.client = new Anthropic({
@@ -269,6 +273,11 @@ export class AnthropicAgent implements IAgentProvider {
     /** @inheritdoc */
     getContextWindowSize(): number {
         return this.contextWindowSize;
+    }
+
+    /** @inheritdoc */
+    fetchGeneratedFile(fileRef: string, signal?: AbortSignal): Promise<GeneratedFileData> {
+        return fetchGeneratedFile(this.client, fileRef, this.maxGeneratedFileBytes, signal);
     }
 
     /**

@@ -4,6 +4,7 @@ import type {
     AgentStreamChunk,
     AgentUsage,
     Citation,
+    GeneratedFileChunk,
     ITool,
     OpaqueContentPart,
     ProviderLogger,
@@ -130,6 +131,53 @@ function readCompactionParts(message: Anthropic.Beta.BetaMessage): OpaqueContent
     return parts;
 }
 
+/** Whether a bash code execution result carries files rather than an error (`bash_code_execution_tool_result_error`). */
+function isBashCodeExecutionResultBlock(content: unknown): content is Anthropic.Beta.BetaBashCodeExecutionResultBlock {
+    return (
+        typeof content === "object" &&
+        content !== null &&
+        (content as { type?: unknown }).type === "bash_code_execution_result" &&
+        Array.isArray((content as { content?: unknown }).content)
+    );
+}
+
+/**
+ * Collect generated-file references from bash code execution results in a
+ * completed assistant turn, deduplicated by file ID.
+ *
+ * Every reported file ID is a deliberate deliverable: the sandbox only exports
+ * files copied into `$OUTPUT_DIR` to the Files API (see TODO.md), so there is
+ * no path filtering to apply here. Error results
+ * (`bash_code_execution_tool_result_error`) and bash results with no files
+ * (`content: []`) simply contribute nothing.
+ */
+export function readGeneratedFileChunks(message: Anthropic.Beta.BetaMessage): GeneratedFileChunk[] {
+    const chunks: GeneratedFileChunk[] = [];
+    for (const block of message.content) {
+        if (block.type !== "bash_code_execution_tool_result") continue;
+        const content: unknown = block.content;
+        if (!isBashCodeExecutionResultBlock(content)) continue;
+        for (const output of content.content) {
+            const fileId: unknown = (output as { file_id?: unknown }).file_id;
+            if (typeof fileId !== "string" || fileId.length === 0) continue;
+            chunks.push({ type: "generated-file", fileRef: fileId });
+        }
+    }
+    return chunks;
+}
+
+/** Deduplicate generated-file chunks by file reference, preserving first-seen order. */
+function deduplicateGeneratedFileChunks(chunks: GeneratedFileChunk[]): GeneratedFileChunk[] {
+    const seen = new Set<string>();
+    const unique: GeneratedFileChunk[] = [];
+    for (const chunk of chunks) {
+        if (seen.has(chunk.fileRef)) continue;
+        seen.add(chunk.fileRef);
+        unique.push(chunk);
+    }
+    return unique;
+}
+
 /** Resolve after `ms` milliseconds; rejects immediately (or as soon as it fires) if `signal` aborts. */
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -229,6 +277,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
     const thinkingParts: { partIndex: number; part: ThinkingContentPart }[] = [];
     const opaqueParts: OpaqueContentPart[] = [];
     const citations: Citation[] = [];
+    const generatedFileChunks: GeneratedFileChunk[] = [];
     // Every message param appended to `conversation` during this call, plus the
     // final answer (which the loop never pushes to `conversation` since nothing
     // continues after it) — captured verbatim for replay on a later turn.
@@ -419,6 +468,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
         }
 
         opaqueParts.push(...readCompactionParts(finalMessage));
+        generatedFileChunks.push(...readGeneratedFileChunks(finalMessage));
 
         if (finalMessage.stop_reason === "refusal") {
             throw new Error("The model declined to answer this request.");
@@ -480,6 +530,9 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
     }
     for (const [index, part] of opaqueParts.entries()) {
         yield { type: "opaque-part", partIndex: index, part };
+    }
+    for (const chunk of deduplicateGeneratedFileChunks(generatedFileChunks)) {
+        yield chunk;
     }
     if (rawTurns.length > 0) {
         yield { type: "replay-data", data: rawTurnsToReplayData(rawTurns) };

@@ -601,6 +601,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             result: chunk.result,
                             ...(chunk.isError !== undefined ? { isError: chunk.isError } : {}),
                         });
+                    } else if (chunk.type === "generated-file") {
+                        // TODO(TODO.md Phase 2): download and persist as an attachment.
                     } else {
                         // usage chunk
                         streamState.usage = chunk.usage;

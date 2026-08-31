@@ -284,26 +284,36 @@ generated-file IDs the same way — no separate streaming fix is needed.
 
 ### Phase 1 — Agent: surface generated files
 
-- [ ] Add a provider-neutral `GeneratedFileChunk` to `AgentStreamChunk` in
+- [x] Add a provider-neutral `GeneratedFileChunk` to `AgentStreamChunk` in
       `packages/core/src/interfaces/agent.ts`, carrying an opaque provider file
       reference plus optional filename/MIME hints — no Anthropic specifics in
       `core`.
-- [ ] Add an optional capability to the agent interface for fetching a generated
+- [x] Add an optional capability to the agent interface for fetching a generated
       file by reference (returning name, MIME type, and bytes), so the chat
       server stays provider-agnostic.
-- [ ] In `packages/agent-anthropic/src/stream.ts`, add a function alongside
+- [x] In `packages/agent-anthropic/src/stream.ts`, add a function alongside
       `readCompactionParts` that extracts file IDs from
       `bash_code_execution_tool_result` blocks on the completed `finalMessage`,
       deduplicates them, and emits `generated-file` chunks. No path filtering —
       every reported file ID is a deliberate deliverable.
-- [ ] Implement the fetch side against the Files API using the
+- [x] Implement the fetch side against the Files API using the
       `@anthropic-ai/sdk` client `agent-anthropic` already depends on directly
       (beta `files-api-2025-04-14`), with the size cap applied during download
       and a bounded retry loop with exponential backoff (sane defaults, e.g. 3
       attempts starting at ~500ms) before giving up on a single file.
-- [ ] Unit-test extraction against the block shapes recorded in the Phase 0
+- [x] Unit-test extraction against the block shapes recorded in the Phase 0
       findings: bash results with and without files, error result blocks,
       duplicate IDs, and string-typed content.
+
+Implemented in `packages/core/src/interfaces/agent.ts` (`GeneratedFileChunk`,
+`GeneratedFileData`, optional `IAgentProvider.fetchGeneratedFile`),
+`packages/agent-anthropic/src/stream.ts` (`readGeneratedFileChunks`, wired into
+the streaming loop and deduplicated across turns), and the new
+`packages/agent-anthropic/src/generated-files.ts` (`fetchGeneratedFile` against
+the Files API, with the bounded-retry/size-cap behaviour and a
+`maxGeneratedFileBytes` provider option).
+`packages/chat-server/src/chat.gateway.ts` got a no-op case for the new chunk
+type to keep the build green; the real handling is Phase 2.
 
 ### Phase 2 — Persistence and chat server
 

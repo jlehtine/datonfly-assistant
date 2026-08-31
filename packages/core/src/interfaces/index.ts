@@ -17,6 +17,8 @@ export type {
     ToolCallChunk,
     ToolResultChunk,
     UsageChunk,
+    GeneratedFileChunk,
+    GeneratedFileData,
     AgentUsage,
     Citation,
     ShouldRespondResult,

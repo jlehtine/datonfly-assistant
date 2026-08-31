@@ -83,6 +83,34 @@ export interface OpaquePartChunk {
 }
 
 /**
+ * A file the agent deliberately delivered to the user during code execution,
+ * discovered once a turn completes.
+ *
+ * Carries only an opaque reference — providers differ in how a generated file
+ * is retrieved, so the caller fetches the bytes separately via
+ * {@link IAgentProvider.fetchGeneratedFile}.
+ */
+export interface GeneratedFileChunk {
+    type: "generated-file";
+    /** Opaque provider-specific reference used to fetch the file later (e.g. an Anthropic file ID). */
+    fileRef: string;
+    /** Filename hint, when the provider reports one at discovery time. */
+    filename?: string | undefined;
+    /** MIME type hint, when the provider reports one at discovery time. */
+    mimeType?: string | undefined;
+}
+
+/** The bytes and metadata of a generated file, fetched via {@link IAgentProvider.fetchGeneratedFile}. */
+export interface GeneratedFileData {
+    /** Suggested filename, when the provider reports one. */
+    filename: string | undefined;
+    /** MIME type, when the provider reports one. */
+    mimeType: string | undefined;
+    /** Raw file bytes. */
+    bytes: Uint8Array;
+}
+
+/**
  * The full provider-native exchange for the turn, emitted once a turn
  * completes, for verbatim replay on a later turn (see {@link AgentMessage.replayData}).
  * Not a {@link ContentPart} — it never appears in persisted message content and
@@ -149,6 +177,7 @@ export type AgentStreamChunk =
     | CitationsChunk
     | ToolCallChunk
     | ToolResultChunk
+    | GeneratedFileChunk
     | UsageChunk;
 
 /** Result of an agent's decision on whether to respond in a room thread. */
@@ -303,6 +332,15 @@ export interface IAgentProvider {
 
     /** Return the context window size (in tokens) of the underlying model. */
     getContextWindowSize(): number;
+
+    /**
+     * Fetch the bytes of a generated file previously reported via a
+     * {@link GeneratedFileChunk}.
+     *
+     * Optional — only implemented by providers that support code execution
+     * file output. Callers must check for its presence before use.
+     */
+    fetchGeneratedFile?(fileRef: string, signal?: AbortSignal): Promise<GeneratedFileData>;
 
     /** What this provider supports, so callers can adapt without naming a vendor. */
     readonly capabilities: AgentCapabilities;

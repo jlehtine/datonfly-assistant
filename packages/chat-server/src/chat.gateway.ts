@@ -464,7 +464,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const history = await this.persistence.loadMessages({ threadId });
         const members = await this.persistence.listMembersWithUser(threadId);
         const authorAliases = buildAuthorAliases(members);
-        const messages: AgentMessage[] = threadMessagesToAgentMessages(history, authorAliases);
+        const messages: AgentMessage[] = threadMessagesToAgentMessages(
+            history,
+            authorAliases,
+            this.generatedFilesEnabled,
+        );
 
         // Multi-user triage: decide whether the agent should respond
         const memberCount = members.length;
@@ -875,8 +879,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         fileRefs: string[],
     ): Promise<DownloadedGeneratedFile[]> {
         if (fileRefs.length === 0) return [];
-        const generatedFilesEnabled = this.generatedFilesEnabledOverride ?? true;
-        if (!generatedFilesEnabled || !this.agent.fetchGeneratedFile) return [];
+        if (!this.generatedFilesEnabled || !this.agent.fetchGeneratedFile) return [];
 
         const files: DownloadedGeneratedFile[] = [];
         let totalBytes = 0;
@@ -953,6 +956,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 });
             }
         }
+    }
+
+    /** Whether assistant-generated files are enabled, defaulting to on when unconfigured. */
+    private get generatedFilesEnabled(): boolean {
+        return this.generatedFilesEnabledOverride ?? true;
     }
 
     private async handleInviteMember(socket: Socket, data: InviteMemberEvent): Promise<void> {

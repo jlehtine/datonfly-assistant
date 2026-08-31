@@ -47,13 +47,27 @@ export function buildAuthorAliases(members: ThreadMemberInfo[]): Map<string, str
 }
 
 /**
+ * Guidance confirming the platform's own `$OUTPUT_DIR` convention for
+ * delivering files, rather than inventing one. The model already follows this
+ * unprompted; this just keeps it honest about what actually got exported.
+ */
+const GENERATED_FILES_GUIDANCE =
+    "If you use code execution to create a file for the user, copy it into $OUTPUT_DIR — only files placed " +
+    "there become downloadable attachments on your message; anything else stays in the sandbox. Never claim " +
+    "to have saved or attached a file you didn't export this way.";
+
+/**
  * Build the system prompt prepended to every agent invocation.
  *
  * Single-user threads get a personal assistant prompt; multi-user threads
  * get a group conversation prompt with participant aliases and engagement
  * guidelines.
+ *
+ * @param generatedFilesEnabled - Whether to append {@link GENERATED_FILES_GUIDANCE}.
+ *   Omit the guidance entirely when the feature is off, so a deployment
+ *   without it never advertises the capability.
  */
-export function buildSystemPrompt(authorAliases: Map<string, string>): AgentMessage {
+export function buildSystemPrompt(authorAliases: Map<string, string>, generatedFilesEnabled = false): AgentMessage {
     if (authorAliases.size <= 1) {
         return {
             role: "system",
@@ -65,7 +79,8 @@ export function buildSystemPrompt(authorAliases: Map<string, string>): AgentMess
                         "messages includes a header line with their name and timestamp, for example:\n\n" +
                         "[Alice] @ 2026-04-10T14:30+02:00\n\n" +
                         "How do I fix this bug?\n\n" +
-                        "Use the timestamp to understand when messages were sent relative to each other.",
+                        "Use the timestamp to understand when messages were sent relative to each other." +
+                        (generatedFilesEnabled ? `\n\n${GENERATED_FILES_GUIDANCE}` : ""),
                 },
             ],
         };
@@ -90,7 +105,8 @@ export function buildSystemPrompt(authorAliases: Map<string, string>): AgentMess
                     "- Respond when you can add meaningful value (e.g. factual information, analysis, code help)\n" +
                     "- Do NOT respond when users are clearly talking to each other about personal/social matters\n" +
                     "- Do NOT respond to every message — only when your input is relevant\n" +
-                    "- When responding, you may reference what specific users said by name",
+                    "- When responding, you may reference what specific users said by name" +
+                    (generatedFilesEnabled ? `\n\n${GENERATED_FILES_GUIDANCE}` : ""),
             },
         ],
     };
@@ -106,12 +122,14 @@ export function buildSystemPrompt(authorAliases: Map<string, string>): AgentMess
  *
  * @param messages - Persisted thread messages in chronological order.
  * @param authorAliases - Map from author user ID to display alias.
+ * @param generatedFilesEnabled - Forwarded to {@link buildSystemPrompt}.
  */
 export function threadMessagesToAgentMessages(
     messages: ThreadMessage[],
     authorAliases: Map<string, string>,
+    generatedFilesEnabled = false,
 ): AgentMessage[] {
-    const result: AgentMessage[] = [buildSystemPrompt(authorAliases)];
+    const result: AgentMessage[] = [buildSystemPrompt(authorAliases, generatedFilesEnabled)];
 
     for (const [i, msg] of messages.entries()) {
         const text = extractText(msg.content);

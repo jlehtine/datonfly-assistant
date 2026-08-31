@@ -434,14 +434,24 @@ emission, the one-shot retry, and that an unrelated 400 is not retried.
 
 ### Phase 5 — System prompt
 
-- [ ] Extend `buildSystemPrompt` in `packages/chat-server/src/messages.ts` to
+- [x] Extend `buildSystemPrompt` in `packages/chat-server/src/messages.ts` to
       confirm the platform's own convention rather than invent one: files the
       model copies into `$OUTPUT_DIR` become downloadable attachments on the
       message, everything else stays in the sandbox, and it must not claim to
       have delivered a file it never exported. Keep this brief — the model
       already follows the convention unprompted.
-- [ ] Keep the guidance conditional on `DF_ENABLE_GENERATED_FILES`, so a
+- [x] Keep the guidance conditional on `DF_ENABLE_GENERATED_FILES`, so a
       deployment with the feature off does not advertise it.
+
+`buildSystemPrompt`/`threadMessagesToAgentMessages` gained an optional
+`generatedFilesEnabled` parameter (default `false`), appending one short
+paragraph to whichever prompt variant is in play. `chat.gateway.ts` passes its
+resolved `generatedFilesEnabled` getter (the same `GENERATED_FILES_ENABLED` DI
+token from Phase 2, default enabled); `title-generator.ts`'s call site is
+unaffected by the new default. `DF_ENABLE_GENERATED_FILES` itself still doesn't
+exist as an env var yet — that's Phase 6 — but the code path is already wired to
+whatever value ends up injected there. Covered by a new
+`packages/chat-server/src/messages.test.ts`.
 
 ### Phase 6 — Configuration, docs, and tests
 

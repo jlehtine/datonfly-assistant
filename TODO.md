@@ -317,30 +317,49 @@ type to keep the build green; the real handling is Phase 2.
 
 ### Phase 2 — Persistence and chat server
 
-- [ ] Migration: `ALTER COLUMN uploader_id DROP NOT NULL` on `dfa.attachment`
+- [x] Migration: `ALTER COLUMN uploader_id DROP NOT NULL` on `dfa.attachment`
       and add an `origin` column (`'user'` / `'agent'`) with
       `DEFAULT 'user' NOT NULL`, which backfills existing rows automatically.
       Additive and data-preserving — no rows dropped or rewritten.
-- [ ] Widen `uploader_id` to `string | null` in
+- [x] Widen `uploader_id` to `string | null` in
       `packages/persistence-pg/src/schema.ts` and `AttachmentRecord.uploaderId`
       in `packages/core/src/interfaces/persistence.ts`; add `origin` to both.
-- [ ] Add optional `threadId`, `messageId`, and `origin` to
+- [x] Add optional `threadId`, `messageId`, and `origin` to
       `SaveAttachmentOptions` so agent files can be inserted already associated,
       bypassing the pending state and its uploader-based checks.
-- [ ] Reorder the two guards in the delete handler of
+- [x] Reorder the two guards in the delete handler of
       `packages/chat-server/src/attachment.controller.ts` so the
       already-associated conflict is reported before the ownership check;
       otherwise agent files return 403 where 409 is correct.
-- [ ] In `packages/chat-server/src/chat.gateway.ts`, collect `generated-file`
+- [x] In `packages/chat-server/src/chat.gateway.ts`, collect `generated-file`
       chunks into the stream state alongside citations and opaque parts,
       download and store each file when the response completes, and append the
       resulting `AttachmentContentPart`s to the assistant message content before
       persisting.
-- [ ] Apply per-message limits (count and total size) and log skipped or failed
+- [x] Apply per-message limits (count and total size) and log skipped or failed
       files through the audit logger; a failed download is dropped, not retried,
       and does not fail the rest of the turn.
-- [ ] Make sure interrupted/partial responses still persist any files already
+- [x] Make sure interrupted/partial responses still persist any files already
       generated, matching the existing partial-content handling.
+
+Implemented via a new migration
+(`packages/persistence-pg/src/migrations/2026-08-31M0001-attachment-origin.ts`)
+and matching changes to `packages/core/src/interfaces/persistence.ts` /
+`packages/persistence-pg/src/{schema,provider}.ts`. In
+`packages/chat-server/src/chat.gateway.ts`, `ActiveStream.generatedFileRefs`
+collects file references mid-stream; `collectGeneratedFileAttachments` downloads
+them (skipping when disabled via the new optional `GENERATED_FILES_ENABLED` DI
+token, default enabled, or when the agent doesn't implement
+`fetchGeneratedFile`), enforcing `GENERATED_FILE_LIMITS`
+(`packages/core/src/attachments/attachments.ts`) and logging skips/failures via
+the audit logger; `persistGeneratedFileAttachments` then saves each as an
+already-associated, `origin: "agent"` attachment. Both the normal-completion and
+`interruptActiveStream` paths use the same two helpers, so partial turns keep
+whatever files had already been generated. A generated file with no accompanying
+text no longer trips the "empty response" guard. Attachment rows are linked via
+a pre-assigned message ID (mirroring the existing client-generated-ID convention
+for human messages) so the FK can be set at insert time without a separate
+associate step.
 
 ### Phase 3 — Client and UI
 

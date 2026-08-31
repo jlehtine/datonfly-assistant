@@ -76,8 +76,8 @@ export interface LoadMessagesOptions {
 export interface SaveAttachmentOptions {
     /** Optional pre-assigned attachment ID. Generated when omitted. */
     id?: string | undefined;
-    /** User ID of the uploader. */
-    uploaderId: string;
+    /** User ID of the uploader, or omitted for an agent-generated file. */
+    uploaderId?: string | undefined;
     /** Original file name. */
     name: string;
     /** MIME type of the attachment. */
@@ -86,14 +86,27 @@ export interface SaveAttachmentOptions {
     size: number;
     /** Raw attachment bytes. */
     bytes: Uint8Array;
+    /**
+     * Thread to associate the attachment with immediately.
+     *
+     * Agent-generated files are born associated (thread and message are
+     * already known when the assistant message is persisted), so they skip the
+     * pending state and its uploader-based authorisation entirely. Omit to
+     * leave the attachment pending, as for a user upload.
+     */
+    threadId?: string | undefined;
+    /** Message to associate the attachment with immediately. Requires {@link threadId}. */
+    messageId?: string | undefined;
+    /** Who produced the attachment. Defaults to `"user"`. */
+    origin?: "user" | "agent" | undefined;
 }
 
 /** Stored attachment metadata (without the raw bytes). */
 export interface AttachmentRecord {
     /** Unique attachment ID. */
     id: string;
-    /** User ID of the uploader. */
-    uploaderId: string;
+    /** User ID of the uploader, or `null` for an agent-generated file. */
+    uploaderId: string | null;
     /** Thread the attachment is associated with, or `null` while still pending. */
     threadId: string | null;
     /** Message the attachment is associated with, or `null` while still pending. */
@@ -106,6 +119,8 @@ export interface AttachmentRecord {
     size: number;
     /** Timestamp when the attachment was uploaded. */
     createdAt: Date;
+    /** Who produced the attachment. */
+    origin: "user" | "agent";
 }
 
 /** A stored attachment together with its raw bytes. */

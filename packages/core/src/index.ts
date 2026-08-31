@@ -26,9 +26,10 @@ export type {
 export { STATUS_CODES, ERROR_CODES } from "./types/index.js";
 
 // Attachments
-export type { AttachmentKind, AttachmentInfo, AttachmentLimits } from "./attachments/index.js";
+export type { AttachmentKind, AttachmentInfo, AttachmentLimits, GeneratedFileLimits } from "./attachments/index.js";
 export {
     ATTACHMENT_LIMITS,
+    GENERATED_FILE_LIMITS,
     normalizeMimeType,
     classifyAttachmentMimeType,
     isModelReadableMimeType,

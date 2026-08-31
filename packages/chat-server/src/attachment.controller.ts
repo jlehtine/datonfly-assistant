@@ -130,11 +130,11 @@ export class AttachmentController {
         if (!record) {
             throw new NotFoundException("Attachment not found");
         }
-        if (record.uploaderId !== user.id) {
-            throw new ForbiddenException("Not allowed to delete this attachment");
-        }
         if (record.threadId !== null) {
             throw new ConflictException("Attachment is already associated with a message");
+        }
+        if (record.uploaderId !== user.id) {
+            throw new ForbiddenException("Not allowed to delete this attachment");
         }
         await this.persistence.deleteAttachment(id);
         this.auditLogger.audit("info", "attachment.delete", { userId: user.id, attachmentId: id });

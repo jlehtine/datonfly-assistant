@@ -44,6 +44,20 @@ export const ATTACHMENT_LIMITS: AttachmentLimits = {
     maxPerMessage: 10,
 };
 
+/** Limits applied to assistant-generated files attached to a single message. */
+export interface GeneratedFileLimits {
+    /** Maximum number of generated files attached to a single message. */
+    maxPerMessage: number;
+    /** Maximum combined size (in bytes) of generated files on a single message. */
+    maxTotalBytes: number;
+}
+
+/** Default limits for assistant-generated files, applied when persisting a completed turn. */
+export const GENERATED_FILE_LIMITS: GeneratedFileLimits = {
+    maxPerMessage: 10,
+    maxTotalBytes: 50 * 1024 * 1024,
+};
+
 /** Image MIME types natively understood by the model as image blocks. */
 const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 

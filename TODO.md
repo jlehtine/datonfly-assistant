@@ -363,12 +363,38 @@ associate step.
 
 ### Phase 3 — Client and UI
 
-- [ ] Verify assistant-message attachment parts flow through
+- [x] Verify assistant-message attachment parts flow through
       `packages/chat-client` and render via the existing `AttachmentPartView`;
       fix any role-based assumptions found along the way.
-- [ ] Distinguish generated files from user uploads in the UI only if the
+- [x] Distinguish generated files from user uploads in the UI only if the
       existing chip is genuinely ambiguous — prefer no new component.
-- [ ] Add the strings needed for any new UI text to both `en` and `fi` locales.
+- [x] Add the strings needed for any new UI text to both `en` and `fi` locales.
+
+Verified with no code changes needed — the pipeline was already role-agnostic
+end to end:
+
+- `useMessages.ts`'s `handleComplete`/`handleNewMessage` set `ChatMessage.parts`
+  straight from the event's `content`/`event.content` array, with no filtering
+  by message role.
+- `MessageBubble.tsx`'s `renderPart` renders an `attachment` part identically
+  regardless of role, via the existing `AttachmentPartView` (image thumbnail or
+  download chip, both already using the shared `downloadAttachment` i18n key
+  present in both `en` and `fi`).
+- `attachmentDownloadUrl` builds the download URL from `attachmentId` alone, so
+  it works the same for agent- and user-origin attachments.
+- No new component is needed to distinguish origins: an assistant-generated file
+  already renders inside the assistant's distinctly-styled, left-aligned bubble
+  (`datonfly-message-ai`), which already visually separates it from a user's own
+  uploads in their own right-aligned bubble.
+- Checked two role-gated spots elsewhere in the pipeline that looked relevant
+  but turned out fine as-is (not part of the client-rendering path this phase
+  covers): `resolveAttachmentData` (chat-server) deliberately only resolves
+  bytes for _human_ attachment parts before calling the agent, so a
+  previously-generated file's bytes are never re-embedded into later prompts;
+  and `assistantBlocks` (agent-anthropic) silently drops `attachment` parts on
+  an `ai`-role message when replaying history to the API (`default: break`)
+  rather than erroring. Neither blocks rendering, and changing either is out of
+  scope here.
 
 ### Phase 4 — Container reuse
 

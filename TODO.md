@@ -151,9 +151,27 @@ Three separate gaps compound this:
   container holds files for up to 30 days and is workspace-scoped, so it must be
   bound to exactly one thread and never shared across threads.
 
-- **Feature flag: separate `DF_ENABLE_GENERATED_FILES`.** Code execution is also
-  what powers web search and web fetch, so deployments may legitimately want
-  code execution without file output.
+- **Feature flag: separate `DF_ENABLE_GENERATED_FILES`, default enabled.** Code
+  execution is also what powers web search and web fetch, so deployments may
+  legitimately want code execution without file output. Default it to enabled
+  (matching `DF_ENABLE_CODE_EXECUTION`'s `!== "false"` convention in
+  `packages/backend/src/config.ts`) so the capability works out of the box, with
+  an explicit opt-out for deployments that need to disable it.
+
+- **Fetch-failure handling: bounded immediate retry, then fail-fast.** The
+  download helper retries a generated-file fetch a few times with exponential
+  backoff (sane defaults, e.g. 3 attempts, starting at ~500ms) before giving up.
+  This stays entirely inside the existing synchronous "download and store when
+  the response completes" step — no protocol or persistence changes. If all
+  attempts fail, log it through the audit logger and drop that attachment; the
+  assistant message still persists with its text and any files that did succeed.
+  No persisted "pending" state, no retry endpoint, no UI retry button — a file
+  that exhausts its retries is simply not attached. (This also means we don't
+  need to know how long Anthropic's Files API keeps a generated file retrievable
+  beyond the request; that question only mattered for a later/deferred-retry
+  design, which was rejected — confirmed the client protocol has no mechanism to
+  patch an already-completed message's content afterward, so deferred retry
+  would have needed new plumbing anyway.)
 
 ### Phase 0 findings (probe completed 2026-08-08)
 
@@ -280,7 +298,9 @@ generated-file IDs the same way — no separate streaming fix is needed.
       every reported file ID is a deliberate deliverable.
 - [ ] Implement the fetch side against the Files API using the
       `@anthropic-ai/sdk` client `agent-anthropic` already depends on directly
-      (beta `files-api-2025-04-14`), with the size cap applied during download.
+      (beta `files-api-2025-04-14`), with the size cap applied during download
+      and a bounded retry loop with exponential backoff (sane defaults, e.g. 3
+      attempts starting at ~500ms) before giving up on a single file.
 - [ ] Unit-test extraction against the block shapes recorded in the Phase 0
       findings: bash results with and without files, error result blocks,
       duplicate IDs, and string-typed content.
@@ -306,8 +326,9 @@ generated-file IDs the same way — no separate streaming fix is needed.
       download and store each file when the response completes, and append the
       resulting `AttachmentContentPart`s to the assistant message content before
       persisting.
-- [ ] Apply per-message limits (count and total size) and log skipped files
-      through the audit logger.
+- [ ] Apply per-message limits (count and total size) and log skipped or failed
+      files through the audit logger; a failed download is dropped, not retried,
+      and does not fail the rest of the turn.
 - [ ] Make sure interrupted/partial responses still persist any files already
       generated, matching the existing partial-content handling.
 

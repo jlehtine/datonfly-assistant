@@ -215,6 +215,25 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         await this.qb.deleteFrom("thread").where("id", "=", threadId).execute();
     }
 
+    async getThreadContainerId(threadId: string): Promise<string | null> {
+        const row = await this.qb
+            .selectFrom("thread")
+            .select("agent_container_id")
+            .where("id", "=", threadId)
+            .executeTakeFirst();
+        return row?.agent_container_id ?? null;
+    }
+
+    async setThreadContainerId(threadId: string, containerId: string): Promise<void> {
+        // Deliberately doesn't bump `updated_at` — this is provider-internal
+        // bookkeeping, not user-visible thread activity.
+        await this.qb
+            .updateTable("thread")
+            .set({ agent_container_id: containerId })
+            .where("id", "=", threadId)
+            .execute();
+    }
+
     async updateThreadUserState(
         threadId: string,
         userId: string,

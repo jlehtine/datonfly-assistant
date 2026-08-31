@@ -91,6 +91,8 @@ interface ActiveStream {
     pendingToolBoundaryBreak: boolean;
     /** Provider file references reported mid-stream, deduplicated in arrival order. */
     generatedFileRefs: string[];
+    /** Provider code-execution container ID reported mid-stream, or `null` if none. */
+    containerId: string | null;
 }
 
 /** A generated file downloaded and ready to persist as an assistant-message attachment. */
@@ -508,6 +510,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             hasTextSinceToolBoundary: false,
             pendingToolBoundaryBreak: false,
             generatedFileRefs: [],
+            containerId: null,
         };
         this.activeStreams.set(threadId, streamState);
 
@@ -515,7 +518,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         // stream path, so the title path never loads file bytes.
         await resolveAttachmentData(messages, this.persistence);
 
-        const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
+        const containerId = await this.persistence.getThreadContainerId(threadId);
+        const stream = await this.agent.stream(
+            messages,
+            threadId,
+            userId,
+            controller.signal,
+            containerId ? { containerId } : undefined,
+        );
         return { stream, streamState, userId };
     }
     /**
@@ -631,6 +641,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                         if (!streamState.generatedFileRefs.includes(chunk.fileRef)) {
                             streamState.generatedFileRefs.push(chunk.fileRef);
                         }
+                    } else if (chunk.type === "container") {
+                        streamState.containerId = chunk.containerId;
                     } else {
                         // usage chunk
                         streamState.usage = chunk.usage;
@@ -719,6 +731,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     ...(streamState.replayData ? { replayData: streamState.replayData } : {}),
                 });
                 await this.persistGeneratedFileAttachments(threadId, persistedMessage.id, generatedFiles);
+                if (streamState.containerId) {
+                    await this.persistence.setThreadContainerId(threadId, streamState.containerId);
+                }
 
                 const completeEvent: MessageCompleteEvent = {
                     event: "message-complete",
@@ -795,12 +810,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
         this.activeStreams.delete(threadId);
 
-        // Persist partial response (if any text, tool activity, or files were generated)
+        // Persist partial response (if any text, tool activity, files, or a
+        // container were generated)
         if (
             active.currentText ||
             active.thinkingPartsByIndex.size > 0 ||
             active.toolParts.length > 0 ||
-            active.generatedFileRefs.length > 0
+            active.generatedFileRefs.length > 0 ||
+            active.containerId
         ) {
             const generatedFiles = await this.collectGeneratedFileAttachments(
                 threadId,
@@ -824,6 +841,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 metadata: { interrupted: true },
             });
             await this.persistGeneratedFileAttachments(threadId, persistedMessage.id, generatedFiles);
+            if (active.containerId) {
+                await this.persistence.setThreadContainerId(threadId, active.containerId);
+            }
 
             const completeEvent: MessageCompleteEvent = {
                 event: "message-complete",

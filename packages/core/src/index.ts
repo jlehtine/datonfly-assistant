@@ -58,6 +58,7 @@ export type {
     UsageChunk,
     GeneratedFileChunk,
     GeneratedFileData,
+    ContainerChunk,
     AgentUsage,
     Citation,
     ShouldRespondResult,

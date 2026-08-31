@@ -25,6 +25,7 @@ export interface ThreadsTable {
     memory_enabled: ColumnType<boolean, boolean | undefined, boolean>;
     title_generated_at: Date | null;
     title_manually_set: ColumnType<boolean, boolean | undefined, boolean>;
+    agent_container_id: string | null;
 }
 
 /** Kysely table definition for the `thread_member` database table. */

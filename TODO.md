@@ -398,11 +398,39 @@ end to end:
 
 ### Phase 4 — Container reuse
 
-- [ ] Persist the Anthropic container ID **per thread** and pass it back on
+- [x] Persist the Anthropic container ID **per thread** and pass it back on
       subsequent requests, so files and REPL state survive across turns. A
       container must never be shared between threads: it retains files for up to
       30 days and is workspace-scoped.
-- [ ] Handle expired/invalid containers by retrying once without the parameter.
+- [x] Handle expired/invalid containers by retrying once without the parameter.
+
+Added provider-neutral `containerId` (request option) and `ContainerChunk`
+(stream output) to `packages/core/src/interfaces/agent.ts`. The container ID is
+stored on the `thread` row (`agent_container_id`, migration
+`2026-08-31M0002-thread-agent-container.ts`) behind two dedicated persistence
+methods, `getThreadContainerId`/`setThreadContainerId`, rather than as a field
+on the shared `Thread` domain type — keeping this provider-internal detail out
+of anything serialized to clients. `setThreadContainerId` deliberately doesn't
+bump `updated_at`, so it never reorders the user-visible thread list.
+
+In `packages/agent-anthropic`, `buildRequest` forwards `containerId` as the
+request's `container` string param; `stream.ts` reads `finalMessage.container`
+once a turn completes and emits a single deduplicated `container` chunk.
+Expired/invalid containers are handled with a one-shot retry: a bounded
+`containerRetryAvailable` flag (mirroring the mid-stream overload retry already
+in `stream.ts`) strips `container` from the request and retries the same turn
+once if the failure looks like Anthropic rejecting a stale reference
+(`isInvalidContainerError` in `errors.ts` — a conservative,
+**unverified-against-the-live-API** heuristic: a 400 `invalid_request_error`
+whose message mentions "container", to avoid masking unrelated bad requests with
+a pointless retry). `chat.gateway.ts` loads the stored container ID before
+calling `agent.stream`, collects a `container` chunk into `ActiveStream`
+alongside the other end-of-turn state, and persists it in both the
+normal-completion and interrupted paths.
+
+Covered by new fixture-driven tests in `agent.test.ts` (`invalid-container.json`
+/ `plain-text-with-container.json`): container passthrough, container-chunk
+emission, the one-shot retry, and that an unrelated 400 is not retried.
 
 ### Phase 5 — System prompt
 

@@ -167,6 +167,20 @@ export interface UsageChunk {
     usage: AgentUsage;
 }
 
+/**
+ * The provider's code-execution container in use for this call, if any.
+ *
+ * Emitted once a turn completes when the provider reports a container ID —
+ * whether reused from a prior call (via {@link AgentRunOptions.containerId}) or
+ * newly created. The caller persists it (e.g. per thread) and passes it back on
+ * a later call to keep sandbox files and REPL state alive across turns.
+ */
+export interface ContainerChunk {
+    type: "container";
+    /** Opaque provider-specific container reference. */
+    containerId: string;
+}
+
 /** Discriminated union of all streamed agent output chunk types. */
 export type AgentStreamChunk =
     | TextDeltaChunk
@@ -178,6 +192,7 @@ export type AgentStreamChunk =
     | ToolCallChunk
     | ToolResultChunk
     | GeneratedFileChunk
+    | ContainerChunk
     | UsageChunk;
 
 /** Result of an agent's decision on whether to respond in a room thread. */
@@ -211,6 +226,15 @@ export interface AgentRunOptions {
      * without persisting a system message in the thread.
      */
     systemPrompt?: string | undefined;
+    /**
+     * Opaque provider-specific code-execution container reference to resume,
+     * as previously reported via a {@link ContainerChunk}.
+     *
+     * Ignored by providers that don't support code execution. An expired or
+     * invalid reference does not fail the call — the provider falls back to a
+     * fresh container and reports its ID via a new {@link ContainerChunk}.
+     */
+    containerId?: string | undefined;
 }
 
 /**

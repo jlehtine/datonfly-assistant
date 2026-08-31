@@ -151,6 +151,7 @@ export class AnthropicAgent implements IAgentProvider {
         system: Anthropic.Beta.BetaTextBlockParam[] | undefined,
         messages: Anthropic.Beta.BetaMessageParam[],
         tools: ITool[],
+        containerId: string | undefined,
     ): Omit<Anthropic.Beta.Messages.MessageCreateParamsStreaming, "messages" | "stream"> {
         const allTools = [...this.serverTools, ...tools.map(toolToParam)];
         const thinking = buildThinkingParam(this.options);
@@ -163,6 +164,7 @@ export class AnthropicAgent implements IAgentProvider {
             betas: requiredBetas(this.options),
             ...(system ? { system } : {}),
             ...(allTools.length > 0 ? { tools: allTools } : {}),
+            ...(containerId ? { container: containerId } : {}),
             thinking,
             ...(outputConfig ? { output_config: outputConfig } : {}),
             ...(contextManagement ? { context_management: contextManagement } : {}),
@@ -194,7 +196,7 @@ export class AnthropicAgent implements IAgentProvider {
         const system = systemPrompt
             ? [{ type: "text" as const, text: systemPrompt }, ...(conversation.system ?? [])]
             : conversation.system;
-        const request = this.buildRequest(system, conversation.messages, tools);
+        const request = this.buildRequest(system, conversation.messages, tools, options?.containerId);
 
         return Promise.resolve(
             streamAgent({

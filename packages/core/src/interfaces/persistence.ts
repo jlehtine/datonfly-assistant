@@ -162,6 +162,18 @@ export interface IPersistenceProvider {
     /** Permanently delete a thread and all its messages. */
     deleteThread(threadId: string): Promise<void>;
 
+    /**
+     * Get the persisted agent code-execution container ID for a thread, or
+     * `null` if none is stored yet.
+     *
+     * Kept separate from {@link Thread} / {@link updateThread} (rather than a
+     * plain field) so this provider-internal detail is never accidentally
+     * included in a `Thread` sent to clients.
+     */
+    getThreadContainerId(threadId: string): Promise<string | null>;
+    /** Persist the agent code-execution container ID for a thread. */
+    setThreadContainerId(threadId: string, containerId: string): Promise<void>;
+
     /** Update per-user thread state (archive / last-read). Creates the row on first call (UPSERT). */
     updateThreadUserState(
         threadId: string,

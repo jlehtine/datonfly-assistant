@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentMessage, ITool, ProviderReplayData } from "@datonfly-assistant/core";
+import type { AgentMessage, AgentStreamChunk, ITool, ProviderReplayData } from "@datonfly-assistant/core";
 
 import { AnthropicAgent } from "./agent.js";
 import { ADDER_TOOL, collectChunks, CONFORMANCE_CASES, joinText, userMessage } from "./testing/conformance.js";
@@ -132,6 +132,64 @@ describe("AnthropicAgent streaming", () => {
         await withServer(["error-400"], async (server) => {
             const agent = createAgent(server.baseUrl);
             await expect(collectChunks(agent, [userMessage("Say hello.")])).rejects.toThrow();
+        });
+    });
+});
+
+describe("AnthropicAgent container reuse", () => {
+    it("passes containerId through as the request's container parameter", async () => {
+        await withServer(["plain-text-with-container"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const stream = await agent.stream([userMessage("Say hello.")], "thread-1", "user-1", undefined, {
+                containerId: "container_previous",
+            });
+            for await (const _chunk of stream) {
+                // drain
+            }
+
+            expect(server.requests[0]?.container).toBe("container_previous");
+        });
+    });
+
+    it("surfaces the provider's reported container ID as a container chunk", async () => {
+        await withServer(["plain-text-with-container"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const chunks = await collectChunks(agent, [userMessage("Say hello.")]);
+
+            const containerChunk = chunks.find((chunk) => chunk.type === "container");
+            expect(containerChunk).toEqual({ type: "container", containerId: "container_fresh_123" });
+        });
+    });
+
+    it("retries once without the container after an invalid/expired container error", async () => {
+        await withServer(["invalid-container", "plain-text-with-container"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const stream = await agent.stream([userMessage("Say hello.")], "thread-1", "user-1", undefined, {
+                containerId: "container_stale_or_expired",
+            });
+            const chunks: AgentStreamChunk[] = [];
+            for await (const chunk of stream) chunks.push(chunk);
+
+            expect(server.requests.length).toBe(2);
+            expect(server.requests[0]?.container).toBe("container_stale_or_expired");
+            expect(server.requests[1]?.container).toBeUndefined();
+            expect(chunks.some((chunk) => chunk.type === "container")).toBe(true);
+        });
+    });
+
+    it("does not retry a container-unrelated 400 error, even with a containerId set", async () => {
+        await withServer(["error-400"], async (server) => {
+            const agent = createAgent(server.baseUrl);
+            const attempt = async (): Promise<void> => {
+                const stream = await agent.stream([userMessage("Say hello.")], "thread-1", "user-1", undefined, {
+                    containerId: "container_previous",
+                });
+                for await (const _chunk of stream) {
+                    // drain
+                }
+            };
+            await expect(attempt()).rejects.toThrow();
+            expect(server.requests.length).toBe(1);
         });
     });
 });

@@ -10,12 +10,15 @@
  */
 import { watch, type FSWatcher } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { join } from "node:path";
 
 import {
     DEFAULT_FIXTURE_DIR,
+    loadFileFixtures,
     loadScenarios,
     selectFixture,
     selectNonStreamingFixture,
+    type FileFixture,
     type Scenario,
 } from "./scenario-registry.js";
 import { buildFrames } from "./timing.js";
@@ -62,6 +65,7 @@ async function handleRequest(
     req: IncomingMessage,
     res: ServerResponse,
     scenarios: Scenario[],
+    fileFixtures: Map<string, FileFixture>,
     speed: number,
 ): Promise<void> {
     // The caller can disconnect mid-stream (an interrupted turn, or a test's
@@ -71,6 +75,20 @@ async function handleRequest(
     res.on("close", () => {
         clientGone.abort();
     });
+
+    // Files API calls (fetching a generated file) are plain GETs with no body
+    // and no scenario to select — served straight from their own fixture map.
+    if (req.method === "GET") {
+        const fixture = fileFixtures.get(req.url ?? "");
+        if (!fixture) {
+            res.writeHead(404, { "content-type": "application/json" });
+            res.end(JSON.stringify({ error: `no file fixture for ${req.url ?? ""}` }));
+            return;
+        }
+        res.writeHead(fixture.response.status, fixture.response.headers);
+        res.end(fixture.response.body);
+        return;
+    }
 
     const raw = await readBody(req);
     const body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
@@ -104,6 +122,7 @@ async function handleRequest(
 export async function startPlaybackServer(options: PlaybackServerOptions = {}): Promise<PlaybackServer> {
     const speed = options.speed ?? 8;
     let scenarios = await loadScenarios(options.fixtureDir);
+    let fileFixtures = await loadFileFixtures(options.fixtureDir);
 
     // Reload when a fixture is added or edited. Without this an unloaded
     // fixture does not error, it silently falls back to the default scenario —
@@ -111,30 +130,40 @@ export async function startPlaybackServer(options: PlaybackServerOptions = {}): 
     // it, rather than as an obvious problem with the harness.
     const fixtureDir = options.fixtureDir ?? DEFAULT_FIXTURE_DIR;
     let reloadTimer: NodeJS.Timeout | undefined;
+    const scheduleReload = (): void => {
+        clearTimeout(reloadTimer);
+        // Debounced: an editor save can emit several events for one write.
+        reloadTimer = setTimeout(() => {
+            void Promise.all([loadScenarios(options.fixtureDir), loadFileFixtures(options.fixtureDir)])
+                .then(([reloadedScenarios, reloadedFileFixtures]) => {
+                    scenarios = reloadedScenarios;
+                    fileFixtures = reloadedFileFixtures;
+                })
+                .catch((error: unknown) => {
+                    process.stderr.write(
+                        `fixture reload failed: ${error instanceof Error ? error.message : String(error)}\n`,
+                    );
+                });
+        }, 150);
+    };
     let watcher: FSWatcher | undefined;
+    let filesWatcher: FSWatcher | undefined;
     try {
-        watcher = watch(fixtureDir, () => {
-            clearTimeout(reloadTimer);
-            // Debounced: an editor save can emit several events for one write.
-            reloadTimer = setTimeout(() => {
-                void loadScenarios(options.fixtureDir)
-                    .then((reloaded) => {
-                        scenarios = reloaded;
-                    })
-                    .catch((error: unknown) => {
-                        process.stderr.write(
-                            `fixture reload failed: ${error instanceof Error ? error.message : String(error)}\n`,
-                        );
-                    });
-            }, 150);
-        });
+        watcher = watch(fixtureDir, scheduleReload);
     } catch {
         // Watching is a convenience; a platform that cannot do it still serves
         // the fixtures loaded at startup.
     }
+    try {
+        // Watched separately: `files/` is a subdirectory of `fixtureDir`, and
+        // `fs.watch` isn't recursive on every platform.
+        filesWatcher = watch(join(fixtureDir, "files"), scheduleReload);
+    } catch {
+        // The subdirectory may not exist for a fixtureDir with no file fixtures.
+    }
 
     const server: Server = createServer((req, res) => {
-        void handleRequest(req, res, scenarios, speed).catch((error: unknown) => {
+        void handleRequest(req, res, scenarios, fileFixtures, speed).catch((error: unknown) => {
             // Once headers are sent, a second writeHead() throws
             // ERR_HTTP_HEADERS_SENT — that secondary throw would otherwise go
             // unhandled here and leave the connection hanging until the
@@ -162,6 +191,7 @@ export async function startPlaybackServer(options: PlaybackServerOptions = {}): 
             new Promise<void>((resolve, reject) => {
                 clearTimeout(reloadTimer);
                 watcher?.close();
+                filesWatcher?.close();
                 server.close((error) => {
                     if (error) reject(error);
                     else resolve();

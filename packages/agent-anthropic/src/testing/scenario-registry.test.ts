@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadScenarios, selectFixture, selectNonStreamingFixture } from "./scenario-registry.js";
+import { loadFileFixtures, loadScenarios, selectFixture, selectNonStreamingFixture } from "./scenario-registry.js";
 
 describe("loadScenarios", () => {
     it("groups a multi-exchange scenario by its numeric suffix, in order", async () => {
@@ -30,6 +30,23 @@ describe("loadScenarios", () => {
         // friends stay distinct instead of collapsing into one `error` scenario.
         expect(scenarios.map((s) => s.name)).toEqual(expect.arrayContaining(["error-400", "error-429", "error-529"]));
         expect(scenarios.find((s) => s.name === "error")).toBeUndefined();
+    });
+});
+
+describe("loadFileFixtures", () => {
+    it("keyes committed Files API fixtures by their request path", async () => {
+        const fileFixtures = await loadFileFixtures();
+        const metadata = fileFixtures.get("/v1/files/file_01FCiZjrYi2AHg9qV2XqhHXL");
+        expect(metadata?.response.status).toBe(200);
+        expect(metadata?.response.body).toContain("fibonacci.py");
+
+        const content = fileFixtures.get("/v1/files/file_01FCiZjrYi2AHg9qV2XqhHXL/content");
+        expect(content?.response.body).toContain("def fib(n):");
+    });
+
+    it("returns an empty map for a fixture directory with no files/ subdirectory", async () => {
+        const fileFixtures = await loadFileFixtures("/nonexistent-fixture-dir");
+        expect(fileFixtures.size).toBe(0);
     });
 });
 

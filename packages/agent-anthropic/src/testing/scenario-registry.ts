@@ -78,6 +78,38 @@ function extractTrigger(first: Fixture): string | undefined {
     return text.length > 0 ? text : undefined;
 }
 
+/** A recorded exchange for a single HTTP GET, keyed by request path (e.g. Files API calls) rather than grouped into a scenario. */
+export interface FileFixture {
+    request: { method: string; path: string; headers: Record<string, string> };
+    response: { status: number; headers: Record<string, string>; body: string };
+}
+
+/**
+ * Load Files-API fixtures from `<fixtureDir>/files/`, keyed by request path.
+ *
+ * Kept in their own subdirectory (rather than alongside scenario fixtures) so
+ * {@link loadScenarios}'s flat, non-recursive directory scan never sees them —
+ * a GET has no `messages` to select a scenario by, so mixing the two would
+ * misclassify them. Returns an empty map if the directory doesn't exist yet.
+ */
+export async function loadFileFixtures(fixtureDir: string = DEFAULT_FIXTURE_DIR): Promise<Map<string, FileFixture>> {
+    const dir = join(fixtureDir, "files");
+    let files: string[];
+    try {
+        files = (await readdir(dir)).filter((file) => file.endsWith(".json"));
+    } catch {
+        return new Map();
+    }
+
+    const result = new Map<string, FileFixture>();
+    for (const file of files) {
+        const raw = await readFile(join(dir, file), "utf-8");
+        const fixture = JSON.parse(raw) as FileFixture;
+        result.set(fixture.request.path, fixture);
+    }
+    return result;
+}
+
 /** Load every committed fixture and group it into scenarios. */
 export async function loadScenarios(fixtureDir: string = DEFAULT_FIXTURE_DIR): Promise<Scenario[]> {
     const files = (await readdir(fixtureDir)).filter((file) => file.endsWith(".json")).sort();

@@ -119,6 +119,7 @@ async function bootstrap(): Promise<void> {
         adminIps: cfg.adminIps,
         logLevel: cfg.log.level,
         logFormat: cfg.log.format,
+        generatedFilesEnabled: cfg.generatedFiles.enabled,
         rateLimit: {
             enabled: cfg.rateLimit.enabled,
             factor: cfg.rateLimit.factor,

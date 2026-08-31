@@ -61,4 +61,28 @@ describe("startPlaybackServer", () => {
             expect(joinText(chunks)).toContain("hello from the fixture");
         });
     });
+
+    it("reports a generated file and downloads its real bytes through the Files API fixtures", async () => {
+        await withPlayback(async (server) => {
+            const agent = new AnthropicAgent({
+                modelName: "claude-opus-5",
+                apiKey: "sk-ant-test",
+                baseUrl: server.url,
+                providerOptions: { maxRetries: 0, disableCaching: true },
+            });
+            const chunks = await collectChunks(agent, [
+                userMessage(
+                    "Write a minimal Python script that outputs Fibonacci numbers sequence and share it with me.",
+                ),
+            ]);
+
+            const generatedFile = chunks.find((chunk) => chunk.type === "generated-file");
+            expect(generatedFile?.fileRef).toBe("file_01FCiZjrYi2AHg9qV2XqhHXL");
+
+            const file = await agent.fetchGeneratedFile(generatedFile?.fileRef ?? "");
+            expect(file.filename).toBe("fibonacci.py");
+            expect(file.mimeType).toBe("text/x-script.python");
+            expect(new TextDecoder().decode(file.bytes)).toContain("def fib(n):");
+        });
+    });
 });

@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 
@@ -7,6 +11,8 @@ import { readGeneratedFileChunks } from "./stream.js";
 function messageOf(content: unknown[]): Anthropic.Beta.BetaMessage {
     return { content } as unknown as Anthropic.Beta.BetaMessage;
 }
+
+const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "test", "fixtures", "raw");
 
 describe("readGeneratedFileChunks", () => {
     it("extracts a file ID from a bash result that copied a file into $OUTPUT_DIR", () => {
@@ -118,5 +124,15 @@ describe("readGeneratedFileChunks", () => {
         ]);
 
         expect(readGeneratedFileChunks(message)).toEqual([]);
+    });
+
+    it("extracts the file ID from a real API capture (thinking/text/editor blocks ignored, both a failed and a successful bash result present)", () => {
+        const fixture = JSON.parse(
+            readFileSync(join(FIXTURE_DIR, "real-capture-generated-file-content.json"), "utf-8"),
+        ) as { content: unknown[] };
+
+        expect(readGeneratedFileChunks(messageOf(fixture.content))).toEqual([
+            { type: "generated-file", fileRef: "file_01YNTHc3UyuE4CrvkvhFhjya" },
+        ]);
     });
 });

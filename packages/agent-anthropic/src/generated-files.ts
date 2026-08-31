@@ -4,9 +4,6 @@ import type { GeneratedFileData } from "@datonfly-assistant/core";
 
 import { isRetryableApiError } from "./errors.js";
 
-/** Beta header required to use the Files API. */
-export const FILES_API_BETA = "files-api-2025-04-14";
-
 /** Bounded retries for a failed generated-file download (fail-fast + bounded retry, see TODO.md). */
 export const MAX_GENERATED_FILE_RETRIES = 3;
 
@@ -48,11 +45,14 @@ async function downloadOnce(
     signal: AbortSignal | undefined,
 ): Promise<GeneratedFileData> {
     const requestOptions = signal ? { signal } : {};
-    const metadata = await client.beta.files.retrieveMetadata(fileId, { betas: [FILES_API_BETA] }, requestOptions);
+    // No `betas` param here: the SDK's `beta.files.*` methods always send
+    // `files-api-2025-04-14` themselves (verified against a real capture) —
+    // passing it again only duplicated the header.
+    const metadata = await client.beta.files.retrieveMetadata(fileId, null, requestOptions);
     if (metadata.size_bytes > maxBytes) {
         throw new GeneratedFileTooLargeError(fileId, metadata.size_bytes, maxBytes);
     }
-    const response = await client.beta.files.download(fileId, { betas: [FILES_API_BETA] }, requestOptions);
+    const response = await client.beta.files.download(fileId, null, requestOptions);
     const arrayBuffer = await response.arrayBuffer();
     if (arrayBuffer.byteLength > maxBytes) {
         throw new GeneratedFileTooLargeError(fileId, arrayBuffer.byteLength, maxBytes);

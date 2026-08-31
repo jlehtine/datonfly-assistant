@@ -68,6 +68,35 @@ test.describe("server-side tools", () => {
     });
 });
 
+test.describe("generated files", () => {
+    test("attaches a file the assistant saved to $OUTPUT_DIR, downloadable with its real content", async ({ page }) => {
+        await page.goto("/");
+        await expect(composerInput(page)).toBeEnabled({ timeout: 10_000 });
+
+        await sendAndWaitForReply(
+            page,
+            "Write a minimal Python script that outputs Fibonacci numbers sequence and share it with me.",
+        );
+
+        const attachment = page.locator(".datonfly-message-ai .datonfly-message-attachment").last();
+        await expect(attachment).toBeVisible({ timeout: 10_000 });
+        await expect(attachment).toHaveAttribute("data-attachment-id", /.+/);
+
+        const downloadHref = await attachment.evaluate((el) => {
+            const anchor = el.matches("a") ? el : el.querySelector("a");
+            return anchor?.getAttribute("href") ?? "";
+        });
+        expect(downloadHref).toContain("/datonfly-assistant/attachments/");
+
+        const bytes = await page.evaluate(async (url: string) => {
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) throw new Error(`download failed: ${res.status.toString()}`);
+            return res.text();
+        }, downloadHref);
+        expect(bytes).toContain("def fib(n):");
+    });
+});
+
 test.describe("compaction", () => {
     test("completes a turn that triggers mid-stream context compaction", async ({ page }) => {
         await page.goto("/");

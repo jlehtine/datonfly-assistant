@@ -1,0 +1,32 @@
+{
+    "request": {
+        "method": "GET",
+        "path": "/v1/files/file_01FCiZjrYi2AHg9qV2XqhHXL/content",
+        "headers": {
+            "accept": "application/binary",
+            "anthropic-beta": "files-api-2025-04-14",
+            "anthropic-version": "2023-06-01",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-arch": "x64",
+            "x-stainless-lang": "js",
+            "x-stainless-os": "Linux",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v22.22.0"
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/x-script.python"
+        },
+        "body": "#!/usr/bin/env python3\n\"\"\"Print the first N Fibonacci numbers. Usage: python fibonacci.py [N]\"\"\"\nimport sys\n\n\ndef fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        yield a\n        a, b = b, a + b\n\n\nif __name__ == \"__main__\":\n    n = int(sys.argv[1]) if len(sys.argv) > 1 else 10\n    print(*fib(n))\n",
+        "frames": [
+            {
+                "atMs": 344,
+                "text": "#!/usr/bin/env python3\n\"\"\"Print the first N Fibonacci numbers. Usage: python fibonacci.py [N]\"\"\"\nimport sys\n\n\ndef fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        yield a\n        a, b = b, a + b\n\n\nif __name__ == \"__main__\":\n    n = int(sys.argv[1]) if len(sys.argv) > 1 else 10\n    print(*fib(n))\n"
+            }
+        ]
+    }
+}

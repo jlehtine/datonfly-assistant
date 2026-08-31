@@ -455,14 +455,85 @@ whatever value ends up injected there. Covered by a new
 
 ### Phase 6 — Configuration, docs, and tests
 
-- [ ] Add the feature flag and any limits to `packages/backend/src/config.ts`,
+- [x] Add the feature flag and any limits to `packages/backend/src/config.ts`,
       `.env.example`, `INSTALL.md`, and `ENV_MIGRATION.md` (new `DF_*` names
       only).
-- [ ] Update the attachments and agent-tools bullets in `README.md` to describe
+- [x] Update the attachments and agent-tools bullets in `README.md` to describe
       assistant-generated files as a first-class capability.
-- [ ] Add an end-to-end test covering a prompt that generates a file, asserting
+- [x] Add an end-to-end test covering a prompt that generates a file, asserting
       the download chip appears on the assistant message and the bytes are
       retrievable. Run only that spec file.
+
+`DF_ENABLE_GENERATED_FILES` (default enabled) and `DF_GENERATED_FILE_MAX_BYTES`
+are wired end-to-end: `packages/backend/src/config.ts` → `ChatModule.forRoot`'s
+new `generatedFilesEnabled` option (`GENERATED_FILES_ENABLED` DI token) and
+`AnthropicAgentConfig.providerOptions.maxGeneratedFileBytes`. Documented in
+`.env.example`, `INSTALL.md`, and `README.md`; no `ENV_MIGRATION.md` entry since
+these are new names, not renames. Covered by new cases in
+`packages/backend/src/config.test.ts`.
+
+The end-to-end test needed a real captured `file_id` and its Files API
+responses, which no fixture had (`code-execution.json` never writes to
+`$OUTPUT_DIR`). The user captured one live via `DF_ANTHROPIC_TRAFFIC_DUMP_DIR`
+after Phase 1/2 landed — proof that the dumper needs no changes to capture Files
+API calls, since it wraps the SDK's own `fetch` rather than being scoped to
+`/v1/messages`. That capture also caught a real bug: `generated-files.ts` was
+passing `betas: [FILES_API_BETA]` on every Files API call, but the SDK already
+appends that beta unconditionally on `client.beta.files.*` — the param only
+duplicated the header. Removed, and `FILES_API_BETA` with it (no longer
+referenced anywhere).
+
+Landed as:
+
+- `packages/agent-anthropic/test/fixtures/code-execution-with-file.json` — the
+  streaming exchange (header-stripped so its trigger text matches a live
+  request's differently-timestamped header; existing fixtures never had a header
+  to begin with, captured as they were via a raw recording script rather than
+  through the full chat pipeline).
+- `packages/agent-anthropic/test/fixtures/files/*.json` — the two Files API
+  exchanges (metadata + content), kept in their own subdirectory so
+  `loadScenarios`'s flat, non-recursive scan of `test/fixtures/` never
+  misclassifies a bodyless GET as a messages-scenario fixture.
+  `scenario-registry.ts` gained `loadFileFixtures` to load them, keyed by
+  request path; `playback-server.ts` now serves a GET request straight from that
+  map (no SSE pacing needed) before falling into the existing POST/messages
+  handling, and reloads it on change alongside scenarios.
+- This surfaced a pre-existing latent bug:
+  `real-capture-generated-file-content.json` (added in the Phase 1 test-fixture
+  work) lived directly under `test/fixtures/`, which `loadScenarios` also scans
+  — it isn't `{scenario,request,response}`-shaped, so any test that actually
+  called `loadScenarios()` (not just the ones invoked directly with that one
+  file) would have crashed. It went unnoticed because only the two
+  directly-affected test files were run after adding it, not the full package
+  suite. Moved to `test/fixtures/raw/`, alongside the new `files/` convention,
+  and `stream.test.ts` updated to match. **Lesson: after adding anything to
+  `test/fixtures/`, run the full `agent-anthropic` suite, not just the test file
+  that reads it directly** — `loadScenarios` scans the whole directory and a
+  shape mismatch anywhere in it breaks every scenario-based test.
+- `packages/agent-anthropic/src/testing/scenario-registry.test.ts` and
+  `playback-server.test.ts` gained cases covering `loadFileFixtures` and a full
+  generated-file round trip (`agent.stream()` reporting the chunk,
+  `agent.fetchGeneratedFile()` downloading the real bytes) through the fake API.
+- `tests/agent-capabilities.spec.ts` gained a `"generated files"` describe
+  block: sends the fixture's trigger prompt, asserts a
+  `.datonfly-message-attachment` renders on the assistant message, and downloads
+  it via an authenticated in-page `fetch` to confirm the real script content
+  comes back byte-for-byte recognizable. Ran green against the dev server
+  (`pnpm exec playwright test tests/agent-capabilities.spec.ts`, 6/6 including
+  the pre-existing cases) once the fixture kept its real recorded `frames`:
+  dropping them (as initially committed) fell back to the synthesized per-event
+  pacing model, which is tuned for ordinary-sized responses and blew well past
+  the 30s test timeout on this one — its script content streams as hundreds of
+  `input_json_delta` events, each costing ~500-850ms under the synthetic model.
+  The real recording's own timing (~73s end to end) replays in ~9s at the
+  default 8x speed, comfortably inside the timeout.
+
+Re-recorded once more against a deliberately minimal prompt ("write a minimal
+Python script...") to shrink the committed fixture: 390KB → 48KB for the
+streaming exchange, 16KB → 12KB for the two Files API exchanges. Same shape,
+same lessons applied (headerless trigger, real `frames` kept), just far less
+committed test data for the same coverage. E2E case dropped from 11.2s to 5.0s
+accordingly.
 
 ### Out of scope (record for later)
 

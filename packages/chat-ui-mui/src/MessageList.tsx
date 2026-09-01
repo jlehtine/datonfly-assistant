@@ -24,7 +24,11 @@ const bounce = keyframes`
 
 function ThinkingBubble({ label }: { label: string }): ReactElement {
     return (
-        <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }} aria-label={label}>
+        <Box
+            className="datonfly-thinking-indicator"
+            sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }}
+            aria-label={label}
+        >
             <Box
                 sx={{
                     display: "flex",
@@ -57,7 +61,11 @@ function StatusBubble({ status }: { status: ChatStatusInfo }): ReactElement {
     const { t } = useTranslation();
     const label = t(`status.${status.code}`, { defaultValue: status.text });
     return (
-        <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }} aria-label={label}>
+        <Box
+            className="datonfly-status-indicator"
+            sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }}
+            aria-label={label}
+        >
             <Box
                 sx={{
                     display: "flex",

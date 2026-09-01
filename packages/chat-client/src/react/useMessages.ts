@@ -145,6 +145,18 @@ export function useMessages(
     // until that transition consumes it: it can land after the first deltas,
     // so clearing it any earlier would let the reset through.
     const pendingSendRef = useRef(false);
+    // Bumped synchronously on every sendMessage() call. Lets a completion event
+    // tell whether it still belongs to the latest send: interrupting a stream
+    // sends its (belated) message-complete for the *old* message before the
+    // new one has produced a single event, so by message ID alone the old
+    // completion looks exactly like an ordinary one — nothing marks it stale.
+    const sendGenerationRef = useRef(0);
+    // The generation active when the message currently tracked by
+    // streamingIdRef first appeared. Compared against sendGenerationRef in
+    // handleComplete: a mismatch means a newer send already started before
+    // this (older) message's completion arrived, so the global streaming
+    // indicators belong to that newer send now and must not be cleared.
+    const streamingGenerationRef = useRef(0);
 
     /**
      * Fetch a page of history messages from the REST API.
@@ -303,6 +315,7 @@ export function useMessages(
 
             if (streamingIdRef.current !== event.messageId) {
                 streamingIdRef.current = event.messageId;
+                streamingGenerationRef.current = sendGenerationRef.current;
                 const initialParts = padToIndex([], event.partIndex);
                 initialParts.push(incomingPart);
                 setMessages((prev) => [
@@ -342,6 +355,7 @@ export function useMessages(
 
             if (streamingIdRef.current !== event.messageId) {
                 streamingIdRef.current = event.messageId;
+                streamingGenerationRef.current = sendGenerationRef.current;
                 const initialParts = padToIndex([], event.partIndex);
                 initialParts.push(event.part);
                 setMessages((prev) => [
@@ -393,11 +407,21 @@ export function useMessages(
                     },
                 ];
             });
-            streamingIdRef.current = null;
+            // A belated completion for an interrupted message can arrive after the
+            // user already sent a replacement (interruptActiveStream broadcasts it
+            // before the new turn produces a single event) — if a newer send has
+            // since taken over, leave the global streaming indicators alone rather
+            // than clearing state a newer, still-active turn owns.
+            const isLatestSend = streamingGenerationRef.current === sendGenerationRef.current;
+            if (streamingIdRef.current === event.messageId) {
+                streamingIdRef.current = null;
+            }
             completedMessageIdsRef.current.add(event.messageId);
-            pendingSendRef.current = false;
-            setIsStreaming(false);
-            setStreamingStatus(null);
+            if (isLatestSend) {
+                pendingSendRef.current = false;
+                setIsStreaming(false);
+                setStreamingStatus(null);
+            }
         };
 
         const handleStatus = (event: MessageStatusEvent): void => {

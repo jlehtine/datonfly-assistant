@@ -64,10 +64,8 @@ transport built for assistant-generated files: `GeneratedFileChunk` /
 
 `renderPart` in `packages/chat-ui-mui/src/MessageBubble.tsx` returns `null` for
 `tool-call` and `tool-result` parts, so tool activity is invisible beyond the
-transient status indicator. The parts are persisted and, once the original
-content ordering work lands (see
-[tasks/2026/original-order.md](tasks/2026/original-order.md)), also delivered to
-the client live via the `part-added` event and positioned correctly among the
-text and thinking parts. What remains is purely a UI design and rendering task:
-deciding how a call and its result are presented (collapsed by default, argument
-and result formatting, error styling) and implementing it.
+transient status indicator. The parts are persisted in true chronological order
+and delivered to the client live via the `part-added` event, positioned
+correctly among the text and thinking parts. What remains is purely a UI design
+and rendering task: deciding how a call and its result are presented (collapsed
+by default, argument and result formatting, error styling) and implementing it.

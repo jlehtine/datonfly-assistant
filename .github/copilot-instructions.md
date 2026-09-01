@@ -64,6 +64,9 @@ need to check formatting.
 Do not commit changes unless the user explicitly asks you to. Stage and make
 commits only on explicit user permission or instruction.
 
+Merge a feature branch with a merge commit, not a fast-forward or squash:
+`git merge --no-ff --no-edit`.
+
 ## Testing
 
 After implementing a feature, decide whether the feature warrants unit tests or

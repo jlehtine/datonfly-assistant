@@ -194,12 +194,13 @@ export class ThreadController {
             before: query.before,
         });
 
-        // Strip opaque content parts — they are internal provider data
-        // (e.g. compaction blocks) not intended for the client.
-        return messages.map((msg) => ({
-            ...msg,
-            content: msg.content.filter((p) => p.type !== "opaque"),
-        }));
+        // Strip opaque content parts and replay data — both are internal
+        // provider data (compaction blocks; raw turns for replaying to the
+        // provider) not intended for the client.
+        return messages.map((msg) => {
+            const { replayData: _replayData, ...rest } = msg;
+            return { ...rest, content: msg.content.filter((p) => p.type !== "opaque") };
+        });
     }
 
     @Get(":id/members")

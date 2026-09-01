@@ -136,6 +136,23 @@ to every provider:
 - **Expect vendor SDKs to lag their own APIs.** Where a documented parameter is
   missing from the SDK's types, assert narrowly at that one call site and say
   why in a comment; never widen the surrounding types to accommodate it.
+- **Call a vendor SDK directly rather than through a heavy framework wrapper.**
+  `agent-anthropic` calls `@anthropic-ai/sdk` directly; an earlier
+  LangChain-based implementation silently dropped content block types
+  (`bash_code_execution_tool_result` and friends) its own allowlist didn't know
+  about, making assistant-generated files unreachable in production, and needed
+  several other workarounds for gaps in its abstraction. A framework interposed
+  between the app and a streaming API tends to filter block types for its own
+  model rather than passing everything through; `IAgentProvider` is already this
+  codebase's abstraction boundary; a second one underneath it only hides bugs.
+- **A generated/created file is exposed as an optional provider capability,
+  never as a raw provider-native ID.** `IAgentProvider.fetchGeneratedFile` is
+  optional because not every provider supports code-execution file output; a
+  provider that emits a `GeneratedFileChunk` must make its `fileRef` only
+  resolvable through this method, server-side. Provider file IDs are commonly
+  scoped to the whole workspace/account (any credential in it can read any
+  file), so they must never be sent to or accepted from a client — download the
+  bytes server-side and re-store them under our own attachment ID.
 
 ## Code Formatting
 

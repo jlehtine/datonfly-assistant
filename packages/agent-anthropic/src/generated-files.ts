@@ -4,7 +4,7 @@ import type { GeneratedFileData } from "@datonfly-assistant/core";
 
 import { isRetryableApiError } from "./errors.js";
 
-/** Bounded retries for a failed generated-file download (fail-fast + bounded retry, see TODO.md). */
+/** Bounded retries for a failed generated-file download before it's dropped (no persisted retry state). */
 export const MAX_GENERATED_FILE_RETRIES = 3;
 
 /** Base delay before the first retry; doubles for each subsequent one. */
@@ -69,9 +69,9 @@ async function downloadOnce(
  *
  * Retries a transient failure (rate limit, server error, connection error) a
  * bounded number of times with exponential backoff before giving up; an
- * oversized file is never retried. This is the whole of the "fetch-failure
- * handling" decision in TODO.md — there is no persisted pending state and no
- * later retry, so a caller that exhausts this should drop the file and move on.
+ * oversized file is never retried. There is no persisted pending state and no
+ * later retry beyond this — a caller that exhausts this should drop the file
+ * and move on.
  */
 export async function fetchGeneratedFile(
     client: Anthropic,

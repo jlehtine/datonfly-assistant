@@ -870,8 +870,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
      * Skips entirely when the feature is disabled or the agent doesn't
      * implement {@link IAgentProvider.fetchGeneratedFile}. A download failure
      * (after the agent's own bounded retries) is logged and the file is
-     * dropped — no further retry, per the "fetch-failure handling" decision in
-     * TODO.md.
+     * dropped — no further retry.
      */
     private async collectGeneratedFileAttachments(
         threadId: string,

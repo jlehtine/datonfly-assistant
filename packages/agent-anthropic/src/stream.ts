@@ -146,7 +146,7 @@ function isBashCodeExecutionResultBlock(content: unknown): content is Anthropic.
  * completed assistant turn, deduplicated by file ID.
  *
  * Every reported file ID is a deliberate deliverable: the sandbox only exports
- * files copied into `$OUTPUT_DIR` to the Files API (see TODO.md), so there is
+ * files copied into `$OUTPUT_DIR` to the Files API, so there is
  * no path filtering to apply here. Error results
  * (`bash_code_execution_tool_result_error`) and bash results with no files
  * (`content: []`) simply contribute nothing.

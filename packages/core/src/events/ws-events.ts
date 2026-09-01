@@ -85,18 +85,48 @@ export type ClientToServerEvent =
 
 // ─── Server → Client Events ───
 
-/** Incremental content-part chunk streamed while the assistant is generating a response. */
+/**
+ * Incremental content-part chunk streamed while the assistant is generating a
+ * response.
+ */
 export interface PartDeltaEvent {
     event: "part-delta";
     threadId: string;
     /** Stable ID for the message being streamed. */
     messageId: string;
-    /** Zero-based index of the content part being updated. */
+    /**
+     * Position of the content part being updated in the message's client-side
+     * part array. Assigned by counting only parts actually transmitted live
+     * (text, thinking, tool calls/results, via this event and
+     * {@link PartAddedEvent}) — an opaque part (never sent to clients) or an
+     * attachment (not resolvable until its file is downloaded) occupies a slot
+     * server-side but consumes no client index, so the client array never has a
+     * gap. `message-complete` replaces the array wholesale, so any resulting
+     * shift against the persisted order is invisible.
+     */
     partIndex: number;
     /** The type of the content part being streamed incrementally. */
     type: "text" | "thinking";
     /** The new text fragment to append. */
     delta: string;
+}
+
+/**
+ * A complete, non-incremental content part appended while the assistant is
+ * generating a response (currently tool calls and tool results).
+ *
+ * Unlike {@link PartDeltaEvent}, the part arrives whole — there is nothing to
+ * accumulate, only a position to insert it at.
+ */
+export interface PartAddedEvent {
+    event: "part-added";
+    threadId: string;
+    /** Stable ID for the message being streamed. */
+    messageId: string;
+    /** Position in the message's client-side part array; see {@link PartDeltaEvent.partIndex}. */
+    partIndex: number;
+    /** The complete content part. */
+    part: ContentPart;
 }
 
 /** Transient status update during assistant streaming (e.g. "Running code…"). Not persisted. */
@@ -238,6 +268,7 @@ export interface WelcomeEvent {
 /** Discriminated union of all events the server can send to the client. */
 export type ServerToClientEvent =
     | PartDeltaEvent
+    | PartAddedEvent
     | MessageStatusEvent
     | MessageCompleteEvent
     | NewMessageEvent

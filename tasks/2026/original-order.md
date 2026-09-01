@@ -145,34 +145,36 @@ resulting shift is invisible.
 
 ## Phase 2 — chat-server: ordered accumulation
 
-- [ ] 2.1 `ActiveStream`: replace `currentText`, `thinkingPartsByIndex`,
+- [x] 2.1 `ActiveStream`: replaced `currentText`, `thinkingPartsByIndex`,
       `toolParts`, `opaqueParts`, `generatedFileRefs`,
       `hasTextSinceToolBoundary`, `pendingToolBoundaryBreak` with
       `orderedParts: ContentPart[]`,
-      `positionByProviderIndex: Map<number, number>`, and
-      `generatedFileSlots: { fileRef: string; position: number }[]`.
-- [ ] 2.2 `text-delta` handling: resolve the position from
+      `positionByProviderIndex: Map<number, number>`,
+      `generatedFileSlots: { fileRef: string; position: number }[]`, and
+      `nextClientPartIndex: number` (needed for 3.3 — see below).
+- [x] 2.2 `text-delta` handling: resolves the position from
       `positionByProviderIndex`, appending a new part and recording the position
-      on first sight; update the part in place otherwise. Emit `part-delta` with
-      `partIndex` = **array position**.
-- [ ] 2.3 `tool-call` / `tool-result` / `opaque-part`: append to `orderedParts`
-      at arrival.
-- [ ] 2.4 `generated-file`: append a placeholder `attachment` part immediately
-      and record its slot, so the file occupies its true position.
-- [ ] 2.5 Delete `toolBoundarySeparator` and the `pendingToolBoundaryBreak` /
-      `hasTextSinceToolBoundary` machinery — separate text parts now produce the
-      paragraph break naturally.
-- [ ] 2.6 Delete `orderedThinkingParts` and `attachmentPartsOf`.
-- [ ] 2.7 New private helper `finalizeParts(state, downloadedFiles)`: fills each
-      placeholder slot with the real attachment part, **splices out** slots for
-      files dropped by the count/size limits, and returns the array. Use it from
-      both the `runStream` completion path and `interruptActiveStream`, which
-      currently duplicate the bucket-rebuild.
-- [ ] 2.8 `assistantVisibleLength` / empty-response check: derive from the
-      concatenation of all text parts in `orderedParts` instead of
-      `streamState.currentText`.
-- [ ] 2.9 `interruptActiveStream`: the "anything worth persisting" condition
-      becomes `orderedParts.length > 0 || containerId`.
+      on first sight; updates the part in place otherwise.
+- [x] 2.3 `tool-call` / `tool-result` / `opaque-part`: appended to
+      `orderedParts` at arrival.
+- [x] 2.4 `generated-file`: appends a placeholder `attachment` part immediately
+      and records its slot, so the file occupies its true position.
+- [x] 2.5 Deleted `toolBoundarySeparator` and the `pendingToolBoundaryBreak` /
+      `hasTextSinceToolBoundary` machinery.
+- [x] 2.6 Deleted `orderedThinkingParts` and `attachmentPartsOf`.
+- [x] 2.7 Added `finalizeParts(streamState, downloadedFiles)`: fills each
+      placeholder slot with the real attachment part, splices out slots for
+      files dropped by the count/size limits, and falls back to a single empty
+      text part if the result would otherwise be empty (schema `min(1)`). Used
+      by both the `runStream` completion path and `interruptActiveStream`.
+- [x] 2.8 `assistantVisibleLength` (and the audit log's `assistantTextLength`)
+      now derive from `extractText(streamState.orderedParts)`.
+- [x] 2.9 `interruptActiveStream`'s persist condition is
+      `orderedParts.length > 0 || containerId`.
+- [x] `DownloadedGeneratedFile` gained a `fileRef` field (not in the original
+      plan) — needed so `finalizeParts` can match a downloaded file back to the
+      slot that reserved it; the file's own `attachmentId` is server-generated
+      and unrelated to the provider's file reference.
 
 ## Phase 3 — Protocol and client state
 
@@ -180,23 +182,30 @@ This phase delivers the _transport_ for complete parts only. Rendering tool
 calls and results in the message bubble is explicitly out of scope and stays a
 separate task — `renderPart` keeps returning `null` for them.
 
-- [ ] 3.1 `core/src/events/ws-events.ts`: document `PartDeltaEvent.partIndex` as
-      a position in the message's client-side content-part array, and note that
-      opaque parts and attachments consume no client index.
-- [ ] 3.2 `core/src/events/ws-events.ts`: add `PartAddedEvent`
-      (`{ event: "part-added"; threadId; messageId; partIndex; part: ContentPart }`)
-      and add it to the server→client union.
-- [ ] 3.3 `chat.gateway.ts`: emit `part-added` when appending a tool-call or
-      tool-result part; track the client index with a counter incremented only
-      on live-transmitted appends.
-- [ ] 3.4 `chat-client`: register the `part-added` handler in `useMessages.ts`
-      and forward the event type through `client.ts`.
-- [ ] 3.5 `chat-client/src/react/useMessages.ts` `handleDelta`: the `else`
-      branch `push`es when `event.partIndex >= nextParts.length`, which
-      misaligns the array whenever the gap is larger than one. Pad up to
-      `event.partIndex` first. Under Option 2 this padding is only reached by a
-      tab that joined mid-stream and missed earlier events, not during normal
-      streaming.
+- [x] 3.1 `core/src/events/ws-events.ts`: documented `PartDeltaEvent.partIndex`
+      as a client-array position, and that opaque/attachment parts consume no
+      client index.
+- [x] 3.2 Added `PartAddedEvent` and registered it in `ServerToClientEvent`,
+      `core/src/events/index.ts`, and `core/src/index.ts`.
+- [x] 3.3 `chat.gateway.ts` emits `part-added` for `tool-call`/`tool-result`.
+      The client index is `streamState.nextClientPartIndex`, incremented on
+      every live-transmitted append (first-sight text/thinking deltas and every
+      tool-call/tool-result); a **second** map,
+      `clientIndexByProviderIndex: Map<number, number>`, records which client
+      index a given provider part index was first assigned, so a repeat delta
+      reuses it instead of incrementing again — this is what actually made 2.1's
+      `nextClientPartIndex` field necessary.
+- [x] 3.4 `chat-client`: `part-added` registered in `client.ts`'s
+      `ChatClientEventMap` and handled in `useMessages.ts` via a new
+      `handlePartAdded`, structurally mirroring `handleDelta`'s new-message vs.
+      existing-message branching (minus the merge-with-existing-delta case,
+      since a `part-added` part always arrives complete).
+- [x] 3.5 Fixed the `else` branch's `push` (misaligned whenever the gap exceeded
+      one) by extracting a shared `padToIndex` helper, used by both
+      `handleDelta` and `handlePartAdded`. Changed the padding placeholder from
+      `{ type: "thinking", text: "" }` to `{ type: "text", text: "" }` (D5) — an
+      empty thinking placeholder could otherwise merge into an adjacent real
+      thinking run once Phase 4 groups contiguous thinking parts visually.
 
 ## Phase 4 — Rendering
 

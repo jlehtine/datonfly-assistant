@@ -76,8 +76,6 @@ export interface ThinkingPartChunk {
 /** A complete opaque content part emitted during the stream (e.g. compaction). */
 export interface OpaquePartChunk {
     type: "opaque-part";
-    /** Index of this part in the final content array. */
-    partIndex: number;
     /** The complete opaque part. */
     part: OpaqueContentPart;
 }

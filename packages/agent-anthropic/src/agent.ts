@@ -12,7 +12,6 @@ import {
     type ITool,
     type ProviderLogger,
     type ShouldRespondResult,
-    type ThinkingContentPart,
 } from "@datonfly-assistant/core";
 
 import { applyCacheBreakpoints } from "./caching.js";
@@ -228,24 +227,36 @@ export class AnthropicAgent implements IAgentProvider {
         options?: AgentRunOptions,
     ): Promise<AgentMessage> {
         const stream = await this.stream(messages, threadId, userId, signal, options);
-        const toolParts: ContentPart[] = [];
-        const thinkingByIndex = new Map<number, ThinkingContentPart>();
-        const opaqueParts: ContentPart[] = [];
-        let text = "";
+        // Built in true chronological arrival order, matching `stream()`'s
+        // contract. A text delta's part index maps to its position here so a
+        // later delta for the same part updates in place instead of appending;
+        // thinking parts arrive complete and are pushed once, at the position
+        // they occur.
+        const parts: ContentPart[] = [];
+        const textPositionByPartIndex = new Map<number, number>();
 
         for await (const chunk of stream) {
             switch (chunk.type) {
-                case "text-delta":
-                    if (chunk.partType === "text") text += chunk.delta;
+                case "text-delta": {
+                    if (chunk.partType !== "text") break;
+                    const position = textPositionByPartIndex.get(chunk.partIndex);
+                    if (position !== undefined) {
+                        const existing = parts[position] as Extract<ContentPart, { type: "text" }>;
+                        parts[position] = { type: "text", text: existing.text + chunk.delta };
+                    } else {
+                        textPositionByPartIndex.set(chunk.partIndex, parts.length);
+                        parts.push({ type: "text", text: chunk.delta });
+                    }
                     break;
+                }
                 case "thinking-part":
-                    thinkingByIndex.set(chunk.partIndex, chunk.part);
+                    parts.push(chunk.part);
                     break;
                 case "opaque-part":
-                    opaqueParts.push(chunk.part);
+                    parts.push(chunk.part);
                     break;
                 case "tool-call":
-                    toolParts.push({
+                    parts.push({
                         type: "tool-call",
                         toolCallId: chunk.toolCallId,
                         toolName: chunk.toolName,
@@ -253,7 +264,7 @@ export class AnthropicAgent implements IAgentProvider {
                     });
                     break;
                 case "tool-result":
-                    toolParts.push({
+                    parts.push({
                         type: "tool-result",
                         toolCallId: chunk.toolCallId,
                         toolName: chunk.toolName,
@@ -266,10 +277,7 @@ export class AnthropicAgent implements IAgentProvider {
             }
         }
 
-        const thinkingParts = [...thinkingByIndex.entries()]
-            .sort(([a], [b]) => a - b)
-            .map(([, part]) => part as ContentPart);
-        return { role: "ai", content: [...toolParts, ...thinkingParts, ...opaqueParts, { type: "text", text }] };
+        return { role: "ai", content: parts };
     }
 
     /** @inheritdoc */

@@ -84,27 +84,27 @@ resulting shift is invisible.
 
 ## Phase 0 — Provider: emit in true order
 
-- [ ] 0.1 `stream.ts`: replace `textPartIndex` with `currentTextPartIndex` and
+- [x] 0.1 `stream.ts`: replace `textPartIndex` with `currentTextPartIndex` and
       the boundary rule above. Also reset it to `null` when an overload retry is
       scheduled, so the continuation starts its own part (D3).
-- [ ] 0.2 `stream.ts`: yield `thinking-part` at that block's
+- [x] 0.2 `stream.ts`: yield `thinking-part` at that block's
       `content_block_stop` instead of buffering into `thinkingParts` and
       flushing after the loop. Drop the `thinkingParts` array.
-- [ ] 0.3 `stream.ts`: yield `opaque-part` (compaction) as soon as
+- [x] 0.3 `stream.ts`: yield `opaque-part` (compaction) as soon as
       `readCompactionParts(finalMessage)` produces it for that turn, instead of
       after the loop. Drop the `opaqueParts` array, and delete the chunk's dead
       `partIndex` field (D7) from `core/src/interfaces/agent.ts`.
-- [ ] 0.4 `stream.ts`: yield `generated-file` chunks where
+- [x] 0.4 `stream.ts`: yield `generated-file` chunks where
       `readGeneratedFileChunks(finalMessage)` already runs inside the loop,
       instead of after it. Replace `deduplicateGeneratedFileChunks`'s final pass
       with an incremental `seen: Set<string>` and drop the `generatedFileChunks`
       array. No new block-level reader (D2).
-- [ ] 0.5 `stream.ts`: update the `streamAgent` doc comment — it currently
+- [x] 0.5 `stream.ts`: update the `streamAgent` doc comment — it currently
       states "All text collapses into a single part".
-- [ ] 0.6 `agent.ts` (`run()`): rebuild the accumulator to append parts in
+- [x] 0.6 `agent.ts` (`run()`): rebuild the accumulator to append parts in
       arrival order instead of
       `[...toolParts, ...thinkingParts,     ...opaqueParts, { text }]`.
-- [ ] 0.7 `stream.ts`: simplify `continuationInstruction` to a plain "your
+- [x] 0.7 `stream.ts`: simplify `continuationInstruction` to a plain "your
       previous message was cut off by a service overload; continue your
       response" — drop the 120-character tail quote and the "do not repeat / no
       preamble / join seamlessly" wording (D3). Keep `buildSalvageContent`
@@ -115,26 +115,33 @@ resulting shift is invisible.
 
 ## Phase 1 — Provider contract and tests
 
-- [ ] 1.1 `testing/conformance.ts`: replace the
-      `"all text must accumulate into a single part"` assertion with the new
-      contract — a text part index is never resumed after a different part index
-      has been used, and chunks arrive in non-decreasing part-index order.
-- [ ] 1.2 Add a conformance case on `web-search` asserting citation-split text
-      blocks stay in **one** text part (regression guard for fragmentation).
-- [ ] 1.3 Add a conformance case on `code-execution-with-file` asserting the
-      `generated-file` chunk is emitted **after** that turn's text deltas, and
-      that the text before and after the code-execution blocks merges into a
-      single part (server-tool blocks are not a boundary).
-- [ ] 1.4 `stream.test.ts`: unit cases for the boundary rule (empty thinking
-      block does not split; tool call does; compaction does not; overload retry
-      does).
-- [ ] 1.5 Add a conformance case on `tool-loop-01/02/03` asserting **three
-      distinct text part indices** in increasing order, one per loop turn — the
-      primary guard that multiple text parts are actually produced. (Block
-      layout: `01` text+tool_use, `02` text+tool_use, `03` text.)
-- [ ] 1.6 `agent.test.ts`: `AnthropicAgent.run` "returns the same text the
-      stream emitted" uses `content.find(p => p.type === "text")` — change to
-      join all text parts.
+- [x] 1.1 `testing/conformance.ts`: replaced the
+      `"all text must accumulate into a single part"` assertion with
+      `assertPartIndicesNeverDecrease` — text/thinking part indices (they share
+      one counter) never move backwards across the stream.
+- [x] 1.2 Extended the existing `web-search` conformance case: citation-split
+      text blocks (8 API `text` blocks in that fixture) still merge into one
+      text part.
+- [x] 1.3 Added a conformance case on `code-execution-with-file`: the
+      `generated-file` chunk is emitted after all of that turn's text deltas,
+      and the text before/after the code-execution blocks merges into one part.
+- [x] 1.4 Not added as planned (see below) — covered by conformance cases
+      instead. No committed fixture has text both before _and_ after an empty
+      thinking block or a compaction block (compaction always occurs before any
+      answer text; the empty-thinking fixture only has text after it), so
+      "doesn't split" isn't independently observable without a contrived
+      fixture. The existing `thinking-adaptive` case already confirms no
+      thinking-part/delta is produced; tool-call-splits and
+      overload-retry-splits are covered by 1.5 and the updated overload recovery
+      test in `agent.test.ts` respectively.
+- [x] 1.5 Added a conformance case on `tool-loop-01/02/03`: exactly three
+      distinct text part indices (`assertPartIndicesNeverDecrease` covers the
+      ordering).
+- [x] 1.6 `agent.test.ts`: `AnthropicAgent.run` "returns the same text the
+      stream emitted" now joins all text parts instead of `.find`-ing one. Also
+      updated the overload-recovery test: the continuation is asserted to start
+      a new text part and the instruction text no longer quotes the salvaged
+      cutoff (D3).
 
 ## Phase 2 — chat-server: ordered accumulation
 

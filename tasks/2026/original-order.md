@@ -230,22 +230,30 @@ separate task — `renderPart` keeps returning `null` for them.
 
 ## Phase 6 — Tests
 
-- [ ] 6.1 Extend `tests/agent-capabilities.spec.ts` "generated files": assert
-      the `.datonfly-message-attachment` element now comes **after** the
-      assistant text in DOM order. This is the observable flip — with
-      `code-execution-with-file` the message renders thinking → text →
-      attachment, where today it renders thinking → attachment → text.
+- [x] 6.1 Extended `tests/agent-capabilities.spec.ts` "generated files": asserts
+      the `.datonfly-message-attachment` element's bounding-box `y` is now
+      **greater than** (below) the assistant's intro text — the observable flip,
+      since `code-execution-with-file` merges text before/after the
+      code-execution activity into one part and places the file after it.
 - [x] 6.2 Fixture recorded: `test/fixtures/thinking-resumed-after-tool.json`
       (scenario also registered in `record-fixtures.ts` for reproducibility).
-      Block sequence:
-      `thinking(0) → text(1) → server_tool_use(2) →     code_execution_tool_result(3) → thinking(4) → text(5)`.
-      Confirming/ verifying a tool result rarely reopens thinking; the prompt
-      manufactures a deliberate discrepancy for the model to reconcile, which
-      reliably does. Add an E2E spec asserting a `.datonfly-message-thinking`
-      box appears _after_ assistant text in DOM order.
-- [ ] 6.3 Run only the touched specs — full-suite runs trip LLM rate limits.
-      After adding anything under `test/fixtures/`, run the whole
-      `agent-anthropic` vitest suite (flat `readdir` in `loadScenarios`).
+      Traced through `stream.ts`'s boundary rule: the fixture's
+      `thinking → text → server_tool_use → code_execution_tool_result →     thinking → text`
+      blocks produce **four** parts (`thinking@0, text@1, thinking@2, text@3`)
+      since server-tool activity is not a boundary but a new thinking block is.
+      Added "renders a later thinking block below earlier text, not hoisted
+      above it" to `tests/agent-capabilities.spec.ts`, asserting the true
+      interleaved order via substring positions in the bubble's `innerText`
+      (thinking box count, then thinking1 < text1 < thinking2 < text2).
+- [ ] 6.3 Run only the touched specs — **blocked**: the running dev server's
+      backend process (`tsc-watch --onSuccess "node dist/main.js"`) only
+      recompiles/restarts on changes to `packages/backend/src`, not on a
+      dependency package's (`chat-server`, `core`) rebuilt `dist/`, so the
+      already-running process may still be serving pre-Phase-2/3 code. Needs a
+      dev-server restart before these specs (and any other E2E run) are
+      meaningful. After adding anything under `test/fixtures/`, also run the
+      whole `agent-anthropic` vitest suite (flat `readdir` in `loadScenarios`) —
+      already done, see Phase 1.
 
 ## Effect on existing conversations
 

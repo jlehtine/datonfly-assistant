@@ -245,15 +245,12 @@ separate task — `renderPart` keeps returning `null` for them.
       above it" to `tests/agent-capabilities.spec.ts`, asserting the true
       interleaved order via substring positions in the bubble's `innerText`
       (thinking box count, then thinking1 < text1 < thinking2 < text2).
-- [ ] 6.3 Run only the touched specs — **blocked**: the running dev server's
-      backend process (`tsc-watch --onSuccess "node dist/main.js"`) only
-      recompiles/restarts on changes to `packages/backend/src`, not on a
-      dependency package's (`chat-server`, `core`) rebuilt `dist/`, so the
-      already-running process may still be serving pre-Phase-2/3 code. Needs a
-      dev-server restart before these specs (and any other E2E run) are
-      meaningful. After adding anything under `test/fixtures/`, also run the
-      whole `agent-anthropic` vitest suite (flat `readdir` in `loadScenarios`) —
-      already done, see Phase 1.
+- [x] 6.3 Dev server restarted (picking up Phases 2-4); ran the full E2E suite
+      per explicit request rather than just the touched specs — 41 passed, 1
+      pre-existing skip unrelated to this work, including both specs from 6.1
+      and 6.2.
+
+All phases complete.
 
 ## Effect on existing conversations
 

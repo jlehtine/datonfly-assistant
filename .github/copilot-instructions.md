@@ -31,12 +31,50 @@ clearly fall within the agreed plan.
 
 ## Planning and Progress
 
-Use [TODO.md](../TODO.md) as the durable record of planned work and completed
-steps. Before starting non-trivial work, record the plan there; as steps land,
-mark them done so the file reflects current progress. Follow the structure and
-progress-tracking rules documented at the top of that file. `TODO.md` is working
-state, not permanent documentation — durable facts belong in the long-lived docs
-(README, CONVENTIONS).
+Use [TODO.md](../TODO.md) to track unresolved issues and planned features at a
+high level — not sequenced plans. Follow the rules documented at the top of that
+file.
+
+Before starting non-trivial work, write a step-by-step plan to a per-task file
+under `tasks/<year>/<label>.md`, where `<year>` is the calendar year the task
+was started and `<label>` names the task or feature — typically the same label
+used for its feature branch (e.g. `tasks/2026/composer-remount-fix.md` for a
+branch named `composer-remount-fix`). Link the plan file from the relevant
+`TODO.md` entry if one exists. Neither `TODO.md` nor the `tasks/` plan files are
+permanent documentation — durable facts belong in the long-lived docs (README,
+CONVENTIONS).
+
+**Structure.** Express individual steps as GitHub-style task list items so
+progress is visible at a glance:
+
+- `- [ ]` — not started or in progress
+- `- [x]` — completed
+
+**Numeric identifiers.** When work is sequenced into phases, number them so they
+sort and read in execution order. Top-level phases are `## Phase N —
+<title>` with an increasing integer `N` (`Phase 0`, `Phase 1`, …); subsections
+use a dotted `### N.M <title>` form where `M` increases within the phase
+(`0.1`, `0.2`, `1.1`, …). Always assign the next unused number to later work —
+never renumber existing phases/steps to insert in the middle. If something
+must slot between existing items, append it with the next free number (or a
+deeper `N.M.K` level) rather than shifting the others.
+
+Keep steps concrete and actionable, ordered by dependency where it matters. Put
+brief context, decisions, or rationale inline under a section when it helps a
+future reader pick the work up.
+
+**Tracking progress.** As work lands, flip its checkbox to `- [x]` in the same
+change. Add newly discovered steps as you go rather than leaving them implicit,
+and split a step that grew too large into smaller checkable items.
+
+**Cleanup.** Do not delete completed steps or plan files as part of normal work
+— leave completed steps as `- [x]` so the file shows what has been done. Remove
+(clean up) a plan file only when the user explicitly asks, and only after any
+durable facts in it have been migrated into the permanent docs
+([README.md](../README.md), [CONVENTIONS.md](../CONVENTIONS.md), and related
+files), and its corresponding entry (if any) in `TODO.md` has been resolved or
+removed. Cleanup is a documentation step, not a plain deletion: nothing of
+lasting value should be lost when a plan file is removed.
 
 ## Dependency Licensing
 

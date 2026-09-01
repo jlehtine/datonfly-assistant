@@ -224,13 +224,14 @@ separate task — `renderPart` keeps returning `null` for them.
       assistant text in DOM order. This is the observable flip — with
       `code-execution-with-file` the message renders thinking → text →
       attachment, where today it renders thinking → attachment → text.
-- [ ] 6.2 **For the repository owner:** record a fixture in which a thinking
-      block follows text within one assistant turn (e.g. thinking → text → tool
-      → thinking → text). No committed fixture has that shape, so "thinking
-      rendered below text" — the headline behaviour of this change — cannot be
-      asserted E2E without it. Once provided, add a spec asserting a
-      `.datonfly-message-thinking` box appears _after_ assistant text in DOM
-      order.
+- [x] 6.2 Fixture recorded: `test/fixtures/thinking-resumed-after-tool.json`
+      (scenario also registered in `record-fixtures.ts` for reproducibility).
+      Block sequence:
+      `thinking(0) → text(1) → server_tool_use(2) →     code_execution_tool_result(3) → thinking(4) → text(5)`.
+      Confirming/ verifying a tool result rarely reopens thinking; the prompt
+      manufactures a deliberate discrepancy for the model to reconcile, which
+      reliably does. Add an E2E spec asserting a `.datonfly-message-thinking`
+      box appears _after_ assistant text in DOM order.
 - [ ] 6.3 Run only the touched specs — full-suite runs trip LLM rate limits.
       After adding anything under `test/fixtures/`, run the whole
       `agent-anthropic` vitest suite (flat `readdir` in `loadScenarios`).
@@ -275,5 +276,5 @@ Resolved:
   — this change only makes rendering them possible, and doing so is a separate
   development task (tracked in `TODO.md`).
 
-All decisions resolved. The only outstanding external dependency is the fixture
-in step 6.2.
+All decisions resolved and the step 6.2 fixture is in place — ready to
+implement.

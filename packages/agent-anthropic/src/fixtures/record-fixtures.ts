@@ -204,6 +204,23 @@ const SCENARIOS: Scenario[] = [
         messages: human("Use code execution to compute the 20th Fibonacci number."),
     },
     {
+        name: "thinking-resumed-after-tool",
+        description:
+            "A second thinking block reopens after a code_execution result, to exercise text " +
+            "split around a tool call within one turn. Confirming/verifying a tool result rarely " +
+            "reopens thinking; the discrepancy this prompt manufactures reliably does.",
+        providerOptions: { enableCodeExecution: true },
+        requires: "server-side tools; Haiku does not support them",
+        verify: bodyContains("code_execution"),
+        messages: human(
+            "State the first five Fibonacci numbers from memory, but for this exercise deliberately " +
+                "get the fourth one wrong. Then run the real computation in the execution environment. " +
+                "Comparing the two, think it through carefully to identify exactly which value was " +
+                "wrong and why the recurrence relation produces that value, before giving me the " +
+                "corrected list.",
+        ),
+    },
+    {
         name: "tool-loop",
         description: "Multi-iteration local tool loop: two dependent calls before the final answer.",
         config: { maxToolIterations: 5 },

@@ -1,0 +1,87 @@
+{
+    "scenario": "thinking-resumed-after-tool",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages?beta=true",
+        "headers": {
+            "accept": "application/json",
+            "anthropic-beta": "context-management-2025-06-27,compact-2026-01-12",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-arch": "x64",
+            "x-stainless-helper-method": "stream",
+            "x-stainless-lang": "js",
+            "x-stainless-os": "Linux",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v22.22.0",
+            "x-stainless-timeout": "600"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "max_tokens": 64000,
+            "system": [
+                {
+                    "type": "text",
+                    "text": "You are a personal AI assistant in a one-on-one conversation. Each of the user's messages includes a header line with their name and timestamp, for example:\n\n[Alice] @ 2026-04-10T14:30+02:00\n\nHow do I fix this bug?\n\nUse the timestamp to understand when messages were sent relative to each other.\n\nIf you use code execution to create a file for the user, copy it into $OUTPUT_DIR \u2014 only files placed there become downloadable attachments on your message; anything else stays in the sandbox. Never claim to have saved or attached a file you didn't export this way.",
+                    "cache_control": {
+                        "type": "ephemeral"
+                    }
+                }
+            ],
+            "tools": [
+                {
+                    "type": "code_execution_20260120",
+                    "name": "code_execution"
+                },
+                {
+                    "type": "web_search_20260209",
+                    "name": "web_search"
+                },
+                {
+                    "type": "web_fetch_20260209",
+                    "name": "web_fetch",
+                    "cache_control": {
+                        "type": "ephemeral"
+                    }
+                }
+            ],
+            "thinking": {
+                "type": "adaptive",
+                "display": "summarized"
+            },
+            "context_management": {
+                "edits": [
+                    {
+                        "type": "compact_20260112",
+                        "trigger": {
+                            "type": "input_tokens",
+                            "value": 120000
+                        }
+                    }
+                ]
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "State the first five Fibonacci numbers from memory, but for this exercise deliberately get the fourth one wrong. Then run the real computation in the execution environment. Comparing the two, think it through carefully to identify exactly which value was wrong and why the recurrence relation produces that value, before giving me the corrected list."
+                        }
+                    ]
+                }
+            ],
+            "stream": true
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "text/event-stream; charset=utf-8"
+        },
+        "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-opus-5\",\"id\":\"msg_011Ced8Afwf6UBLhzRGkmuzq\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":242,\"cache_creation_input_tokens\":6515,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":6515,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}           }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}   }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"I'\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"ll recall the sequence as 1, 1, 2, 3, 5 and intentionally flub the fourth term, giving 1, 1, \"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"2, 4, 5 instead. Then I'll actually compute the real recurrence to compare against my guess and pinpoint the error.\"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"CAISoQUKjgEIERgCKkAapjpLXqBiYomZzhP1v8gsZbWOX5h3DjW6cADJxNVbsVMB7tL2+IM6ao1W4iE5Xt5BhSoo7cqTyhhfO1q0MydGMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ3NzhjY2NjZC00ZTEyLTQ2NTQtOWYwZC0zMDg0ZmE3ZWMzZjOoAZma3NQGEgyL4E2X/Uweg/BpJh8aDGxWwEBotuN2GFdj5yIwnev8f8XtCNQNG3HA0NFNyaruW7fcjMQIBcV0bR6K7h0wIV1soSaZzWpSKT1iIdHPKr8DSUC3dRWGd6C9Ys5gNCEgR79e/bGlw7fviaIERadQYNgnbcpVtDWDO4e1a6xlGo70da0LYHfuNgoZvGQgsHnkyh2QebP1vXASkc4142E8yL5aVh7cgR/D293SYQUxMDY9xhcD+IrW+FEU8ClQqfbAU0puIYBybH0vKbo1iJbs5vmQeEBWLrMh+FEDoJPMEyZ7o+gpD4MvOwjAYiGrecQm0U9lbaQAWhbwrqt3nKnoCaoFX2TJjkuDmakI5UvKzY6mdHO0zNjJzTUti93nzElFb3ELfhmuY0wJag+K8rrnVSk0vRJFIpDan3aQBbO867gBMLPHQaW8iAXnDKTC6MJhZBua4gr6q5nQHMO/YSVTTmxEMfUH+Is3fHYnWDyt8nTKflbcaG00sm6ncmNeO8FZUso5miIaUrvuw/aCVfttya5cOIZwiQjSGeei+Qm7E8EbCuIQjqpAoyAznTbkhmcLPR3yygYx4K+R+tFEfR+PBUoTE6F6Im5jPXluZZaBxPZ50X5IaxT2R59im3Osl/+ZDkhOJ5PMH/hWOs0oQdJWTOYSGNmwJrCtprFREpZ8hJYMZR+kyavgRXZ5/orurgWuGAE=\"}       }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0            }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\"}           }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"**Step 1 \u2014 From memory (with the deliberate error,\"} }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\" as requested):**\\n\\n1, 1, 2, **4**, 5\\n\\n**Step 2 \u2014 Real computation:**\"} }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1        }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_01JZyuiJcwKYKGPPFDHFNbs3\",\"name\":\"code_execution\",\"input\":{}}    }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"code\\\": \\\"def fib_seq(n):\\\\n    seq = [1\"}     }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\", 1]\\\\n    while len(seq) < n:\\\\n        seq.append(seq[-1] + seq[-2])\\\\n    return seq[:n]\\\\n\\\\ns = fib_seq(5)\\\\nprint(\\\\\\\"computed:\\\\\\\", s)\\\\nfor i in range(2, \"}      }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"5):\\\\n    print(f\\\\\\\"F{i+1} = F{i} + F{i-1} = {s[i-1]} + {s[i-2]} = {s[i]}\\\\\\\")\\\\n\\\\nstated = [1, 1, 2, 4, 5]\\\\nprint(\\\\\\\"mismatches (\"}              }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"1-indexed):\\\\\\\", [(i+1, stated[i], s[i]) for i in range(5) if stated[i] != s[i]])\\\\n\"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"}\"}  }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":2    }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":3,\"content_block\":{\"type\":\"code_execution_tool_result\",\"tool_use_id\":\"srvtoolu_01JZyuiJcwKYKGPPFDHFNbs3\",\"content\":{\"type\":\"code_execution_result\",\"stdout\":\"computed: [1, 1, 2, 3, 5]\\nF3 = F2 + F1 = 1 + 1 = 2\\nF4 = F3 + F2 = 2 + 1 = 3\\nF5 = F4 + F3 = 3 + 2 = 5\\nmismatches (1-indexed): [(4, 4, 3)]\\n\",\"stderr\":\"\",\"return_code\":0,\"content\":[],\"abort_reason\":null}}              }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":3    }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":4,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}      }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":4,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"I should\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":4,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" flag the inconsistency clearly: the list shows 4 in position four but keeps 5 in position five, which doesn't add up\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":4,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" since a value of 4 would push the fifth term to 6, not 5.\"}              }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":4,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"CAIS7wMKjgEIERgCKkAauJkGO3oBgSof+KX88o/beQ7+/ehSng8UpRfnl9howRw69DZWg06IVwHbsVvtZCFoHA0HZWFsEV/hsHsHnHyPMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ3NzhjY2NjZC00ZTEyLTQ2NTQtOWYwZC0zMDg0ZmE3ZWMzZjOoAaOa3NQGEgx/MuE9Pcz8GGwYPA0aDJoqWQ1vqjvKxPTv6SIwRgRS3wC5tMhA5PPOavU5BQkhGiHqX3ipr2dklb1RljwOrxVUCc/pnUWT8MsAVY/YKo0CPit1Ifez1fi1tAcbCwX25+HWxB2xjWjAxs9gm78uOTRxglQ/fCfKXbg/mvKI5N3npK/Lw62cI3k0FUyHSjPGwXeJn51yjGgGJKzRF/CjFYtU95p/A6lTa5F666gnQMjNQTQ9rPdSGM32FSi67v5hPidXBkRXz3xtijIIzrVegc5wRHRIWZkZINJvMs73jfBBcVyt3Yk9F2H9L/p7uxDgcdxmwZmbXuExdHs0AHPNSmgIXU7rbPVJSQDEC0pzY5yF3rE+JvxJpwC4kn6BqmoOMDsTCVDuUaYrBUq3O+uveYXhjvxpWgN9rZa0ILrFD/omPXWTsn3kIbudn9sHkZDfBlKM5TBe4Hr+WmMwvpYYAQ==\"}      }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":4 }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":5,\"content_block\":{\"type\":\"text\",\"text\":\"\"}             }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"**Step 3 \u2014 Comparison and diagnosis:**\\n\\nThe computed sequence is **\"}          }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"1, 1, 2, 3, 5**. Exactly one position differs, and it's the one I planted: **position 4, where I said 4 but the true value is 3.**\\n\\nWhy the recurrence forces 3 there:\\n\\n- The\"}       }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" definition is F\u2081 = 1, F\u2082 = 1, and F\u2099 = F\u2099\u208b\u2081 + F\u2099\u208b\u2082 for n \u2265 3.\\n- F\u2083 = F\u2082 + F\u2081\"}        }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" = 1 + 1 = 2 \u2713 (this one I had right)\\n- F\u2084 = F\u2083 + F\u2082 = **2 + 1 = 3**. There's no free choice here \u2014 once\"}   }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" F\u2083 = 2 and F\u2082 = 1 are fixed, F\u2084 is pinned to 3. My \\\"4\\\" would only arise from adding the\"}              }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" wrong pair of predecessors (e.g. 2 + 2, reusing F\u2083 twice, which is the classic off-by-one slip in this recurrence).\\n\\nOne ext\"}       }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"ra thing worth flagging: my erroneous list was also **internally inconsistent**, not just wrong at one spot. If F\u2084 really were 4, then F\u2085 = F\u2084 + F\u2083\"} }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\" = 4 + 2 = 6, not the 5 I stated. So the error, if propagated honestly, would have corrupted every later term too \u2014 errors in a recurrence don\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"'t stay local. The fact that my fifth number was still \\\"correct\\\" is itself evidence that I was reciting a memorized list rather than act\"}  }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"ually applying the rule.\\n\\n**Corrected list \u2014 the first five Fibonacci numbers:**\\n\\n**1, 1, 2, 3, 5**\\n\\n(If you use the 0-indexed convention starting F\u2080 = 0, the first five are **\"}              }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":5,\"delta\":{\"type\":\"text_delta\",\"text\":\"0, 1, 1, 2, 3** \u2014 same sequence, shifted by one position.)\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":5          }\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"container\":{\"id\":\"container_01LWEqs9h5erpzAAA9vpLfvA\",\"expires_at\":\"2026-09-01T18:36:29.073461Z\"}},\"usage\":{\"input_tokens\":244,\"cache_creation_input_tokens\":7373,\"cache_read_input_tokens\":6515,\"output_tokens\":1175,\"output_tokens_details\":{\"thinking_tokens\":271},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"iterations\":[{\"input_tokens\":242,\"output_tokens\":492,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":6515,\"cache_creation\":{\"ephemeral_5m_input_tokens\":6515,\"ephemeral_1h_input_tokens\":0},\"type\":\"message\"},{\"input_tokens\":2,\"output_tokens\":683,\"cache_read_input_tokens\":6515,\"cache_creation_input_tokens\":858,\"cache_creation\":{\"ephemeral_5m_input_tokens\":858,\"ephemeral_1h_input_tokens\":0},\"type\":\"message\"}]},\"context_management\":{\"applied_edits\":[]}    }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"        }\n\n"
+    }
+}

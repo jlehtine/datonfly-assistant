@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 
-import type { AgentMessage, AgentStreamChunk, IAgentProvider, ITool, TextDeltaChunk } from "@datonfly-assistant/core";
+import type {
+    AgentMessage,
+    AgentStreamChunk,
+    GeneratedFileChunk,
+    IAgentProvider,
+    ITool,
+    TextDeltaChunk,
+} from "@datonfly-assistant/core";
 
 /**
  * How a conformance case obtains a provider.
@@ -52,6 +59,29 @@ function thinkingDeltas(chunks: AgentStreamChunk[]): TextDeltaChunk[] {
     return chunks.filter(
         (chunk): chunk is TextDeltaChunk => chunk.type === "text-delta" && chunk.partType === "thinking",
     );
+}
+
+/** All generated-file chunks, in emission order. */
+function generatedFileChunks(chunks: AgentStreamChunk[]): GeneratedFileChunk[] {
+    return chunks.filter((chunk): chunk is GeneratedFileChunk => chunk.type === "generated-file");
+}
+
+/**
+ * Assert that text/thinking part indices never move backwards across the
+ * stream. Text and thinking share one increasing counter (see `stream.ts`), so
+ * this is what "a part index is never resumed once a later one has been used"
+ * — i.e. a real ordering, not just a bag of parts — reduces to.
+ */
+function assertPartIndicesNeverDecrease(chunks: AgentStreamChunk[]): void {
+    const indices = chunks
+        .filter((chunk): chunk is TextDeltaChunk => chunk.type === "text-delta")
+        .map((chunk) => chunk.partIndex);
+    for (let i = 1; i < indices.length; i++) {
+        assert.ok(
+            (indices[i] ?? 0) >= (indices[i - 1] ?? 0),
+            `part index must never decrease (saw ${String(indices[i - 1])} then ${String(indices[i])})`,
+        );
+    }
 }
 
 /** Concatenate all text deltas in emission order. */
@@ -106,8 +136,7 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
             assert.ok(usage.usage.outputTokens > 0, "expected output token count");
             assert.equal(usage.usage.vendor, "anthropic");
 
-            const indices = new Set(textDeltas(chunks).map((chunk) => chunk.partIndex));
-            assert.equal(indices.size, 1, "all text must accumulate into a single part");
+            assertPartIndicesNeverDecrease(chunks);
         },
     },
     {
@@ -163,6 +192,20 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
         },
     },
     {
+        // `01`/`02` each answer with text then a tool call; `03` answers with
+        // text only. Each turn's text must land in its own part — the primary
+        // guard that a tool call actually splits text into multiple parts.
+        name: "splits text into a new part around each tool-call turn",
+        fixtures: ["tool-loop-01", "tool-loop-02", "tool-loop-03"],
+        tools: [ADDER_TOOL],
+        messages: [userMessage("Add 2 and 3, then add 10 to the result.")],
+        check(chunks: AgentStreamChunk[]): void {
+            assertPartIndicesNeverDecrease(chunks);
+            const distinct = new Set(textDeltas(chunks).map((chunk) => chunk.partIndex));
+            assert.equal(distinct.size, 3, "expected one text part per loop turn");
+        },
+    },
+    {
         name: "reports server-tool activity as status and collects citations",
         fixtures: ["web-search"],
         messages: [userMessage("Search the web and cite a source.")],
@@ -182,6 +225,35 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
                 const urls = chunk.citations.map((citation) => citation.url);
                 assert.equal(new Set(urls).size, urls.length, "citations must be deduplicated");
             }
+
+            // The fixture's response spans 8 separate API `text` blocks (citation
+            // spans split them). None of that is a part boundary, so they must
+            // still merge into one text part rather than fragmenting the answer.
+            const distinct = new Set(textDeltas(chunks).map((chunk) => chunk.partIndex));
+            assert.equal(distinct.size, 1, "citation-split text blocks must merge into one part");
+        },
+    },
+    {
+        // Server-tool blocks (`server_tool_use` / its result) are not a part
+        // boundary, so the text before and after the code-execution activity in
+        // this fixture must merge into one part. The generated file is placed at
+        // end of turn (D2), i.e. after that merged text part, not between the
+        // two text blocks it actually occurred between.
+        name: "does not split text around server-tool activity, and places the file after it",
+        fixtures: ["code-execution-with-file"],
+        messages: [userMessage("Write a minimal Python script that outputs Fibonacci numbers sequence.")],
+        check(chunks: AgentStreamChunk[]): void {
+            assertPartIndicesNeverDecrease(chunks);
+
+            const deltas = textDeltas(chunks);
+            const distinct = new Set(deltas.map((chunk) => chunk.partIndex));
+            assert.equal(distinct.size, 1, "text around server-tool activity must merge into one part");
+
+            const files = generatedFileChunks(chunks);
+            assert.equal(files.length, 1, "expected exactly one generated file");
+            const fileIndex = chunks.indexOf(files[0] as AgentStreamChunk);
+            const lastTextDeltaIndex = chunks.lastIndexOf(deltas[deltas.length - 1] as AgentStreamChunk);
+            assert.ok(fileIndex > lastTextDeltaIndex, "the generated file must be emitted after all text deltas");
         },
     },
     {

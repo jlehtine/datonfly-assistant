@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentMessage, AgentStreamChunk, ITool, ProviderReplayData } from "@datonfly-assistant/core";
+import type {
+    AgentMessage,
+    AgentStreamChunk,
+    ITool,
+    ProviderReplayData,
+    TextDeltaChunk,
+} from "@datonfly-assistant/core";
 
 import { AnthropicAgent } from "./agent.js";
 import { ADDER_TOOL, collectChunks, CONFORMANCE_CASES, joinText, userMessage } from "./testing/conformance.js";
@@ -285,17 +291,31 @@ describe("AnthropicAgent mid-stream overload recovery", () => {
             expect(retrying).toHaveLength(1);
 
             // The salvaged text from the interrupted attempt and the retry's
-            // answer are both plain text-delta chunks, so they land in the same
-            // final text part with nothing in between — a seamless join.
+            // answer are both plain text-delta chunks. `joinText` doesn't care
+            // about part boundaries, so the two still concatenate seamlessly
+            // here even though the retry now starts a fresh text part (see
+            // `partIndex` assertion below).
             const partialText =
                 "A derailleur is a mechanical arm that pushes the chain sideways off one sprocket and onto";
             const text = joinText(chunks);
             expect(text.startsWith(partialText)).toBe(true);
             expect(text.length).toBeGreaterThan(partialText.length);
 
+            // An overload retry is a visible boundary: the continuation is its
+            // own text part, not spliced back into the salvaged one.
+            const textPartIndices = new Set(
+                chunks
+                    .filter(
+                        (chunk): chunk is TextDeltaChunk => chunk.type === "text-delta" && chunk.partType === "text",
+                    )
+                    .map((chunk) => chunk.partIndex),
+            );
+            expect(textPartIndices.size).toBe(2);
+
             // The retried request replays the signed thinking block and the
-            // salvaged text, then an ephemeral continuation instruction quoting
-            // the exact cutoff — never the original user message repeated verbatim.
+            // salvaged text, then an ephemeral, generic continuation instruction
+            // — never the original user message repeated verbatim, and no
+            // longer quoting the exact cutoff (see `continuationInstruction`).
             const retried = server.requests[1]?.messages as { role: string; content: unknown }[];
             const assistantTurn = retried.find((message) => message.role === "assistant");
             const assistantBlocks = assistantTurn?.content as { type: string; text?: string; signature?: string }[];
@@ -310,7 +330,7 @@ describe("AnthropicAgent mid-stream overload recovery", () => {
                 typeof instruction === "string"
                     ? instruction
                     : ((instruction as { type: string; text?: string }[])[0]?.text ?? "");
-            expect(instructionText).toContain(partialText.slice(-30));
+            expect(instructionText).not.toContain(partialText.slice(-30));
             expect(instructionText).toContain("overload");
         });
     });
@@ -391,8 +411,11 @@ describe("AnthropicAgent.run", () => {
             createAgent(server.baseUrl).run(messages, "thread-1", "user-1"),
         );
 
-        const text = result.content.find((part) => part.type === "text");
-        expect(text?.type === "text" ? text.text : "").toBe(streamed);
+        const text = result.content
+            .filter((part): part is Extract<AgentMessage["content"][number], { type: "text" }> => part.type === "text")
+            .map((part) => part.text)
+            .join("");
+        expect(text).toBe(streamed);
         expect(result.role).toBe("ai");
     });
 

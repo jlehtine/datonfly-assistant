@@ -13,7 +13,11 @@ Strict TypeScript everywhere. All packages use strict compiler settings.
 
 - **`core`** declares shared types, interfaces, and the REST/WebSocket endpoint
   contract (paths + Zod schemas). All other packages depend on `core` — never
-  duplicate its definitions.
+  duplicate its definitions. `PartDeltaEvent`/`PartAddedEvent.partIndex` is a
+  position in the client's own part array, not the provider's index — it counts
+  only parts actually transmitted live (text, thinking, tool calls/results), so
+  an opaque part or an attachment (not resolvable until its file downloads)
+  never leaves a gap for the client to paper over.
 - **Pluggable providers** — the AI agent (`agent-anthropic`) and persistence
   layer (`persistence-pg`) implement generic interfaces from `core`. Keep
   provider-specific details out of `chat-server` and `chat-client`.
@@ -128,6 +132,14 @@ to every provider:
 - **Honour the usage contract.** See `AgentUsage` — `inputTokens` means the size
   of the submitted context including cached tokens, because the gateway compares
   it against the compaction threshold.
+- **Emit content in true chronological order, never grouped by type.** A text
+  delta shares one part index only across a run of consecutive text (including a
+  run split solely by a citation); a visible part — a non-empty thinking block,
+  a tool call/result, a generated file, or an overload-retry continuation —
+  starts a new text part. `chat-server` and `MessageBubble` build the
+  persisted/rendered content by appending each chunk as it arrives, never
+  reordering, so a part index is never reused once superseded and an AI message
+  routinely carries several text parts.
 - **Pass the conformance suite.** `@datonfly-assistant/agent-anthropic/testing`
   exports `CONFORMANCE_CASES` plus a fixture replay server. The cases assert the
   behaviour `chat-server` relies on — chunk ordering, part-index semantics,

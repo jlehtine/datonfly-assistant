@@ -133,6 +133,40 @@ function renderPart(part: ContentPart, index: number, streaming: boolean, compon
     return null;
 }
 
+/** One item in a message's rendered content, in true content order. */
+type RenderItem =
+    | { kind: "thinking-run"; firstIndex: number; combinedText: string }
+    | { kind: "part"; index: number; part: ContentPart };
+
+/**
+ * Group a message's parts into a single ordered render sequence: consecutive
+ * thinking parts collapse into one run (keyed by the run's first part index,
+ * so a collapse override survives an earlier run appearing mid-stream), and
+ * every other part renders individually in its own position via
+ * {@link renderPart} — preserving whatever order the parts actually arrived in
+ * rather than hoisting thinking to the top.
+ */
+function toRenderItems(parts: ContentPart[]): RenderItem[] {
+    const items: RenderItem[] = [];
+    let run: { firstIndex: number; texts: string[] } | null = null;
+    const flushRun = (): void => {
+        if (!run) return;
+        items.push({ kind: "thinking-run", firstIndex: run.firstIndex, combinedText: run.texts.join("\n\n") });
+        run = null;
+    };
+    parts.forEach((part, index) => {
+        if (part.type === "thinking") {
+            run ??= { firstIndex: index, texts: [] };
+            run.texts.push(part.text);
+        } else {
+            flushRun();
+            items.push({ kind: "part", index, part });
+        }
+    });
+    flushRun();
+    return items;
+}
+
 /**
  * Renders a single chat message as a styled bubble.
  *
@@ -144,24 +178,7 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
     const { t } = useTranslation();
     const alignRight = isOwnMessage;
     const authorName = !isOwnMessage && message.role === "human" ? message.authorName : null;
-    /** Each entry is one contiguous run of consecutive thinking parts, merged for display. */
-    const thinkingRuns = useMemo(() => {
-        const runs: { combinedText: string; runIndex: number }[] = [];
-        let currentRun: string[] | null = null;
-        for (const part of message.parts) {
-            if (part.type === "thinking") {
-                currentRun ??= [];
-                currentRun.push(part.text);
-            } else if (currentRun !== null) {
-                runs.push({ combinedText: currentRun.join("\n\n"), runIndex: runs.length });
-                currentRun = null;
-            }
-        }
-        if (currentRun !== null) {
-            runs.push({ combinedText: currentRun.join("\n\n"), runIndex: runs.length });
-        }
-        return runs;
-    }, [message.parts]);
+    const renderItems = useMemo(() => toRenderItems(message.parts), [message.parts]);
 
     // Keep the initial default collapse mode stable for this message bubble:
     // - history-loaded messages start collapsed
@@ -169,15 +186,15 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
     const [defaultThinkingCollapsed] = useState(() => !message.streaming);
     const [collapsedOverrides, setCollapsedOverrides] = useState<Record<number, boolean>>({});
 
-    const toggleThinkingRun = (runIndex: number): void => {
+    const toggleThinkingRun = (firstIndex: number): void => {
         setCollapsedOverrides((prev) => ({
             ...prev,
-            [runIndex]: !(prev[runIndex] ?? defaultThinkingCollapsed),
+            [firstIndex]: !(prev[firstIndex] ?? defaultThinkingCollapsed),
         }));
     };
 
-    const isThinkingRunCollapsed = (runIndex: number): boolean =>
-        collapsedOverrides[runIndex] ?? defaultThinkingCollapsed;
+    const isThinkingRunCollapsed = (firstIndex: number): boolean =>
+        collapsedOverrides[firstIndex] ?? defaultThinkingCollapsed;
 
     const getPreviewLine = (text: string): string => {
         const firstNonEmpty = text
@@ -259,74 +276,77 @@ export function MessageBubble({ message, isOwnMessage, components }: MessageBubb
                         },
                     }}
                 >
-                    {message.role === "ai" &&
-                        thinkingRuns
-                            .filter((run) => run.combinedText.trim().length > 0)
-                            .map((run) => {
-                                const collapsed = isThinkingRunCollapsed(run.runIndex);
-                                return (
-                                    <Box
-                                        key={`${message.id}-thinking-${String(run.runIndex)}`}
-                                        className="datonfly-message-thinking"
-                                        data-collapsed={collapsed}
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => {
-                                            toggleThinkingRun(run.runIndex);
-                                        }}
-                                        onKeyDown={(event) => {
-                                            if (event.key === "Enter" || event.key === " ") {
-                                                event.preventDefault();
-                                                toggleThinkingRun(run.runIndex);
-                                            }
-                                        }}
+                    {renderItems.map((item) => {
+                        if (item.kind === "part") {
+                            return renderPart(item.part, item.index, message.streaming, components);
+                        }
+                        // A human message never actually contains a thinking part, but
+                        // guard anyway rather than relying on that invariant here.
+                        if (message.role !== "ai" || item.combinedText.trim().length === 0) return null;
+
+                        const collapsed = isThinkingRunCollapsed(item.firstIndex);
+                        return (
+                            <Box
+                                key={`${message.id}-thinking-${String(item.firstIndex)}`}
+                                className="datonfly-message-thinking"
+                                data-collapsed={collapsed}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                    toggleThinkingRun(item.firstIndex);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+                                        toggleThinkingRun(item.firstIndex);
+                                    }
+                                }}
+                                sx={{
+                                    mb: 1,
+                                    px: 1,
+                                    py: 0.75,
+                                    borderRadius: 1,
+                                    border: "1px solid",
+                                    borderColor: "divider",
+                                    bgcolor: (t) => (t.palette.mode === "dark" ? "grey.900" : "grey.100"),
+                                    cursor: "pointer",
+                                    transition: "background-color 120ms ease",
+                                    "&:hover": {
+                                        bgcolor: (t) =>
+                                            t.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "grey.200",
+                                    },
+                                }}
+                            >
+                                {collapsed ? (
+                                    <Typography
+                                        variant="body2"
                                         sx={{
-                                            mb: 1,
-                                            px: 1,
-                                            py: 0.75,
-                                            borderRadius: 1,
-                                            border: "1px solid",
-                                            borderColor: "divider",
-                                            bgcolor: (t) => (t.palette.mode === "dark" ? "grey.900" : "grey.100"),
-                                            cursor: "pointer",
-                                            transition: "background-color 120ms ease",
-                                            "&:hover": {
-                                                bgcolor: (t) =>
-                                                    t.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "grey.200",
-                                            },
+                                            color: "text.secondary",
+                                            fontSize: "0.8rem",
+                                            lineHeight: 1.5,
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
                                         }}
                                     >
-                                        {collapsed ? (
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    color: "text.secondary",
-                                                    fontSize: "0.8rem",
-                                                    lineHeight: 1.5,
-                                                    whiteSpace: "nowrap",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                }}
-                                            >
-                                                {getPreviewLine(run.combinedText)}
-                                            </Typography>
-                                        ) : (
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    whiteSpace: "pre-wrap",
-                                                    color: "text.secondary",
-                                                    fontSize: "0.8rem",
-                                                    lineHeight: 1.5,
-                                                }}
-                                            >
-                                                {getExpandedThinkingText(run.combinedText)}
-                                            </Typography>
-                                        )}
-                                    </Box>
-                                );
-                            })}
-                    {message.parts.map((part, i) => renderPart(part, i, message.streaming, components))}
+                                        {getPreviewLine(item.combinedText)}
+                                    </Typography>
+                                ) : (
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            whiteSpace: "pre-wrap",
+                                            color: "text.secondary",
+                                            fontSize: "0.8rem",
+                                            lineHeight: 1.5,
+                                        }}
+                                    >
+                                        {getExpandedThinkingText(item.combinedText)}
+                                    </Typography>
+                                )}
+                            </Box>
+                        );
+                    })}
                     {message.streaming && (
                         <Typography
                             className="datonfly-message-streaming-indicator"

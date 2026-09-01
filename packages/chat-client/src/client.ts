@@ -12,6 +12,7 @@ import {
     type MessageCompleteEvent,
     type MessageStatusEvent,
     type NewMessageEvent,
+    type PartAddedEvent,
     type PartDeltaEvent,
     type RemoveMemberEvent,
     type SendMessageEvent,
@@ -25,6 +26,8 @@ import {
 export interface ChatClientEventMap {
     /** Fired when the server streams a partial content part of an assistant response. */
     "part-delta": (event: PartDeltaEvent) => void;
+    /** Fired when the server appends a complete, non-incremental content part (a tool call or result) while streaming. */
+    "part-added": (event: PartAddedEvent) => void;
     /** Fired when the server finishes streaming an assistant response. */
     "message-complete": (event: MessageCompleteEvent) => void;
     /** Fired when the server sends a transient status update during streaming (e.g. "Running code…"). */

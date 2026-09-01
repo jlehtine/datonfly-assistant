@@ -23,7 +23,7 @@ import type {
     MessageCompleteEvent,
     MessageStatusEvent,
     NewMessageEvent,
-    OpaqueContentPart,
+    PartAddedEvent,
     PartDeltaEvent,
     ProviderReplayData,
     RemoveMemberEvent,
@@ -78,25 +78,35 @@ export type ValidateTokenFn = (token: string) => UserIdentity | null;
 interface ActiveStream {
     controller: AbortController;
     messageId: string;
-    currentText: string;
-    thinkingPartsByIndex: Map<number, Extract<ContentPart, { type: "thinking" }>>;
-    opaqueParts: OpaqueContentPart[];
-    /** Tool-call / tool-result parts collected in execution order (empty unless tools are used). */
-    toolParts: ContentPart[];
+    /**
+     * Content parts in true chronological arrival order. A text/thinking part
+     * (tracked via `positionByProviderIndex`) is mutated in place as further
+     * deltas arrive; a tool-call/tool-result/opaque part is appended once,
+     * complete, when its chunk arrives. A generated-file chunk immediately
+     * appends a placeholder attachment part, resolved in place once the file is
+     * downloaded (see `finalizeParts`).
+     */
+    orderedParts: ContentPart[];
+    /** Provider part index (text/thinking) -> position in `orderedParts`, so a later delta for the same part updates in place instead of appending. */
+    positionByProviderIndex: Map<number, number>;
+    /** Provider part index (text/thinking) -> the client index it was first assigned, reused for every later delta of that same part. */
+    clientIndexByProviderIndex: Map<number, number>;
+    /** Position in `orderedParts` reserved for each generated file, by file reference, in arrival order. */
+    generatedFileSlots: { fileRef: string; position: number }[];
+    /** Position in `orderedParts` of the next part to count as a client-visible index, i.e. one actually sent live via `part-delta`/`part-added` (see `PartDeltaEvent.partIndex`). */
+    nextClientPartIndex: number;
     citations: Citation[];
     usage: AgentUsage | null;
     /** Provider-native data for verbatim replay of this turn, set once the turn completes. */
     replayData: ProviderReplayData | null;
-    hasTextSinceToolBoundary: boolean;
-    pendingToolBoundaryBreak: boolean;
-    /** Provider file references reported mid-stream, deduplicated in arrival order. */
-    generatedFileRefs: string[];
     /** Provider code-execution container ID reported mid-stream, or `null` if none. */
     containerId: string | null;
 }
 
 /** A generated file downloaded and ready to persist as an assistant-message attachment. */
 interface DownloadedGeneratedFile {
+    /** Provider-specific reference the file was reported under, used to resolve a reserved placeholder slot. */
+    fileRef: string;
     attachmentId: string;
     name: string;
     mimeType: string;
@@ -104,25 +114,38 @@ interface DownloadedGeneratedFile {
     bytes: Uint8Array;
 }
 
-function toolBoundarySeparator(text: string): string {
-    if (!text) return "";
-    if (text.endsWith("\n\n")) return "";
-    if (text.endsWith("\n")) return "\n";
-    return "\n\n";
+/** Placeholder attachment part reserved for a generated file the moment it's reported, before its bytes are downloaded. Never persisted or sent to a client as-is — always resolved or dropped by `finalizeParts` first. */
+function placeholderAttachmentPart(fileRef: string): ContentPart {
+    return { type: "attachment", attachmentId: fileRef, name: "", mimeType: "application/octet-stream", size: 0 };
 }
 
-function orderedThinkingParts(map: Map<number, Extract<ContentPart, { type: "thinking" }>>): ContentPart[] {
-    return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([, part]) => part);
-}
-
-function attachmentPartsOf(files: DownloadedGeneratedFile[]): ContentPart[] {
-    return files.map((file) => ({
-        type: "attachment",
-        attachmentId: file.attachmentId,
-        name: file.name,
-        mimeType: file.mimeType,
-        size: file.size,
-    }));
+/**
+ * Resolve a stream's ordered parts into their final, persistable form: each
+ * reserved generated-file slot is filled with its downloaded attachment part,
+ * or dropped entirely if that file was filtered out (count/size limits) or
+ * failed to download. Guarantees a non-empty result (falls back to a single
+ * empty text part), matching the content schema's `min(1)`.
+ */
+function finalizeParts(streamState: ActiveStream, downloadedFiles: DownloadedGeneratedFile[]): ContentPart[] {
+    const byFileRef = new Map(downloadedFiles.map((file) => [file.fileRef, file]));
+    const parts = [...streamState.orderedParts];
+    const droppedPositions = new Set<number>();
+    for (const slot of streamState.generatedFileSlots) {
+        const file = byFileRef.get(slot.fileRef);
+        if (file) {
+            parts[slot.position] = {
+                type: "attachment",
+                attachmentId: file.attachmentId,
+                name: file.name,
+                mimeType: file.mimeType,
+                size: file.size,
+            };
+        } else {
+            droppedPositions.add(slot.position);
+        }
+    }
+    const resolved = droppedPositions.size > 0 ? parts.filter((_, index) => !droppedPositions.has(index)) : parts;
+    return resolved.length > 0 ? resolved : [{ type: "text", text: "" }];
 }
 
 @WebSocketGateway({ path: WS_PATH })
@@ -503,17 +526,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const controller = new AbortController();
         const streamState: ActiveStream = {
             controller,
-            currentText: "",
             messageId: aiMessageId,
+            orderedParts: [],
+            positionByProviderIndex: new Map(),
+            clientIndexByProviderIndex: new Map(),
+            generatedFileSlots: [],
+            nextClientPartIndex: 0,
             citations: [],
             usage: null,
-            thinkingPartsByIndex: new Map(),
-            opaqueParts: [],
-            toolParts: [],
             replayData: null,
-            hasTextSinceToolBoundary: false,
-            pendingToolBoundaryBreak: false,
-            generatedFileRefs: [],
             containerId: null,
         };
         this.activeStreams.set(threadId, streamState);
@@ -557,59 +578,39 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     if (controller.signal.aborted) return;
 
                     if (chunk.type === "text-delta") {
-                        if (chunk.partType === "thinking") {
-                            const existing = streamState.thinkingPartsByIndex.get(chunk.partIndex);
-                            if (existing) {
-                                streamState.thinkingPartsByIndex.set(chunk.partIndex, {
-                                    ...existing,
-                                    text: `${existing.text}${chunk.delta}`,
-                                });
-                            } else {
-                                streamState.thinkingPartsByIndex.set(chunk.partIndex, {
-                                    type: "thinking",
-                                    text: chunk.delta,
-                                });
-                            }
-
-                            const deltaEvent: PartDeltaEvent = {
-                                event: "part-delta",
-                                threadId,
-                                messageId,
-                                partIndex: chunk.partIndex,
-                                type: "thinking",
-                                delta: chunk.delta,
-                            };
-                            // Awaited so a straggler can't arrive after message-complete and be
-                            // mistaken client-side for the start of a new message.
-                            await this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                        const position = streamState.positionByProviderIndex.get(chunk.partIndex);
+                        let clientIndex: number;
+                        if (position === undefined) {
+                            streamState.positionByProviderIndex.set(chunk.partIndex, streamState.orderedParts.length);
+                            streamState.orderedParts.push(
+                                chunk.partType === "thinking"
+                                    ? { type: "thinking", text: chunk.delta }
+                                    : { type: "text", text: chunk.delta },
+                            );
+                            clientIndex = streamState.nextClientPartIndex++;
+                            streamState.clientIndexByProviderIndex.set(chunk.partIndex, clientIndex);
                         } else {
-                            let delta = chunk.delta;
-                            if (streamState.pendingToolBoundaryBreak) {
-                                const separator = toolBoundarySeparator(streamState.currentText);
-                                if (separator) {
-                                    delta = `${separator}${delta}`;
-                                }
-                                streamState.pendingToolBoundaryBreak = false;
-                            }
-
-                            streamState.currentText += delta;
-                            streamState.hasTextSinceToolBoundary = true;
-                            const deltaEvent: PartDeltaEvent = {
-                                event: "part-delta",
-                                threadId,
-                                messageId,
-                                partIndex: chunk.partIndex,
-                                type: "text",
-                                delta,
-                            };
-                            await this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
+                            const existing = streamState.orderedParts[position] as Extract<
+                                ContentPart,
+                                { type: "text" | "thinking" }
+                            >;
+                            streamState.orderedParts[position] = { ...existing, text: existing.text + chunk.delta };
+                            // Always set on first sight, just above, or by an earlier delta for this part.
+                            clientIndex = streamState.clientIndexByProviderIndex.get(chunk.partIndex) ?? 0;
                         }
+
+                        const deltaEvent: PartDeltaEvent = {
+                            event: "part-delta",
+                            threadId,
+                            messageId,
+                            partIndex: clientIndex,
+                            type: chunk.partType,
+                            delta: chunk.delta,
+                        };
+                        // Awaited so a straggler can't arrive after message-complete and be
+                        // mistaken client-side for the start of a new message.
+                        await this.emitToThreadMembers(threadId, "part-delta", deltaEvent);
                     } else if (chunk.type === "status") {
-                        if (streamState.hasTextSinceToolBoundary) {
-                            streamState.pendingToolBoundaryBreak = true;
-                            streamState.hasTextSinceToolBoundary = false;
-                        }
-
                         const statusEvent: MessageStatusEvent = {
                             event: "message-status",
                             threadId,
@@ -619,31 +620,64 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                         };
                         await this.emitToThreadMembers(threadId, "message-status", statusEvent);
                     } else if (chunk.type === "thinking-part") {
-                        streamState.thinkingPartsByIndex.set(chunk.partIndex, chunk.part);
+                        // The complete, authoritative part, replacing whatever was
+                        // built from deltas. A thinking block that streamed no
+                        // deltas at all (its full text arrived at
+                        // `content_block_start`) never reached the client live —
+                        // reserve its slot server-side only.
+                        const position = streamState.positionByProviderIndex.get(chunk.partIndex);
+                        if (position !== undefined) {
+                            streamState.orderedParts[position] = chunk.part;
+                        } else {
+                            streamState.positionByProviderIndex.set(chunk.partIndex, streamState.orderedParts.length);
+                            streamState.orderedParts.push(chunk.part);
+                        }
                     } else if (chunk.type === "opaque-part") {
-                        streamState.opaqueParts.push(chunk.part);
+                        streamState.orderedParts.push(chunk.part);
                     } else if (chunk.type === "replay-data") {
                         streamState.replayData = chunk.data;
                     } else if (chunk.type === "citations") {
                         streamState.citations.push(...chunk.citations);
                     } else if (chunk.type === "tool-call") {
-                        streamState.toolParts.push({
+                        const part: ContentPart = {
                             type: "tool-call",
                             toolCallId: chunk.toolCallId,
                             toolName: chunk.toolName,
                             args: chunk.args,
-                        });
+                        };
+                        streamState.orderedParts.push(part);
+                        const addedEvent: PartAddedEvent = {
+                            event: "part-added",
+                            threadId,
+                            messageId,
+                            partIndex: streamState.nextClientPartIndex++,
+                            part,
+                        };
+                        await this.emitToThreadMembers(threadId, "part-added", addedEvent);
                     } else if (chunk.type === "tool-result") {
-                        streamState.toolParts.push({
+                        const part: ContentPart = {
                             type: "tool-result",
                             toolCallId: chunk.toolCallId,
                             toolName: chunk.toolName,
                             result: chunk.result,
                             ...(chunk.isError !== undefined ? { isError: chunk.isError } : {}),
-                        });
+                        };
+                        streamState.orderedParts.push(part);
+                        const addedEvent: PartAddedEvent = {
+                            event: "part-added",
+                            threadId,
+                            messageId,
+                            partIndex: streamState.nextClientPartIndex++,
+                            part,
+                        };
+                        await this.emitToThreadMembers(threadId, "part-added", addedEvent);
                     } else if (chunk.type === "generated-file") {
-                        if (!streamState.generatedFileRefs.includes(chunk.fileRef)) {
-                            streamState.generatedFileRefs.push(chunk.fileRef);
+                        if (!streamState.generatedFileSlots.some((slot) => slot.fileRef === chunk.fileRef)) {
+                            streamState.generatedFileSlots.push({
+                                fileRef: chunk.fileRef,
+                                position: streamState.orderedParts.length,
+                            });
+                            streamState.orderedParts.push(placeholderAttachmentPart(chunk.fileRef));
                         }
                     } else if (chunk.type === "container") {
                         streamState.containerId = chunk.containerId;
@@ -665,14 +699,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
                 this.activeStreams.delete(threadId);
 
-                const assistantVisibleLength = streamState.currentText.replace(/[\s\u200B-\u200D\uFEFF]/g, "").length;
+                const assistantText = extractText(streamState.orderedParts);
+                const assistantVisibleLength = assistantText.replace(/[\s\u200B-\u200D\uFEFF]/g, "").length;
 
                 // A generated file counts as a non-empty response even with no
                 // accompanying text (e.g. "save this as script.py").
                 const generatedFiles = await this.collectGeneratedFileAttachments(
                     threadId,
                     messageId,
-                    streamState.generatedFileRefs,
+                    streamState.generatedFileSlots.map((slot) => slot.fileRef),
                 );
 
                 if (assistantVisibleLength === 0 && generatedFiles.length === 0) {
@@ -687,7 +722,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                         threadId,
                         messageId,
                         error: message,
-                        assistantTextLength: streamState.currentText.length,
                         assistantVisibleLength,
                     });
                     return;
@@ -710,16 +744,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     }
                 }
 
-                // Build content array: thinking parts first, then tool calls/results
-                // (in execution order), then opaque parts (e.g. compaction), then
-                // any generated-file attachments, then final text.
-                const contentParts: ContentPart[] = [
-                    ...orderedThinkingParts(streamState.thinkingPartsByIndex),
-                    ...streamState.toolParts,
-                    ...streamState.opaqueParts,
-                    ...attachmentPartsOf(generatedFiles),
-                    { type: "text", text: streamState.currentText },
-                ];
+                const contentParts = finalizeParts(streamState, generatedFiles);
 
                 // A pre-assigned ID lets a generated file's attachment row
                 // reference the message before it exists (mirrors client-generated
@@ -754,7 +779,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     userId,
                     threadId,
                     messageId,
-                    assistantTextLength: streamState.currentText.length,
+                    assistantTextLength: assistantText.length,
                     assistantVisibleLength,
                 });
 
@@ -814,27 +839,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
         this.activeStreams.delete(threadId);
 
-        // Persist partial response (if any text, tool activity, files, or a
-        // container were generated)
-        if (
-            active.currentText ||
-            active.thinkingPartsByIndex.size > 0 ||
-            active.toolParts.length > 0 ||
-            active.generatedFileRefs.length > 0 ||
-            active.containerId
-        ) {
+        // Persist partial response (if any content, or a container, was produced)
+        if (active.orderedParts.length > 0 || active.containerId) {
             const generatedFiles = await this.collectGeneratedFileAttachments(
                 threadId,
                 active.messageId,
-                active.generatedFileRefs,
+                active.generatedFileSlots.map((slot) => slot.fileRef),
             );
-            const partialContent: ContentPart[] = [
-                ...orderedThinkingParts(active.thinkingPartsByIndex),
-                ...active.toolParts,
-                ...active.opaqueParts,
-                ...attachmentPartsOf(generatedFiles),
-                { type: "text", text: active.currentText },
-            ];
+            const partialContent = finalizeParts(active, generatedFiles);
             const persistedMessageId = generatedFiles.length > 0 ? randomUUID() : undefined;
             const persistedMessage = await this.persistence.appendMessage({
                 ...(persistedMessageId ? { id: persistedMessageId } : {}),
@@ -918,6 +930,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             totalBytes += file.bytes.byteLength;
 
             files.push({
+                fileRef,
                 attachmentId: randomUUID(),
                 name: file.filename ?? "generated-file",
                 mimeType: file.mimeType ?? "application/octet-stream",

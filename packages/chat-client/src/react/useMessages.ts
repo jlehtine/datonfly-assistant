@@ -11,6 +11,7 @@ import {
     type MessageCompleteEvent,
     type MessageStatusEvent,
     type NewMessageEvent,
+    type PartAddedEvent,
     type PartDeltaEvent,
     type StatusCode,
     type ThreadMessage,
@@ -272,6 +273,21 @@ export function useMessages(
     }, [fetchHistory]);
 
     useEffect(() => {
+        // Pad `parts` with empty text placeholders up to (not including)
+        // `partIndex`. A gap can only occur when a tab starts observing a
+        // message mid-stream and missed the earlier live events for it —
+        // `message-complete` always replaces the array wholesale once the turn
+        // finishes, so the gap is never visible in the persisted result. Text,
+        // not thinking, so an unrelated placeholder can never be mistaken for
+        // part of an adjacent real thinking run.
+        const padToIndex = (parts: ContentPart[], partIndex: number): ContentPart[] => {
+            const padded = [...parts];
+            while (padded.length < partIndex) {
+                padded.push({ type: "text", text: "" });
+            }
+            return padded;
+        };
+
         const handleDelta = (event: PartDeltaEvent): void => {
             if (event.threadId !== resolvedThreadIdRef.current) return;
             // A straggler for a message that already completed — drop it rather
@@ -287,10 +303,7 @@ export function useMessages(
 
             if (streamingIdRef.current !== event.messageId) {
                 streamingIdRef.current = event.messageId;
-                const initialParts: ContentPart[] = [];
-                for (let i = 0; i < event.partIndex; i++) {
-                    initialParts.push({ type: "thinking", text: "" });
-                }
+                const initialParts = padToIndex([], event.partIndex);
                 initialParts.push(incomingPart);
                 setMessages((prev) => [
                     ...prev,
@@ -307,21 +320,46 @@ export function useMessages(
                     prev.map((m) => {
                         if (m.id !== event.messageId) return m;
 
-                        const nextParts = [...m.parts];
-                        const existingPart = nextParts[event.partIndex];
+                        const existingPart = m.parts[event.partIndex];
                         if (existingPart?.type === event.type) {
-                            nextParts[event.partIndex] = {
-                                ...existingPart,
-                                text: existingPart.text + event.delta,
-                            };
+                            const nextParts = [...m.parts];
+                            nextParts[event.partIndex] = { ...existingPart, text: existingPart.text + event.delta };
                             return { ...m, parts: nextParts };
                         }
 
-                        if (event.partIndex < nextParts.length) {
-                            nextParts[event.partIndex] = incomingPart;
-                        } else {
-                            nextParts.push(incomingPart);
-                        }
+                        const nextParts = padToIndex(m.parts, event.partIndex);
+                        nextParts[event.partIndex] = incomingPart;
+                        return { ...m, parts: nextParts };
+                    }),
+                );
+            }
+        };
+
+        const handlePartAdded = (event: PartAddedEvent): void => {
+            if (event.threadId !== resolvedThreadIdRef.current) return;
+            if (completedMessageIdsRef.current.has(event.messageId)) return;
+            setStreamingStatus(null);
+
+            if (streamingIdRef.current !== event.messageId) {
+                streamingIdRef.current = event.messageId;
+                const initialParts = padToIndex([], event.partIndex);
+                initialParts.push(event.part);
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: event.messageId,
+                        role: "ai",
+                        parts: initialParts,
+                        streaming: true,
+                        createdAt: new Date(),
+                    },
+                ]);
+            } else {
+                setMessages((prev) =>
+                    prev.map((m) => {
+                        if (m.id !== event.messageId) return m;
+                        const nextParts = padToIndex(m.parts, event.partIndex);
+                        nextParts[event.partIndex] = event.part;
                         return { ...m, parts: nextParts };
                     }),
                 );
@@ -402,6 +440,7 @@ export function useMessages(
         };
 
         client.on("part-delta", handleDelta);
+        client.on("part-added", handlePartAdded);
         client.on("message-complete", handleComplete);
         client.on("message-status", handleStatus);
         client.on("new-message", handleNewMessage);
@@ -409,6 +448,7 @@ export function useMessages(
 
         return () => {
             client.off("part-delta", handleDelta);
+            client.off("part-added", handlePartAdded);
             client.off("message-complete", handleComplete);
             client.off("message-status", handleStatus);
             client.off("new-message", handleNewMessage);

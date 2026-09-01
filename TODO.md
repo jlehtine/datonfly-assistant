@@ -59,3 +59,13 @@ Letting those tools emit files is a separate piece of work that should reuse the
 transport built for assistant-generated files: `GeneratedFileChunk` /
 `IAgentProvider.fetchGeneratedFile` in `core`, and
 `packages/agent-anthropic/src/generated-files.ts` for the download side.
+
+## Future: tool calls and results are never shown to the user
+
+`renderPart` in `packages/chat-ui-mui/src/MessageBubble.tsx` returns `null` for
+`tool-call` and `tool-result` parts, so tool activity is invisible beyond the
+transient status indicator. The parts are persisted in true chronological order
+and delivered to the client live via the `part-added` event, positioned
+correctly among the text and thinking parts. What remains is purely a UI design
+and rendering task: deciding how a call and its result are presented (collapsed
+by default, argument and result formatting, error styling) and implementing it.

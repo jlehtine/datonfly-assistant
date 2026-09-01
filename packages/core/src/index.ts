@@ -100,6 +100,7 @@ export type {
     UpdateMemberRoleEvent,
     ClientToServerEvent,
     PartDeltaEvent,
+    PartAddedEvent,
     MessageStatusEvent,
     MessageCompleteEvent,
     NewMessageEvent,

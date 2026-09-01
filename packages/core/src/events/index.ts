@@ -11,6 +11,7 @@ export type {
     ClientToServerEvent,
     // Server → Client
     PartDeltaEvent,
+    PartAddedEvent,
     MessageStatusEvent,
     MessageCompleteEvent,
     NewMessageEvent,

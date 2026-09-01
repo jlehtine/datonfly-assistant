@@ -15,12 +15,19 @@ import type {
  */
 const DEFAULT_ALIAS = "Unidentified user";
 
-/** Extract the concatenated text from an array of content parts, ignoring tool calls, results, and opaque parts. */
+/**
+ * Extract the concatenated text from an array of content parts, ignoring tool
+ * calls, results, and opaque parts.
+ *
+ * Joined with a blank line: a single AI message routinely carries several text
+ * parts now (one per run before/after a tool call or thinking block — see
+ * `stream.ts`), so a plain `\n` would run unrelated paragraphs together.
+ */
 export function extractText(content: ContentPart[]): string {
     return content
         .filter((part): part is Extract<ContentPart, { type: "text" }> => part.type === "text")
         .map((part) => part.text)
-        .join("\n");
+        .join("\n\n");
 }
 
 function formatTimestamp(date: Date): string {

@@ -8,7 +8,6 @@ import type {
     ITool,
     OpaqueContentPart,
     ProviderLogger,
-    ThinkingContentPart,
 } from "@datonfly-assistant/core";
 
 import { isInvalidContainerError, isOverloadedError } from "./errors.js";
@@ -166,18 +165,6 @@ export function readGeneratedFileChunks(message: Anthropic.Beta.BetaMessage): Ge
     return chunks;
 }
 
-/** Deduplicate generated-file chunks by file reference, preserving first-seen order. */
-function deduplicateGeneratedFileChunks(chunks: GeneratedFileChunk[]): GeneratedFileChunk[] {
-    const seen = new Set<string>();
-    const unique: GeneratedFileChunk[] = [];
-    for (const chunk of chunks) {
-        if (seen.has(chunk.fileRef)) continue;
-        seen.add(chunk.fileRef);
-        unique.push(chunk);
-    }
-    return unique;
-}
-
 /** Copy of the request with `container` removed, used to retry once a stale reference is discarded. */
 function withoutRequestContainer(
     request: Omit<Anthropic.Beta.Messages.MessageCreateParamsStreaming, "messages" | "stream">,
@@ -242,51 +229,44 @@ function buildSalvageContent(blocks: SalvageBlock[]): Anthropic.Beta.BetaContent
  * turn. Never persisted, yielded as a chunk, or shown to the user — it exists
  * only in the retried request.
  *
- * Quoting the exact trailing text is what makes the join seamless: a generic
- * "please continue" produced a garbled join in testing, but naming the exact
- * cutoff made the model resume mid-word.
+ * Deliberately generic rather than quoting the exact cutoff text: a prior
+ * version asked the model to resume mid-word so the two halves joined into one
+ * seamless paragraph, but the continuation is now its own text part (see the
+ * `streamAgent` doc comment) and renders as a new paragraph regardless, so
+ * there is nothing left to make seamless.
  */
-function continuationInstruction(salvage: Anthropic.Beta.BetaContentBlockParam[]): string {
-    const text = salvage
-        .filter((block): block is Anthropic.Beta.BetaTextBlockParam => block.type === "text")
-        .map((block) => block.text)
-        .join("");
-    if (text.length === 0) {
-        return (
-            "Your reasoning above was interrupted by a service overload before you produced an answer. " +
-            "Continue now with your response."
-        );
-    }
-    const tail = text.slice(-120);
+function continuationInstruction(): string {
     return (
-        `Your previous message was cut off mid-response by a service overload. It ended with exactly: ${JSON.stringify(tail)}. ` +
-        "Continue writing from exactly that point so the two parts join seamlessly. Do not repeat any of it, " +
-        "do not restate, and do not add a preamble — emit only the remaining text."
+        "Your previous response was cut off by a service overload before you finished. " +
+        "Continue your response from where it left off."
     );
 }
 
 /**
  * Stream a full agent response, driving the tool-calling loop to completion.
  *
- * Emits provider-neutral {@link AgentStreamChunk} values: incremental text and
- * thinking deltas plus server-tool status while a turn streams, tool calls and
- * results as they execute, and the accumulated thinking parts, opaque parts,
- * raw-turn replay data, citations, and usage once the model stops requesting
- * tools.
+ * Emits provider-neutral {@link AgentStreamChunk} values in true chronological
+ * order: incremental text and thinking deltas plus server-tool status while a
+ * turn streams, a complete thinking/opaque/generated-file chunk as soon as it is
+ * known, tool calls and results as they execute, then raw-turn replay data,
+ * citations, and usage once the model stops requesting tools.
  *
  * Content-block indices come straight from the API, so each thinking block maps
- * to a stable part index without reassembly guesswork. All text collapses into
- * a single part, matching how the transcript stores an assistant turn.
+ * to a stable part index without reassembly guesswork. Text deltas share one
+ * part index across consecutive text blocks (including ones split only by a
+ * citation), but start a *new* part index after any visible content —
+ * thinking, a tool call/result, a generated file, or an overload-retry
+ * continuation — so the transcript preserves where text was truly interrupted.
  */
 export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<AgentStreamChunk> {
     const { client, request, tools, maxToolIterations, modelName, vendor, signal, logger, debugApiContent } = params;
     const toolMap = new Map(tools.map((tool) => [tool.name, tool]));
     const conversation = [...params.conversation];
 
-    const thinkingParts: { partIndex: number; part: ThinkingContentPart }[] = [];
-    const opaqueParts: OpaqueContentPart[] = [];
     const citations: Citation[] = [];
-    const generatedFileChunks: GeneratedFileChunk[] = [];
+    // Generated-file refs already yielded, across every turn — a file id is not
+    // scoped to the turn that reported it.
+    const seenGeneratedFileRefs = new Set<string>();
     // Mutable copy of the request, so a stale `container` can be dropped after
     // a single failed attempt (see `isInvalidContainerError`) without losing the
     // original `request` the caller passed in.
@@ -308,7 +288,11 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
     };
     let sawUsage = false;
     let nextPartIndex = 0;
-    let textPartIndex: number | null = null;
+    // The part index the next text delta joins, or `null` right after a visible
+    // part (thinking, tool activity, a generated file, an overload retry) —
+    // which forces the next text delta to start a new part instead of resuming
+    // this one. See the `streamAgent` doc comment for the full rule.
+    let currentTextPartIndex: number | null = null;
 
     for (let turn = 0; turn < maxToolIterations; turn++) {
         signal?.throwIfAborted();
@@ -345,11 +329,14 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
 
             // A thinking block only claims a part index once it carries text. An
             // adaptive-thinking block whose summary is empty must not leave a gap.
+            // Claiming one is a visible part, so it also ends whatever text part
+            // was open (see the `streamAgent` doc comment).
             const thinkingPartIndexFor = (blockIndex: number): number => {
                 const existing = thinkingPartIndexByBlock.get(blockIndex);
                 if (existing !== undefined) return existing;
                 const partIndex = nextPartIndex++;
                 thinkingPartIndexByBlock.set(blockIndex, partIndex);
+                currentTextPartIndex = null;
                 return partIndex;
             };
 
@@ -391,12 +378,12 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                             const salvageBlock = salvageBlocks.get(event.index);
                             if (delta.type === "text_delta") {
                                 if (salvageBlock) salvageBlock.text += delta.text;
-                                textPartIndex ??= nextPartIndex++;
+                                currentTextPartIndex ??= nextPartIndex++;
                                 if (delta.text.length > 0) {
                                     yield {
                                         type: "text-delta",
                                         partType: "text",
-                                        partIndex: textPartIndex,
+                                        partIndex: currentTextPartIndex,
                                         delta: delta.text,
                                     };
                                 }
@@ -429,7 +416,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                             const partIndex = thinkingPartIndexByBlock.get(event.index);
                             const text = thinkingTextByBlock.get(event.index);
                             if (partIndex !== undefined && text !== undefined && text.length > 0) {
-                                thinkingParts.push({ partIndex, part: { type: "thinking", text } });
+                                yield { type: "thinking-part", partIndex, part: { type: "thinking", text } };
                             }
                             break;
                         }
@@ -488,9 +475,13 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                         ? [
                               ...conversation,
                               { role: "assistant", content: salvage },
-                              { role: "user", content: continuationInstruction(salvage) },
+                              { role: "user", content: continuationInstruction() },
                           ]
                         : conversation;
+                // The continuation is a fresh text part rather than a mid-word
+                // splice back into the salvaged one (see the `streamAgent` doc
+                // comment and `continuationInstruction`).
+                currentTextPartIndex = null;
                 continue;
             }
 
@@ -498,8 +489,15 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
             break;
         }
 
-        opaqueParts.push(...readCompactionParts(finalMessage));
-        generatedFileChunks.push(...readGeneratedFileChunks(finalMessage));
+        for (const part of readCompactionParts(finalMessage)) {
+            yield { type: "opaque-part", part };
+        }
+        for (const chunk of readGeneratedFileChunks(finalMessage)) {
+            if (seenGeneratedFileRefs.has(chunk.fileRef)) continue;
+            seenGeneratedFileRefs.add(chunk.fileRef);
+            currentTextPartIndex = null;
+            yield chunk;
+        }
         if (finalMessage.container) containerId = finalMessage.container.id;
 
         if (finalMessage.stop_reason === "refusal") {
@@ -531,6 +529,9 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
         conversation.push({ role: "assistant", content: finalMessage.content });
         rawTurns.push({ role: "assistant", content: finalMessage.content });
 
+        // A tool call/result is a visible part, so it ends whatever text part
+        // preceded it (see the `streamAgent` doc comment).
+        currentTextPartIndex = null;
         const results: Anthropic.Beta.BetaContentBlockParam[] = [];
         for (const call of toolCalls) {
             yield { type: "tool-call", toolCallId: call.id, toolName: call.name, args: call.args };
@@ -557,15 +558,6 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
         }
     }
 
-    for (const { partIndex, part } of thinkingParts) {
-        yield { type: "thinking-part", partIndex, part };
-    }
-    for (const [index, part] of opaqueParts.entries()) {
-        yield { type: "opaque-part", partIndex: index, part };
-    }
-    for (const chunk of deduplicateGeneratedFileChunks(generatedFileChunks)) {
-        yield chunk;
-    }
     if (containerId) {
         yield { type: "container", containerId };
     }

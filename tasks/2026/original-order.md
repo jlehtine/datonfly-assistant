@@ -209,29 +209,24 @@ separate task — `renderPart` keeps returning `null` for them.
 
 ## Phase 4 — Rendering
 
-- [ ] 4.1 `MessageBubble.tsx`: delete the hoisted `thinkingRuns` block rendered
-      before `message.parts.map(...)`. Replace with a single ordered pass that
-      groups **contiguous** thinking parts into the existing collapsible box at
-      their actual position, rendering text/attachment parts inline between them
-      via `renderPart`.
-- [ ] 4.2 Key thinking-run collapse state by the array index of the run's
-      **first part** instead of the run ordinal, so an override does not jump to
-      a different run when an earlier run appears mid-stream.
-- [ ] 4.3 Keep the existing "skip runs whose combined text is blank" filter and
-      the `.datonfly-message-thinking` class name (used by
-      `tests/agent-capabilities.spec.ts`).
+- [x] 4.1 `MessageBubble.tsx`: deleted the hoisted `thinkingRuns` block.
+      Replaced with `toRenderItems()` + a single ordered `.map()` that groups
+      **contiguous** thinking parts into the existing collapsible box at their
+      actual position, rendering text/attachment parts inline between them via
+      `renderPart`.
+- [x] 4.2 Thinking-run collapse state is now keyed by the run's **first part**
+      array index (`RenderItem`'s `firstIndex`) instead of the run ordinal.
+- [x] 4.3 Kept the "skip runs whose combined text is blank" behavior (now a
+      guard inside the single map instead of a `.filter()` beforehand) and the
+      `.datonfly-message-thinking` class name.
 
 ## Phase 5 — Text extraction
 
-- [ ] 5.1 `chat-server/src/messages.ts` `extractText` joins text parts with
-      `"\n"`. Multiple text parts per AI message become the norm, so switch to
-      `"\n\n"` (D4). Affects search indexing (`indexMessage`) and the admin
-      export (`admin.controller.ts`); human messages are single-part and
-      unaffected.
-- [ ] 5.2 Confirm no change needed in `agent-anthropic/src/messages.ts`
+- [x] 5.1 `chat-server/src/messages.ts` `extractText` now joins with `"\n\n"`
+      instead of `"\n"` (D4).
+- [x] 5.2 Confirmed no change needed in `agent-anthropic/src/messages.ts`
       `assistantBlocks` — it already emits one API `text` block per text part
-      and `isNonEmptyBlock` filters empties, and the API accepts consecutive
-      text blocks.
+      and `isNonEmptyBlock` filters empties.
 
 ## Phase 6 — Tests
 

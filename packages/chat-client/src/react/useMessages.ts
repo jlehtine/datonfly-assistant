@@ -498,7 +498,14 @@ export function useMessages(
             };
             setMessages((prev) => [...prev, userMsg]);
             pendingSendRef.current = true;
+            sendGenerationRef.current += 1;
             setIsStreaming(true);
+            // A status left over from a previous (e.g. interrupted) turn must
+            // not survive into this one's pending phase — it would otherwise
+            // suppress the three-dot thinking indicator (`showThinking &&
+            // !streamingStatus`) or show stale status text until this turn's
+            // own first event arrives to overwrite it.
+            setStreamingStatus(null);
             setError(null);
 
             void (async () => {

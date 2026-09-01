@@ -247,8 +247,11 @@ export interface BackendConfig {
             thinkingDisplay: "summarized" | "omitted" | undefined;
             thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
             trafficDumpDir: string | undefined;
+            maxGeneratedFileBytes: number | undefined;
         };
     };
+    /** Whether the agent may deliver files it generates during code execution as downloadable attachments. */
+    generatedFiles: { enabled: boolean };
     mcp: { servers: McpServerConfig[]; toolTimeoutMs: number | undefined };
     transcription: { apiKey: string; model: string } | undefined;
     memberSearchStrategy: MemberSearchStrategy;
@@ -447,8 +450,13 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
                     "DF_ANTHROPIC_THINKING_EFFORT",
                 ),
                 trafficDumpDir: reader.prefixed("ANTHROPIC_TRAFFIC_DUMP_DIR"),
+                maxGeneratedFileBytes: parseOptionalPositiveInt(
+                    reader.prefixed("GENERATED_FILE_MAX_BYTES"),
+                    "DF_GENERATED_FILE_MAX_BYTES",
+                ),
             },
         },
+        generatedFiles: { enabled: reader.prefixed("ENABLE_GENERATED_FILES") !== "false" },
         mcp: { servers: mcpServers, toolTimeoutMs: mcpToolTimeoutMs },
         transcription,
         memberSearchStrategy,

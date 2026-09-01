@@ -1,0 +1,32 @@
+{
+    "request": {
+        "method": "GET",
+        "path": "/v1/files/file_01FCiZjrYi2AHg9qV2XqhHXL",
+        "headers": {
+            "accept": "application/json",
+            "anthropic-beta": "files-api-2025-04-14",
+            "anthropic-version": "2023-06-01",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-arch": "x64",
+            "x-stainless-lang": "js",
+            "x-stainless-os": "Linux",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v22.22.0"
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "application/json"
+        },
+        "body": "{\"type\":\"file\",\"id\":\"file_01FCiZjrYi2AHg9qV2XqhHXL\",\"size_bytes\":303,\"created_at\":\"2026-08-31T18:01:29.737113Z\",\"filename\":\"fibonacci.py\",\"mime_type\":\"text/x-script.python\",\"downloadable\":true}",
+        "frames": [
+            {
+                "atMs": 288,
+                "text": "{\"type\":\"file\",\"id\":\"file_01FCiZjrYi2AHg9qV2XqhHXL\",\"size_bytes\":303,\"created_at\":\"2026-08-31T18:01:29.737113Z\",\"filename\":\"fibonacci.py\",\"mime_type\":\"text/x-script.python\",\"downloadable\":true}"
+            }
+        ]
+    }
+}

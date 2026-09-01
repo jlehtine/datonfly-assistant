@@ -4,13 +4,14 @@ import type {
     AgentStreamChunk,
     AgentUsage,
     Citation,
+    GeneratedFileChunk,
     ITool,
     OpaqueContentPart,
     ProviderLogger,
     ThinkingContentPart,
 } from "@datonfly-assistant/core";
 
-import { isOverloadedError } from "./errors.js";
+import { isInvalidContainerError, isOverloadedError } from "./errors.js";
 import { compactionBlockToOpaquePart, rawTurnsToReplayData } from "./messages.js";
 import { executeToolCall, toolNameToStatus, type ToolCall } from "./tools.js";
 
@@ -130,6 +131,62 @@ function readCompactionParts(message: Anthropic.Beta.BetaMessage): OpaqueContent
     return parts;
 }
 
+/** Whether a bash code execution result carries files rather than an error (`bash_code_execution_tool_result_error`). */
+function isBashCodeExecutionResultBlock(content: unknown): content is Anthropic.Beta.BetaBashCodeExecutionResultBlock {
+    return (
+        typeof content === "object" &&
+        content !== null &&
+        (content as { type?: unknown }).type === "bash_code_execution_result" &&
+        Array.isArray((content as { content?: unknown }).content)
+    );
+}
+
+/**
+ * Collect generated-file references from bash code execution results in a
+ * completed assistant turn, deduplicated by file ID.
+ *
+ * Every reported file ID is a deliberate deliverable: the sandbox only exports
+ * files copied into `$OUTPUT_DIR` to the Files API, so there is
+ * no path filtering to apply here. Error results
+ * (`bash_code_execution_tool_result_error`) and bash results with no files
+ * (`content: []`) simply contribute nothing.
+ */
+export function readGeneratedFileChunks(message: Anthropic.Beta.BetaMessage): GeneratedFileChunk[] {
+    const chunks: GeneratedFileChunk[] = [];
+    for (const block of message.content) {
+        if (block.type !== "bash_code_execution_tool_result") continue;
+        const content: unknown = block.content;
+        if (!isBashCodeExecutionResultBlock(content)) continue;
+        for (const output of content.content) {
+            const fileId: unknown = (output as { file_id?: unknown }).file_id;
+            if (typeof fileId !== "string" || fileId.length === 0) continue;
+            chunks.push({ type: "generated-file", fileRef: fileId });
+        }
+    }
+    return chunks;
+}
+
+/** Deduplicate generated-file chunks by file reference, preserving first-seen order. */
+function deduplicateGeneratedFileChunks(chunks: GeneratedFileChunk[]): GeneratedFileChunk[] {
+    const seen = new Set<string>();
+    const unique: GeneratedFileChunk[] = [];
+    for (const chunk of chunks) {
+        if (seen.has(chunk.fileRef)) continue;
+        seen.add(chunk.fileRef);
+        unique.push(chunk);
+    }
+    return unique;
+}
+
+/** Copy of the request with `container` removed, used to retry once a stale reference is discarded. */
+function withoutRequestContainer(
+    request: Omit<Anthropic.Beta.Messages.MessageCreateParamsStreaming, "messages" | "stream">,
+): Omit<Anthropic.Beta.Messages.MessageCreateParamsStreaming, "messages" | "stream"> {
+    const next = { ...request };
+    delete next.container;
+    return next;
+}
+
 /** Resolve after `ms` milliseconds; rejects immediately (or as soon as it fires) if `signal` aborts. */
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -229,6 +286,16 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
     const thinkingParts: { partIndex: number; part: ThinkingContentPart }[] = [];
     const opaqueParts: OpaqueContentPart[] = [];
     const citations: Citation[] = [];
+    const generatedFileChunks: GeneratedFileChunk[] = [];
+    // Mutable copy of the request, so a stale `container` can be dropped after
+    // a single failed attempt (see `isInvalidContainerError`) without losing the
+    // original `request` the caller passed in.
+    let effectiveRequest = request;
+    let containerRetryAvailable = Boolean(request.container);
+    // The provider's code-execution container for this call, once reported —
+    // reused from the request or newly created, either way surfaced once at the
+    // end so the caller can persist it for the next call.
+    let containerId: string | undefined;
     // Every message param appended to `conversation` during this call, plus the
     // final answer (which the loop never pushes to `conversation` since nothing
     // continues after it) — captured verbatim for replay on a later turn.
@@ -258,7 +325,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
             let stream;
             try {
                 stream = client.beta.messages.stream(
-                    { ...request, messages: attemptMessages, stream: true },
+                    { ...effectiveRequest, messages: attemptMessages, stream: true },
                     { ...(signal ? { signal } : {}) },
                 );
             } catch (error) {
@@ -274,6 +341,7 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
             const salvageBlocks = new Map<number, SalvageBlock>();
             let turnUsage: TurnUsage | undefined;
             let overloaded = false;
+            let invalidContainer = false;
 
             // A thinking block only claims a part index once it carries text. An
             // adaptive-thinking block whose summary is empty must not leave a gap.
@@ -378,6 +446,8 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
             } catch (error) {
                 if (isOverloadedError(error) && overloadRetriesLeft > 0) {
                     overloaded = true;
+                } else if (containerRetryAvailable && isInvalidContainerError(error)) {
+                    invalidContainer = true;
                 } else {
                     logger.error({ phase: "stream_iterate", turn }, "Assistant API stream failed");
                     throw error;
@@ -394,6 +464,16 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
                 totals.outputTokens += turnUsage.outputTokens;
                 totals.cacheCreationInputTokens += turnUsage.cacheCreationInputTokens;
                 totals.cacheReadInputTokens += turnUsage.cacheReadInputTokens;
+            }
+
+            if (invalidContainer) {
+                containerRetryAvailable = false;
+                effectiveRequest = withoutRequestContainer(effectiveRequest);
+                logger.info(
+                    { phase: "invalid_container", turn },
+                    "Discarding invalid/expired container, retrying without it",
+                );
+                continue;
             }
 
             if (overloaded) {
@@ -419,6 +499,8 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
         }
 
         opaqueParts.push(...readCompactionParts(finalMessage));
+        generatedFileChunks.push(...readGeneratedFileChunks(finalMessage));
+        if (finalMessage.container) containerId = finalMessage.container.id;
 
         if (finalMessage.stop_reason === "refusal") {
             throw new Error("The model declined to answer this request.");
@@ -480,6 +562,12 @@ export async function* streamAgent(params: StreamAgentParams): AsyncGenerator<Ag
     }
     for (const [index, part] of opaqueParts.entries()) {
         yield { type: "opaque-part", partIndex: index, part };
+    }
+    for (const chunk of deduplicateGeneratedFileChunks(generatedFileChunks)) {
+        yield chunk;
+    }
+    if (containerId) {
+        yield { type: "container", containerId };
     }
     if (rawTurns.length > 0) {
         yield { type: "replay-data", data: rawTurnsToReplayData(rawTurns) };

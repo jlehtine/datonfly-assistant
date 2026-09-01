@@ -99,6 +99,12 @@ export interface AnthropicProviderOptions {
     /** Per-request timeout in milliseconds. Defaults to the SDK's own default. */
     timeoutMs?: number | undefined;
     /**
+     * Size cap (in bytes) enforced when downloading a generated file through
+     * {@link IAgentProvider.fetchGeneratedFile}. Defaults to
+     * {@link DEFAULT_MAX_GENERATED_FILE_BYTES}.
+     */
+    maxGeneratedFileBytes?: number | undefined;
+    /**
      * Directory to dump raw API traffic (requests, responses, and streamed
      * bytes, each with a capture timestamp) to, for debugging failures that
      * aren't recovered automatically. Off unless set.

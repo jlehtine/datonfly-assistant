@@ -7,6 +7,7 @@ import {
     type AgentRunOptions,
     type AgentStreamChunk,
     type ContentPart,
+    type GeneratedFileData,
     type IAgentProvider,
     type ITool,
     type ProviderLogger,
@@ -28,6 +29,7 @@ import {
     type AnthropicProviderOptions,
 } from "./config.js";
 import { describeApiError } from "./errors.js";
+import { DEFAULT_MAX_GENERATED_FILE_BYTES, fetchGeneratedFile } from "./generated-files.js";
 import { agentMessagesToParams, trimBeforeCompaction } from "./messages.js";
 import { streamAgent } from "./stream.js";
 import { serverToolParams, toolToParam } from "./tools.js";
@@ -102,6 +104,7 @@ export class AnthropicAgent implements IAgentProvider {
     private readonly titleModelName: string | undefined;
     private readonly debugApiContent: boolean;
     private readonly logger: ProviderLogger;
+    private readonly maxGeneratedFileBytes: number;
 
     /** @inheritdoc */
     readonly capabilities: AgentCapabilities;
@@ -121,6 +124,7 @@ export class AnthropicAgent implements IAgentProvider {
         this.titleModelName = config.titleModelName;
         this.debugApiContent = config.debugApiContent ?? false;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
+        this.maxGeneratedFileBytes = options.maxGeneratedFileBytes ?? DEFAULT_MAX_GENERATED_FILE_BYTES;
         this.serverTools = serverToolParams(options);
 
         this.client = new Anthropic({
@@ -147,6 +151,7 @@ export class AnthropicAgent implements IAgentProvider {
         system: Anthropic.Beta.BetaTextBlockParam[] | undefined,
         messages: Anthropic.Beta.BetaMessageParam[],
         tools: ITool[],
+        containerId: string | undefined,
     ): Omit<Anthropic.Beta.Messages.MessageCreateParamsStreaming, "messages" | "stream"> {
         const allTools = [...this.serverTools, ...tools.map(toolToParam)];
         const thinking = buildThinkingParam(this.options);
@@ -159,6 +164,7 @@ export class AnthropicAgent implements IAgentProvider {
             betas: requiredBetas(this.options),
             ...(system ? { system } : {}),
             ...(allTools.length > 0 ? { tools: allTools } : {}),
+            ...(containerId ? { container: containerId } : {}),
             thinking,
             ...(outputConfig ? { output_config: outputConfig } : {}),
             ...(contextManagement ? { context_management: contextManagement } : {}),
@@ -190,7 +196,7 @@ export class AnthropicAgent implements IAgentProvider {
         const system = systemPrompt
             ? [{ type: "text" as const, text: systemPrompt }, ...(conversation.system ?? [])]
             : conversation.system;
-        const request = this.buildRequest(system, conversation.messages, tools);
+        const request = this.buildRequest(system, conversation.messages, tools, options?.containerId);
 
         return Promise.resolve(
             streamAgent({
@@ -269,6 +275,11 @@ export class AnthropicAgent implements IAgentProvider {
     /** @inheritdoc */
     getContextWindowSize(): number {
         return this.contextWindowSize;
+    }
+
+    /** @inheritdoc */
+    fetchGeneratedFile(fileRef: string, signal?: AbortSignal): Promise<GeneratedFileData> {
+        return fetchGeneratedFile(this.client, fileRef, this.maxGeneratedFileBytes, signal);
     }
 
     /**

@@ -25,6 +25,7 @@ export interface ThreadsTable {
     memory_enabled: ColumnType<boolean, boolean | undefined, boolean>;
     title_generated_at: Date | null;
     title_manually_set: ColumnType<boolean, boolean | undefined, boolean>;
+    agent_container_id: string | null;
 }
 
 /** Kysely table definition for the `thread_member` database table. */
@@ -65,7 +66,7 @@ export interface ThreadUserStateTable {
 /** Kysely table definition for the `attachment` database table. */
 export interface AttachmentsTable {
     id: Generated<string>;
-    uploader_id: string;
+    uploader_id: string | null;
     thread_id: string | null;
     message_id: string | null;
     name: string;
@@ -73,6 +74,7 @@ export interface AttachmentsTable {
     size: number;
     bytes: ColumnType<Buffer, Buffer, never>;
     created_at: ColumnType<Date, Date | undefined, never>;
+    origin: ColumnType<string, string | undefined, never>;
 }
 
 // ─── Database ───

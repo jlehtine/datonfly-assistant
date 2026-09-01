@@ -98,6 +98,23 @@ export function isOverloadedError(error: unknown): boolean {
 }
 
 /**
+ * Whether a caught value looks like Anthropic rejecting a stale `container`
+ * request parameter (e.g. one that expired or was deleted).
+ *
+ * Not verified against the live API — the Phase 0 probe only exercised a
+ * still-valid container, so this shape is inferred rather than observed.
+ * Deliberately conservative (a genuine 400 `invalid_request_error` whose
+ * message mentions "container") so an unrelated bad request is never masked by
+ * a pointless retry.
+ */
+export function isInvalidContainerError(error: unknown): boolean {
+    if (!(error instanceof APIError)) return false;
+    if (error.status !== 400) return false;
+    if (readErrorType(error.error as unknown) !== "invalid_request_error") return false;
+    return formatLoggedError(error).toLowerCase().includes("container");
+}
+
+/**
  * Map a caught value onto a machine-readable {@link ErrorCode}.
  *
  * Lets the gateway report a meaningful reason to the user instead of a generic

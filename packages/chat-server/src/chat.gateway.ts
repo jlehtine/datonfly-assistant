@@ -12,6 +12,7 @@ import type {
     AgentUsage,
     Citation,
     ContentPart,
+    GeneratedFileData,
     IAgentProvider,
     IPersistenceProvider,
     ISearchProvider,
@@ -38,6 +39,7 @@ import type {
 import {
     ATTACHMENT_LIMITS,
     ERROR_CODES,
+    GENERATED_FILE_LIMITS,
     WS_PATH,
     chatRequestSchema,
     formatLoggedError,
@@ -49,6 +51,7 @@ import {
 import { AuditLogger } from "./audit-logger.js";
 import {
     AGENT_PROVIDER,
+    GENERATED_FILES_ENABLED,
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
     TRANSCRIBE_FN,
@@ -86,6 +89,19 @@ interface ActiveStream {
     replayData: ProviderReplayData | null;
     hasTextSinceToolBoundary: boolean;
     pendingToolBoundaryBreak: boolean;
+    /** Provider file references reported mid-stream, deduplicated in arrival order. */
+    generatedFileRefs: string[];
+    /** Provider code-execution container ID reported mid-stream, or `null` if none. */
+    containerId: string | null;
+}
+
+/** A generated file downloaded and ready to persist as an assistant-message attachment. */
+interface DownloadedGeneratedFile {
+    attachmentId: string;
+    name: string;
+    mimeType: string;
+    size: number;
+    bytes: Uint8Array;
 }
 
 function toolBoundarySeparator(text: string): string {
@@ -97,6 +113,16 @@ function toolBoundarySeparator(text: string): string {
 
 function orderedThinkingParts(map: Map<number, Extract<ContentPart, { type: "thinking" }>>): ContentPart[] {
     return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([, part]) => part);
+}
+
+function attachmentPartsOf(files: DownloadedGeneratedFile[]): ContentPart[] {
+    return files.map((file) => ({
+        type: "attachment",
+        attachmentId: file.attachmentId,
+        name: file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+    }));
 }
 
 @WebSocketGateway({ path: WS_PATH })
@@ -122,6 +148,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
         @Optional() @Inject(TRANSCRIBE_FN) private readonly transcribeFn: TranscribeFn | null,
+        @Optional() @Inject(GENERATED_FILES_ENABLED) private readonly generatedFilesEnabledOverride: boolean | null,
         private readonly auditLogger: AuditLogger,
         private readonly rateLimit: RateLimitService,
     ) {}
@@ -437,7 +464,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         const history = await this.persistence.loadMessages({ threadId });
         const members = await this.persistence.listMembersWithUser(threadId);
         const authorAliases = buildAuthorAliases(members);
-        const messages: AgentMessage[] = threadMessagesToAgentMessages(history, authorAliases);
+        const messages: AgentMessage[] = threadMessagesToAgentMessages(
+            history,
+            authorAliases,
+            this.generatedFilesEnabled,
+        );
 
         // Multi-user triage: decide whether the agent should respond
         const memberCount = members.length;
@@ -482,6 +513,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             replayData: null,
             hasTextSinceToolBoundary: false,
             pendingToolBoundaryBreak: false,
+            generatedFileRefs: [],
+            containerId: null,
         };
         this.activeStreams.set(threadId, streamState);
 
@@ -489,7 +522,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         // stream path, so the title path never loads file bytes.
         await resolveAttachmentData(messages, this.persistence);
 
-        const stream = await this.agent.stream(messages, threadId, userId, controller.signal);
+        const containerId = await this.persistence.getThreadContainerId(threadId);
+        const stream = await this.agent.stream(
+            messages,
+            threadId,
+            userId,
+            controller.signal,
+            containerId ? { containerId } : undefined,
+        );
         return { stream, streamState, userId };
     }
     /**
@@ -601,6 +641,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                             result: chunk.result,
                             ...(chunk.isError !== undefined ? { isError: chunk.isError } : {}),
                         });
+                    } else if (chunk.type === "generated-file") {
+                        if (!streamState.generatedFileRefs.includes(chunk.fileRef)) {
+                            streamState.generatedFileRefs.push(chunk.fileRef);
+                        }
+                    } else if (chunk.type === "container") {
+                        streamState.containerId = chunk.containerId;
                     } else {
                         // usage chunk
                         streamState.usage = chunk.usage;
@@ -621,7 +667,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
 
                 const assistantVisibleLength = streamState.currentText.replace(/[\s\u200B-\u200D\uFEFF]/g, "").length;
 
-                if (assistantVisibleLength === 0) {
+                // A generated file counts as a non-empty response even with no
+                // accompanying text (e.g. "save this as script.py").
+                const generatedFiles = await this.collectGeneratedFileAttachments(
+                    threadId,
+                    messageId,
+                    streamState.generatedFileRefs,
+                );
+
+                if (assistantVisibleLength === 0 && generatedFiles.length === 0) {
                     const message = "Assistant returned an empty response";
                     socket.emit("error", {
                         event: "error",
@@ -657,15 +711,22 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 }
 
                 // Build content array: thinking parts first, then tool calls/results
-                // (in execution order), then opaque parts (e.g. compaction), then final text.
+                // (in execution order), then opaque parts (e.g. compaction), then
+                // any generated-file attachments, then final text.
                 const contentParts: ContentPart[] = [
                     ...orderedThinkingParts(streamState.thinkingPartsByIndex),
                     ...streamState.toolParts,
                     ...streamState.opaqueParts,
+                    ...attachmentPartsOf(generatedFiles),
                     { type: "text", text: streamState.currentText },
                 ];
 
-                await this.persistence.appendMessage({
+                // A pre-assigned ID lets a generated file's attachment row
+                // reference the message before it exists (mirrors client-generated
+                // IDs for human messages — see CONVENTIONS.md "Record ID Ownership").
+                const persistedMessageId = generatedFiles.length > 0 ? randomUUID() : undefined;
+                const persistedMessage = await this.persistence.appendMessage({
+                    ...(persistedMessageId ? { id: persistedMessageId } : {}),
                     threadId,
                     role: "ai",
                     content: contentParts,
@@ -673,6 +734,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
                     ...(streamState.replayData ? { replayData: streamState.replayData } : {}),
                 });
+                await this.persistGeneratedFileAttachments(threadId, persistedMessage.id, generatedFiles);
+                if (streamState.containerId) {
+                    await this.persistence.setThreadContainerId(threadId, streamState.containerId);
+                }
 
                 const completeEvent: MessageCompleteEvent = {
                     event: "message-complete",
@@ -749,21 +814,40 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         }
         this.activeStreams.delete(threadId);
 
-        // Persist partial response (if any text was generated)
-        if (active.currentText || active.thinkingPartsByIndex.size > 0 || active.toolParts.length > 0) {
+        // Persist partial response (if any text, tool activity, files, or a
+        // container were generated)
+        if (
+            active.currentText ||
+            active.thinkingPartsByIndex.size > 0 ||
+            active.toolParts.length > 0 ||
+            active.generatedFileRefs.length > 0 ||
+            active.containerId
+        ) {
+            const generatedFiles = await this.collectGeneratedFileAttachments(
+                threadId,
+                active.messageId,
+                active.generatedFileRefs,
+            );
             const partialContent: ContentPart[] = [
                 ...orderedThinkingParts(active.thinkingPartsByIndex),
                 ...active.toolParts,
                 ...active.opaqueParts,
+                ...attachmentPartsOf(generatedFiles),
                 { type: "text", text: active.currentText },
             ];
-            await this.persistence.appendMessage({
+            const persistedMessageId = generatedFiles.length > 0 ? randomUUID() : undefined;
+            const persistedMessage = await this.persistence.appendMessage({
+                ...(persistedMessageId ? { id: persistedMessageId } : {}),
                 threadId,
                 role: "ai",
                 content: partialContent,
                 authorId: null,
                 metadata: { interrupted: true },
             });
+            await this.persistGeneratedFileAttachments(threadId, persistedMessage.id, generatedFiles);
+            if (active.containerId) {
+                await this.persistence.setThreadContainerId(threadId, active.containerId);
+            }
 
             const completeEvent: MessageCompleteEvent = {
                 event: "message-complete",
@@ -777,6 +861,105 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             // Fire-and-forget: index the interrupted AI message for search.
             this.indexMessage(active.messageId, threadId, partialContent, "ai", null);
         }
+    }
+
+    /**
+     * Download generated files reported mid-stream, enforcing per-message
+     * count/size limits ({@link GENERATED_FILE_LIMITS}).
+     *
+     * Skips entirely when the feature is disabled or the agent doesn't
+     * implement {@link IAgentProvider.fetchGeneratedFile}. A download failure
+     * (after the agent's own bounded retries) is logged and the file is
+     * dropped — no further retry.
+     */
+    private async collectGeneratedFileAttachments(
+        threadId: string,
+        messageId: string,
+        fileRefs: string[],
+    ): Promise<DownloadedGeneratedFile[]> {
+        if (fileRefs.length === 0) return [];
+        if (!this.generatedFilesEnabled || !this.agent.fetchGeneratedFile) return [];
+
+        const files: DownloadedGeneratedFile[] = [];
+        let totalBytes = 0;
+        for (const fileRef of fileRefs) {
+            if (files.length >= GENERATED_FILE_LIMITS.maxPerMessage) {
+                this.auditLogger.audit("info", "agent.generated-file.skipped", {
+                    threadId,
+                    messageId,
+                    fileRef,
+                    reason: "per-message count limit",
+                });
+                continue;
+            }
+
+            let file: GeneratedFileData;
+            try {
+                file = await this.agent.fetchGeneratedFile(fileRef);
+            } catch (error) {
+                this.auditLogger.audit("error", "agent.generated-file.fetch-failed", {
+                    threadId,
+                    messageId,
+                    fileRef,
+                    error: formatLoggedError(error),
+                });
+                continue;
+            }
+
+            if (totalBytes + file.bytes.byteLength > GENERATED_FILE_LIMITS.maxTotalBytes) {
+                this.auditLogger.audit("info", "agent.generated-file.skipped", {
+                    threadId,
+                    messageId,
+                    fileRef,
+                    reason: "per-message size limit",
+                });
+                continue;
+            }
+            totalBytes += file.bytes.byteLength;
+
+            files.push({
+                attachmentId: randomUUID(),
+                name: file.filename ?? "generated-file",
+                mimeType: file.mimeType ?? "application/octet-stream",
+                size: file.bytes.byteLength,
+                bytes: file.bytes,
+            });
+        }
+        return files;
+    }
+
+    /** Persist already-downloaded generated files as attachments associated with `messageId`. */
+    private async persistGeneratedFileAttachments(
+        threadId: string,
+        messageId: string,
+        files: DownloadedGeneratedFile[],
+    ): Promise<void> {
+        for (const file of files) {
+            try {
+                await this.persistence.saveAttachment({
+                    id: file.attachmentId,
+                    threadId,
+                    messageId,
+                    origin: "agent",
+                    name: file.name,
+                    mimeType: file.mimeType,
+                    size: file.size,
+                    bytes: file.bytes,
+                });
+            } catch (error) {
+                this.auditLogger.audit("error", "agent.generated-file.save-failed", {
+                    threadId,
+                    messageId,
+                    attachmentId: file.attachmentId,
+                    error: formatLoggedError(error),
+                });
+            }
+        }
+    }
+
+    /** Whether assistant-generated files are enabled, defaulting to on when unconfigured. */
+    private get generatedFilesEnabled(): boolean {
+        return this.generatedFilesEnabledOverride ?? true;
     }
 
     private async handleInviteMember(socket: Socket, data: InviteMemberEvent): Promise<void> {

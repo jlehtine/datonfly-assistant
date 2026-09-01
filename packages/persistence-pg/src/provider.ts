@@ -215,6 +215,25 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
         await this.qb.deleteFrom("thread").where("id", "=", threadId).execute();
     }
 
+    async getThreadContainerId(threadId: string): Promise<string | null> {
+        const row = await this.qb
+            .selectFrom("thread")
+            .select("agent_container_id")
+            .where("id", "=", threadId)
+            .executeTakeFirst();
+        return row?.agent_container_id ?? null;
+    }
+
+    async setThreadContainerId(threadId: string, containerId: string): Promise<void> {
+        // Deliberately doesn't bump `updated_at` — this is provider-internal
+        // bookkeeping, not user-visible thread activity.
+        await this.qb
+            .updateTable("thread")
+            .set({ agent_container_id: containerId })
+            .where("id", "=", threadId)
+            .execute();
+    }
+
     async updateThreadUserState(
         threadId: string,
         userId: string,
@@ -545,16 +564,27 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
             .insertInto("attachment")
             .values({
                 id,
-                uploader_id: options.uploaderId,
-                thread_id: null,
-                message_id: null,
+                uploader_id: options.uploaderId ?? null,
+                thread_id: options.threadId ?? null,
+                message_id: options.messageId ?? null,
                 name: options.name,
                 mime_type: options.mimeType,
                 size: options.size,
                 bytes: Buffer.from(options.bytes),
                 created_at: new Date(),
+                origin: options.origin ?? "user",
             })
-            .returning(["id", "uploader_id", "thread_id", "message_id", "name", "mime_type", "size", "created_at"])
+            .returning([
+                "id",
+                "uploader_id",
+                "thread_id",
+                "message_id",
+                "name",
+                "mime_type",
+                "size",
+                "created_at",
+                "origin",
+            ])
             .executeTakeFirstOrThrow();
         return toAttachmentRecord(row);
     }
@@ -562,7 +592,17 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
     async getAttachment(id: string): Promise<AttachmentRecord | null> {
         const row = await this.qb
             .selectFrom("attachment")
-            .select(["id", "uploader_id", "thread_id", "message_id", "name", "mime_type", "size", "created_at"])
+            .select([
+                "id",
+                "uploader_id",
+                "thread_id",
+                "message_id",
+                "name",
+                "mime_type",
+                "size",
+                "created_at",
+                "origin",
+            ])
             .where("id", "=", id)
             .executeTakeFirst();
         return row ? toAttachmentRecord(row) : null;
@@ -674,5 +714,6 @@ function toAttachmentRecord(row: Omit<AttachmentRow, "bytes">): AttachmentRecord
         mimeType: row.mime_type,
         size: row.size,
         createdAt: row.created_at,
+        origin: row.origin as "user" | "agent",
     };
 }

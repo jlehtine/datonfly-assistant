@@ -20,6 +20,7 @@ import {
     ADMIN_SECRET,
     AGENT_PROVIDER,
     CHAT_CORS_OPTIONS,
+    GENERATED_FILES_ENABLED,
     MEMBER_SEARCH_STRATEGY,
     PERSISTENCE_PROVIDER,
     RATE_LIMIT_CONFIG,
@@ -114,8 +115,7 @@ export interface ChatModuleConfig {
      */
     memberSearchStrategy?: MemberSearchStrategy | undefined;
     /** Optional semantic search provider for thread search and message indexing. */
-    search?: ISearchProvider | undefined;
-    /**
+    search?: ISearchProvider | undefined; /**
      * Half-life for search recency decay scoring, in days.
      *
      * A message from `N` days ago is scored as `rawScore * exp(-ln(2) / halfLife * N)`,
@@ -157,6 +157,11 @@ export interface ChatModuleConfig {
      * across multiple instances (defaults to in-memory).
      */
     rateLimit?: (RateLimitOptions & { storage?: ThrottlerStorage | undefined }) | undefined;
+    /**
+     * Whether the agent may deliver files it generates during code execution as
+     * downloadable attachments. Defaults to `true`.
+     */
+    generatedFilesEnabled?: boolean | undefined;
 }
 
 @Module({})
@@ -238,6 +243,7 @@ export class ChatModule {
                         : null,
                 },
                 { provide: RATE_LIMIT_CONFIG, useValue: rateLimit },
+                { provide: GENERATED_FILES_ENABLED, useValue: config.generatedFilesEnabled ?? null },
                 RateLimitService,
                 ...(rateLimit.enabled ? [{ provide: APP_GUARD, useClass: TieredThrottlerGuard }] : []),
                 RequireUserGuard,

@@ -88,6 +88,20 @@ describe("loadBackendConfig", () => {
         });
     });
 
+    it("defaults generated files to enabled with no size cap", () => {
+        const config = loadBackendConfig(validEnv());
+        expect(config.generatedFiles).toEqual({ enabled: true });
+        expect(config.agent.anthropic.maxGeneratedFileBytes).toBeUndefined();
+    });
+
+    it("reads DF_ENABLE_GENERATED_FILES and DF_GENERATED_FILE_MAX_BYTES", () => {
+        const config = loadBackendConfig(
+            validEnv({ DF_ENABLE_GENERATED_FILES: "false", DF_GENERATED_FILE_MAX_BYTES: "1000000" }),
+        );
+        expect(config.generatedFiles).toEqual({ enabled: false });
+        expect(config.agent.anthropic.maxGeneratedFileBytes).toBe(1000000);
+    });
+
     it("ignores unprefixed legacy names", () => {
         expect(() =>
             loadBackendConfig({ DATABASE_URL: "postgres://localhost/legacy", AGENT_MODEL: "claude-legacy" }),

@@ -49,6 +49,10 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions and
   permissions — only thread members can read or download them, and uploaders can
   remove their own attachments before sending. The feature is advertised to
   clients via the welcome event with the applicable size and per-message limits.
+  Files the assistant creates via code execution (a script, chart, dataset, …)
+  flow the other way: they become downloadable attachments on the assistant's
+  message the same way, with no upload step. Enabled by default alongside code
+  execution; see `DF_ENABLE_GENERATED_FILES` in [INSTALL.md](INSTALL.md).
 - **AI agent tools** — The default implementation uses Claude as the AI model,
   with built-in Claude tools for web search (with source citations), web page
   fetching, and code execution. Application-specific tools can be injected by

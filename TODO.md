@@ -64,3 +64,13 @@ What was established:
       is real, a user typing while a background re-render lands would silently
       lose their message. Until then the spec stays as-is rather than being
       papered over with a retry, so the flake keeps surfacing it.
+
+## Future: custom and MCP tools cannot emit files
+
+Custom and MCP tools still return text only (`ITool.execute` →
+`string | Record<string, unknown>`, and `extractText` in
+`packages/agent-mcp/src/mcp-client.ts` discards non-text MCP content blocks).
+Letting those tools emit files is a separate piece of work that should reuse the
+transport built for assistant-generated files: `GeneratedFileChunk` /
+`IAgentProvider.fetchGeneratedFile` in `core`, and
+`packages/agent-anthropic/src/generated-files.ts` for the download side.

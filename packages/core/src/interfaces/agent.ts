@@ -83,6 +83,34 @@ export interface OpaquePartChunk {
 }
 
 /**
+ * A file the agent deliberately delivered to the user during code execution,
+ * discovered once a turn completes.
+ *
+ * Carries only an opaque reference — providers differ in how a generated file
+ * is retrieved, so the caller fetches the bytes separately via
+ * {@link IAgentProvider.fetchGeneratedFile}.
+ */
+export interface GeneratedFileChunk {
+    type: "generated-file";
+    /** Opaque provider-specific reference used to fetch the file later (e.g. an Anthropic file ID). */
+    fileRef: string;
+    /** Filename hint, when the provider reports one at discovery time. */
+    filename?: string | undefined;
+    /** MIME type hint, when the provider reports one at discovery time. */
+    mimeType?: string | undefined;
+}
+
+/** The bytes and metadata of a generated file, fetched via {@link IAgentProvider.fetchGeneratedFile}. */
+export interface GeneratedFileData {
+    /** Suggested filename, when the provider reports one. */
+    filename: string | undefined;
+    /** MIME type, when the provider reports one. */
+    mimeType: string | undefined;
+    /** Raw file bytes. */
+    bytes: Uint8Array;
+}
+
+/**
  * The full provider-native exchange for the turn, emitted once a turn
  * completes, for verbatim replay on a later turn (see {@link AgentMessage.replayData}).
  * Not a {@link ContentPart} — it never appears in persisted message content and
@@ -139,6 +167,20 @@ export interface UsageChunk {
     usage: AgentUsage;
 }
 
+/**
+ * The provider's code-execution container in use for this call, if any.
+ *
+ * Emitted once a turn completes when the provider reports a container ID —
+ * whether reused from a prior call (via {@link AgentRunOptions.containerId}) or
+ * newly created. The caller persists it (e.g. per thread) and passes it back on
+ * a later call to keep sandbox files and REPL state alive across turns.
+ */
+export interface ContainerChunk {
+    type: "container";
+    /** Opaque provider-specific container reference. */
+    containerId: string;
+}
+
 /** Discriminated union of all streamed agent output chunk types. */
 export type AgentStreamChunk =
     | TextDeltaChunk
@@ -149,6 +191,8 @@ export type AgentStreamChunk =
     | CitationsChunk
     | ToolCallChunk
     | ToolResultChunk
+    | GeneratedFileChunk
+    | ContainerChunk
     | UsageChunk;
 
 /** Result of an agent's decision on whether to respond in a room thread. */
@@ -182,6 +226,15 @@ export interface AgentRunOptions {
      * without persisting a system message in the thread.
      */
     systemPrompt?: string | undefined;
+    /**
+     * Opaque provider-specific code-execution container reference to resume,
+     * as previously reported via a {@link ContainerChunk}.
+     *
+     * Ignored by providers that don't support code execution. An expired or
+     * invalid reference does not fail the call — the provider falls back to a
+     * fresh container and reports its ID via a new {@link ContainerChunk}.
+     */
+    containerId?: string | undefined;
 }
 
 /**
@@ -303,6 +356,15 @@ export interface IAgentProvider {
 
     /** Return the context window size (in tokens) of the underlying model. */
     getContextWindowSize(): number;
+
+    /**
+     * Fetch the bytes of a generated file previously reported via a
+     * {@link GeneratedFileChunk}.
+     *
+     * Optional — only implemented by providers that support code execution
+     * file output. Callers must check for its presence before use.
+     */
+    fetchGeneratedFile?(fileRef: string, signal?: AbortSignal): Promise<GeneratedFileData>;
 
     /** What this provider supports, so callers can adapt without naming a vendor. */
     readonly capabilities: AgentCapabilities;

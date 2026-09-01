@@ -169,6 +169,19 @@ DF_ANTHROPIC_ENABLE_WEB_SEARCH=true
 DF_ANTHROPIC_ENABLE_WEB_FETCH=true
 ```
 
+When the assistant uses code execution to create a file for the user (a script,
+chart, dataset, …), it's delivered as a downloadable attachment on the message.
+This is enabled by default whenever code execution is; set
+`DF_ENABLE_GENERATED_FILES=false` to keep code execution (e.g. for web
+search/fetch) without file output. `DF_GENERATED_FILE_MAX_BYTES` caps the size
+of a single downloaded file; unset means no cap beyond the provider's own
+limits.
+
+```env
+DF_ENABLE_GENERATED_FILES=true
+# DF_GENERATED_FILE_MAX_BYTES=26214400
+```
+
 Custom tools can additionally be provided through external **MCP (Model Context
 Protocol)** servers. This is disabled by default; when `DF_MCP_SERVERS` is unset
 the agent behaves exactly as before. Set it to a JSON array of server

@@ -23,6 +23,7 @@ export interface AuditData {
     requestedLimit?: number | undefined;
     bytes?: number | undefined;
     attachmentId?: string | undefined;
+    fileRef?: string | undefined;
 }
 
 /**

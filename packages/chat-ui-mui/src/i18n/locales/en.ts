@@ -34,6 +34,7 @@ const en = {
 
     // ── MessageList ──
     assistantIsThinking: "Assistant is thinking",
+    scrollToBottom: "Scroll to bottom",
 
     // ── formatTimestamp ──
     justNow: "Just now",

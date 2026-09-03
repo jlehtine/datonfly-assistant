@@ -40,6 +40,7 @@ const fi: FlatKeys<typeof en> = {
 
     // ── MessageList ──
     assistantIsThinking: "Avustaja ajattelee",
+    scrollToBottom: "Vieritä alas",
 
     // ── formatTimestamp ──
     justNow: "Juuri nyt",

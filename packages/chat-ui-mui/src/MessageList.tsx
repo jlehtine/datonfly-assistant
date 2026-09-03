@@ -1,9 +1,11 @@
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
+import Fab from "@mui/material/Fab";
 import { keyframes } from "@mui/material/styles";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useEffect, useRef, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
@@ -141,9 +143,11 @@ export interface MessageListProps {
 /**
  * Scrollable list of {@link MessageBubble} components.
  *
- * Automatically scrolls to the bottom whenever the message list or streaming
- * state changes. Shows an animated thinking indicator while the assistant is
- * preparing its response.
+ * Sticks to the bottom as the message list or streaming state changes, unless
+ * the user scrolls up to read older content — in which case a "jump to
+ * bottom" button appears, and auto-scroll resumes once they scroll back near
+ * the bottom, click that button, or send a message themselves. Shows an
+ * animated thinking indicator while the assistant is preparing its response.
  *
  * When `hasMore` is `true`, detects scroll-to-top and calls `onLoadMore`.
  */
@@ -167,6 +171,8 @@ export function MessageList({
     // user is deliberately scrolling away from the bottom to read older
     // content, so it doesn't get yanked back down mid-read.
     const stickToBottomRef = useRef(true);
+    // Mirrors the negation of stickToBottomRef for rendering the jump-to-bottom button.
+    const [showJumpToBottom, setShowJumpToBottom] = useState(false);
     const tsLabels: FormatTimestampLabels = { justNow: t("justNow"), yesterday: t("yesterday") };
 
     // Scroll to bottom on new messages or streaming state change
@@ -183,11 +189,13 @@ export function MessageList({
         // always starts a fresh view the user hasn't scrolled in yet.
         if (didShrink) {
             stickToBottomRef.current = true;
+            setShowJumpToBottom(false);
         }
         // Sending a message always jumps to the bottom, regardless of whatever
         // suspended auto-scroll while reading a previous reply.
         if (didAppend && lastMsg?.authorId != null && lastMsg.authorId === currentUserId) {
             stickToBottomRef.current = true;
+            setShowJumpToBottom(false);
         }
 
         if (!stickToBottomRef.current) return;
@@ -215,6 +223,7 @@ export function MessageList({
         const unstick = (): void => {
             if (!stickToBottomRef.current) return;
             stickToBottomRef.current = false;
+            setShowJumpToBottom(true);
             // Re-target the in-flight smooth scroll at the current position so
             // it stops there instead of fighting the gesture.
             el.scrollTo({ top: el.scrollTop, behavior: "auto" });
@@ -241,6 +250,7 @@ export function MessageList({
             const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
             if (distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD) {
                 stickToBottomRef.current = true;
+                setShowJumpToBottom(false);
             }
         };
 
@@ -256,38 +266,60 @@ export function MessageList({
         };
     }, [hasMore, onLoadMore, isLoadingHistory]);
 
+    const handleJumpToBottom = useCallback(() => {
+        stickToBottomRef.current = true;
+        setShowJumpToBottom(false);
+        const el = scrollRef.current;
+        if (el) {
+            el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        }
+    }, []);
+
     return (
-        <Box ref={scrollRef} className="datonfly-message-list" sx={{ flex: 1, overflow: "auto", p: 2 }}>
-            {isLoadingHistory && (
-                <Box sx={{ display: "flex", justifyContent: "center", pb: 1 }}>
-                    <CircularProgress size={20} />
-                </Box>
-            )}
-            {messages.flatMap((msg, i) => {
-                const prev = i > 0 ? messages[i - 1] : undefined;
-                const elements: ReactElement[] = [];
-                if (msg.createdAt && shouldShowTimestamp(prev?.createdAt, msg.createdAt)) {
+        <Box sx={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <Box ref={scrollRef} className="datonfly-message-list" sx={{ flex: 1, overflow: "auto", p: 2 }}>
+                {isLoadingHistory && (
+                    <Box sx={{ display: "flex", justifyContent: "center", pb: 1 }}>
+                        <CircularProgress size={20} />
+                    </Box>
+                )}
+                {messages.flatMap((msg, i) => {
+                    const prev = i > 0 ? messages[i - 1] : undefined;
+                    const elements: ReactElement[] = [];
+                    if (msg.createdAt && shouldShowTimestamp(prev?.createdAt, msg.createdAt)) {
+                        elements.push(
+                            <TimestampDivider
+                                key={`ts-${msg.id}`}
+                                date={msg.createdAt}
+                                locale={i18n.language}
+                                labels={tsLabels}
+                            />,
+                        );
+                    }
                     elements.push(
-                        <TimestampDivider
-                            key={`ts-${msg.id}`}
-                            date={msg.createdAt}
-                            locale={i18n.language}
-                            labels={tsLabels}
+                        <MessageBubble
+                            key={msg.id}
+                            message={msg}
+                            isOwnMessage={msg.authorId != null && msg.authorId === currentUserId}
+                            components={components}
                         />,
                     );
-                }
-                elements.push(
-                    <MessageBubble
-                        key={msg.id}
-                        message={msg}
-                        isOwnMessage={msg.authorId != null && msg.authorId === currentUserId}
-                        components={components}
-                    />,
-                );
-                return elements;
-            })}
-            {showThinking && !streamingStatus && <ThinkingBubble label={t("assistantIsThinking")} />}
-            {isStreaming && streamingStatus && <StatusBubble status={streamingStatus} />}
+                    return elements;
+                })}
+                {showThinking && !streamingStatus && <ThinkingBubble label={t("assistantIsThinking")} />}
+                {isStreaming && streamingStatus && <StatusBubble status={streamingStatus} />}
+            </Box>
+            {showJumpToBottom && (
+                <Fab
+                    className="datonfly-scroll-to-bottom"
+                    aria-label={t("scrollToBottom")}
+                    size="small"
+                    onClick={handleJumpToBottom}
+                    sx={{ position: "absolute", bottom: 16, right: 16 }}
+                >
+                    <KeyboardArrowDownIcon />
+                </Fab>
+            )}
         </Box>
     );
 }

@@ -96,21 +96,29 @@ alongside the button that reads it. Verified via the existing suite
 
 ## Phase 1 — Affordance
 
-- [ ] 1.1 Render a "jump to bottom" button (MUI `Fab`, `size="small"`,
+- [x] 1.1 Render a "jump to bottom" button (MUI `Fab`, `size="small"`,
       `KeyboardArrowDownIcon`) absolutely positioned at the bottom-right of the
-      list, visible only while unstuck. This requires the list `Box` to become a
-      `position: relative` wrapper, or the button to be rendered as a sibling
-      inside a wrapper — check that neither breaks the `flex: 1` layout in
-      `ChatEmbed` / `ChatHistoryEmbed`.
-- [ ] 1.2 Clicking it re-sticks and scrolls to the bottom.
-- [ ] 1.3 Give it the class `datonfly-scroll-to-bottom` for e2e selection, plus
+      list, visible only while unstuck. Implemented by wrapping the scrollable
+      `Box` in an outer `position: relative` flex column `Box`, with the `Fab`
+      as its sibling — keeps `datonfly-message-list` on the actual scroll
+      container unchanged.
+- [x] 1.2 Clicking it re-sticks and scrolls to the bottom.
+- [x] 1.3 Give it the class `datonfly-scroll-to-bottom` for e2e selection, plus
       an `aria-label`.
-- [ ] 1.4 Add the `scrollToBottom` string to
+- [x] 1.4 Add the `scrollToBottom` string to
       [en.ts](../../packages/chat-ui-mui/src/i18n/locales/en.ts) and
       [fi.ts](../../packages/chat-ui-mui/src/i18n/locales/fi.ts) under the
       `MessageList` section.
 - [ ] 1.5 Optional, decide during review: badge the button when new messages
       arrived while unstuck.
+
+Verified manually against the running dev server: with enough messages to
+overflow, scrolling up shows the button and holds position; sending a message
+while unstuck re-sticks and returns to the bottom, hiding the button again. On a
+thread barely taller than the viewport, scrolling to the top already lands
+within the 64px bottom threshold, so it correctly never unsticks — matches the
+design note above. `pnpm lint:fix` and the existing `tests/auto-scroll.spec.ts`
+both still pass.
 
 ## Phase 2 — Tests
 

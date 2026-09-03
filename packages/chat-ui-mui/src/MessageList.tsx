@@ -113,6 +113,9 @@ function TimestampDivider({
 /** Pixel threshold from the top of the scroll container that triggers loading more messages. */
 const LOAD_MORE_SCROLL_THRESHOLD = 80;
 
+/** Pixel distance from the bottom within which auto-scroll resumes. */
+const STICK_TO_BOTTOM_THRESHOLD = 64;
+
 /** Props for the {@link MessageList} component. */
 export interface MessageListProps {
     /** Ordered list of messages to render. */
@@ -160,16 +163,34 @@ export function MessageList({
     const showThinking = isStreaming === true && !lastMsg?.streaming;
     const prevLengthRef = useRef(messages.length);
     const wasStreamingRef = useRef(false);
+    // Whether the view should keep tracking new content. Suspended while the
+    // user is deliberately scrolling away from the bottom to read older
+    // content, so it doesn't get yanked back down mid-read.
+    const stickToBottomRef = useRef(true);
     const tsLabels: FormatTimestampLabels = { justNow: t("justNow"), yesterday: t("yesterday") };
 
     // Scroll to bottom on new messages or streaming state change
     useEffect(() => {
         const prevLen = prevLengthRef.current;
         const didAppend = messages.length > prevLen;
+        const didShrink = messages.length < prevLen;
         prevLengthRef.current = messages.length;
 
         const streamingJustEnded = wasStreamingRef.current && !lastMsg?.streaming;
         wasStreamingRef.current = !!lastMsg?.streaming;
+
+        // A shrink only happens when the thread is switched (or cleared), which
+        // always starts a fresh view the user hasn't scrolled in yet.
+        if (didShrink) {
+            stickToBottomRef.current = true;
+        }
+        // Sending a message always jumps to the bottom, regardless of whatever
+        // suspended auto-scroll while reading a previous reply.
+        if (didAppend && lastMsg?.authorId != null && lastMsg.authorId === currentUserId) {
+            stickToBottomRef.current = true;
+        }
+
+        if (!stickToBottomRef.current) return;
 
         // Auto-scroll when messages are appended, during streaming content updates,
         // when the thinking indicator is shown, or when streaming just completed
@@ -183,21 +204,54 @@ export function MessageList({
                 el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
             }
         }
-    }, [messages, showThinking, lastMsg?.streaming]);
+    }, [messages, showThinking, lastMsg?.streaming, lastMsg?.authorId, currentUserId]);
 
-    // Detect scroll-to-top and trigger load more
+    // Detect scroll-to-top (load more), suspend auto-scroll when the user
+    // scrolls up on purpose, and resume it once they're back near the bottom.
     useEffect(() => {
         const el = scrollRef.current;
-        if (!el || !hasMore || !onLoadMore) return;
+        if (!el) return;
+
+        const unstick = (): void => {
+            if (!stickToBottomRef.current) return;
+            stickToBottomRef.current = false;
+            // Re-target the in-flight smooth scroll at the current position so
+            // it stops there instead of fighting the gesture.
+            el.scrollTo({ top: el.scrollTop, behavior: "auto" });
+        };
+
+        const handleWheel = (event: WheelEvent): void => {
+            if (event.deltaY < 0) unstick();
+        };
+
+        let touchStartY: number | null = null;
+        const handleTouchStart = (event: TouchEvent): void => {
+            touchStartY = event.touches[0]?.clientY ?? null;
+        };
+        const handleTouchMove = (event: TouchEvent): void => {
+            const y = event.touches[0]?.clientY;
+            if (touchStartY != null && y != null && y > touchStartY) unstick();
+            touchStartY = y ?? touchStartY;
+        };
 
         const handleScroll = (): void => {
-            if (!isLoadingHistory && el.scrollTop < LOAD_MORE_SCROLL_THRESHOLD) {
+            if (hasMore && onLoadMore && !isLoadingHistory && el.scrollTop < LOAD_MORE_SCROLL_THRESHOLD) {
                 onLoadMore();
+            }
+            const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+            if (distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD) {
+                stickToBottomRef.current = true;
             }
         };
 
+        el.addEventListener("wheel", handleWheel, { passive: true });
+        el.addEventListener("touchstart", handleTouchStart, { passive: true });
+        el.addEventListener("touchmove", handleTouchMove, { passive: true });
         el.addEventListener("scroll", handleScroll, { passive: true });
         return () => {
+            el.removeEventListener("wheel", handleWheel);
+            el.removeEventListener("touchstart", handleTouchStart);
+            el.removeEventListener("touchmove", handleTouchMove);
             el.removeEventListener("scroll", handleScroll);
         };
     }, [hasMore, onLoadMore, isLoadingHistory]);

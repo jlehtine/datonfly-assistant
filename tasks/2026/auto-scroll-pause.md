@@ -31,20 +31,23 @@ breaks because `scrollTo({ behavior: "smooth" })` emits `scroll` events at every
 intermediate position, which would unstick us immediately during our own
 animation. Approach:
 
-- **Unstick on user intent, not on position**: listen for `wheel`, `touchmove`
-  and `keydown` (PageUp / ArrowUp / Home / Ctrl+Home) on the container and
-  unstick when the gesture is directed upwards (`event.deltaY < 0` for wheel;
-  track the previous `touchstart`/`touchmove` Y for touch). Intent events are
-  never synthesised by our own `scrollTo`, so they are unambiguous.
+- **Unstick on user intent, not on position**: listen for `wheel` and
+  `touchmove` on the container and unstick when the gesture is directed upwards
+  (`event.deltaY < 0` for wheel; track the previous `touchstart`/ `touchmove` Y
+  for touch). Intent events are never synthesised by our own `scrollTo`, so they
+  are unambiguous. Dropped `keydown` (PageUp/ArrowUp/Home): those keys only
+  scroll the container natively if it holds focus, which it normally doesn't
+  (focus stays in the composer), so the handler would rarely fire — not worth
+  the added complexity of making the list focusable.
 - **Re-stick on position**: in the existing `scroll` handler, when the container
   is within `STICK_TO_BOTTOM_THRESHOLD` of the bottom, set stuck again. This is
   safe to run during our own animation because it only ever _enables_ the
   behaviour we are already performing.
 - **Cancel the in-flight smooth scroll when unsticking**, otherwise the running
-  animation fights the user's wheel for a few hundred milliseconds. Assigning
-  `el.scrollTop = el.scrollTop` cancels a smooth scroll in current browsers;
-  verify in Chromium and Firefox and fall back to
-  `el.scrollTo({ top: el.scrollTop, behavior: "auto" })` if needed.
+  animation fights the user's wheel for a few hundred milliseconds. Re-issuing
+  `el.scrollTo({ top: el.scrollTop, behavior: "auto" })` retargets it at the
+  current position, which stops it (the `el.scrollTop = el.scrollTop` self-jump
+  trick works too but trips the `no-self-assign` lint rule).
 
 **Threshold.** `STICK_TO_BOTTOM_THRESHOLD = 64` px, next to the existing
 `LOAD_MORE_SCROLL_THRESHOLD`. Must stay above the ~30 px tolerance used by the
@@ -70,18 +73,26 @@ land at the bottom, as the existing e2e test asserts.
 
 ## Phase 0 — Behaviour
 
-- [ ] 0.1 Add `STICK_TO_BOTTOM_THRESHOLD` and a `stickToBottomRef` (default
+- [x] 0.1 Add `STICK_TO_BOTTOM_THRESHOLD` and a `stickToBottomRef` (default
       `true`) to `MessageList`.
-- [ ] 0.2 Guard the existing auto-scroll effect with `stickToBottomRef.current`.
-- [ ] 0.3 Add the intent listeners (`wheel`, `touchstart`/`touchmove`,
-      `keydown`) that unstick on upward movement and cancel the in-flight smooth
-      scroll.
-- [ ] 0.4 Extend the existing `scroll` listener to re-stick when within the
+- [x] 0.2 Guard the existing auto-scroll effect with `stickToBottomRef.current`.
+- [x] 0.3 Add the intent listeners (`wheel`, `touchstart`/`touchmove`) that
+      unstick on upward movement and cancel the in-flight smooth scroll. Dropped
+      `keydown`: PageUp/ArrowUp/Home only scroll the container natively if it
+      holds focus, which it normally doesn't (focus stays in the composer), so
+      it's not worth making the list focusable for it.
+- [x] 0.4 Extend the existing `scroll` listener to re-stick when within the
       bottom threshold. Note that the current listener is only attached when
       `hasMore && onLoadMore` — it must now be attached unconditionally, with
       the load-more call kept behind those conditions.
-- [ ] 0.5 Re-stick when the newest message is from the current user, and when
-      the thread's message list is replaced.
+- [x] 0.5 Re-stick when the newest message is from the current user, and when
+      the thread's message list is replaced (detected via a shrink to a shorter
+      length — confirmed that's how `useMessages` clears state on thread switch
+      in `packages/chat-client/src/react/useMessages.ts`).
+
+No visible UI change yet — `showJumpToBottom` state is introduced in Phase 1
+alongside the button that reads it. Verified via the existing suite
+(`tests/auto-scroll.spec.ts`), which exercises the default sticky path.
 
 ## Phase 1 — Affordance
 

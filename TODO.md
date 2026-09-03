@@ -50,6 +50,17 @@ What was established:
       lose their message. Until then the spec stays as-is rather than being
       papered over with a retry, so the flake keeps surfacing it.
 
+## Unresolved: chat chrome is unusable on narrow viewports
+
+On phone-sized viewports the hamburger button and thread title bar end up
+scrolled far above the visible area while the message list tracks the latest
+message, leaving no way to reach the conversation drawer. Two causes: the
+document itself is scrollable on mobile (`html, body, #root { height: 100% }` in
+`packages/frontend/index.html` resolves against the large viewport while the app
+box uses `100dvh`, and `scrollIntoView` in `MessageList` scrolls the document
+too), and the two stacked bars consume too much of a short viewport. Plan:
+[tasks/2026/mobile-sticky-header.md](tasks/2026/mobile-sticky-header.md).
+
 ## Future: custom and MCP tools cannot emit files
 
 Custom and MCP tools still return text only (`ITool.execute` →

@@ -273,6 +273,7 @@ function ChatInner({
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {(thread && !isNarrow) || onOpenThreadList ? (
                 <Box
+                    className="datonfly-chat-header"
                     sx={{
                         px: 2,
                         py: 1,
@@ -285,6 +286,7 @@ function ChatInner({
                 >
                     {onOpenThreadList && (
                         <IconButton
+                            className="datonfly-open-thread-list-button"
                             size="small"
                             aria-label={t("openConversations")}
                             onClick={onOpenThreadList}

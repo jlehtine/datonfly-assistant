@@ -38,6 +38,12 @@ Agreed with the user before planning:
 - **Behaviour:** address-bar style — the bar hides when the message list is
   scrolled down and slides back in when it is scrolled up. Not a permanently
   pinned bar.
+
+  **Revised after Phase 2:** the user judged the merged always-visible bar
+  (Phase 1-2 result) good enough on its own. Phase 3 (hide-on-scroll) and Phase
+  4 (its accessibility/polish follow-up) are skipped; the bar stays permanently
+  visible, in-flow, at the top of the chat column.
+
 - **Bars:** on narrow viewports the app `AppBar` and the thread header merge
   into a **single** bar (hamburger + thread title + members + account menu).
 - **Scope:** only viewports below the breakpoint where the current layout stops
@@ -63,18 +69,18 @@ assume it owns the document.
       diagnosis.
 
       **Result:** could not be reproduced live — headless Chromium (used by
-              both the integrated browser tool and Playwright) has no real browser
-              chrome/address bar, so `100vh` (large viewport) and `100dvh` (dynamic
-              viewport) are computed identically regardless of viewport size, and
-              resizing the viewport recomputes `height: 100%` consistently rather than
-              reproducing the real-device mismatch. The diagnosis in the Problem
-              section above is based on static analysis of
-              [packages/frontend/index.html](../../packages/frontend/index.html) and
-              is left as the working assumption; Phase 1's fixes (pinning to
-              `var(--app-height)`, `overflow: hidden`, and scrolling the container
-              instead of `scrollIntoView`) are correct and defensive regardless, and
-              will need real-device confirmation (or at least Chrome DevTools mobile
-              emulation with toolbar simulation) after landing.
+                  both the integrated browser tool and Playwright) has no real browser
+                  chrome/address bar, so `100vh` (large viewport) and `100dvh` (dynamic
+                  viewport) are computed identically regardless of viewport size, and
+                  resizing the viewport recomputes `height: 100%` consistently rather than
+                  reproducing the real-device mismatch. The diagnosis in the Problem
+                  section above is based on static analysis of
+                  [packages/frontend/index.html](../../packages/frontend/index.html) and
+                  is left as the working assumption; Phase 1's fixes (pinning to
+                  `var(--app-height)`, `overflow: hidden`, and scrolling the container
+                  instead of `scrollIntoView`) are correct and defensive regardless, and
+                  will need real-device confirmation (or at least Chrome DevTools mobile
+                  emulation with toolbar simulation) after landing.
 
 - [x] Note the measured heights of both bars, for the padding work in Phase 2.
       App `AppBar`/`Toolbar` measured at 56px in a 390px-wide viewport (MUI's
@@ -164,7 +170,13 @@ Verified live at a 390×670 viewport: merged bar shows hamburger + thread title
   [tests/member-management.spec.ts](../../tests/member-management.spec.ts) — all
   9 tests pass.
 
-## Phase 3 — Hide-on-scroll behaviour
+## Phase 3 — Hide-on-scroll behaviour (skipped)
+
+**Decision:** skipped. The user judged the Phase 1-2 result (document pinned,
+single merged bar, always visible) good enough as-is and chose not to add the
+address-bar-style hide/show behaviour. Phase 5 tests the current
+always-visible-bar implementation instead of hide-on-scroll. Left documented
+below in case this is revisited later.
 
 Goal: on narrow viewports the merged bar behaves like a mobile browser address
 bar — visible at rest, slides away as the user scrolls down into history, slides
@@ -203,7 +215,11 @@ back in on any upward scroll.
       `LOAD_MORE_SCROLL_THRESHOLD = 80` comparison may need to account for the
       new padding).
 
-## Phase 4 — Accessibility and polish
+## Phase 4 — Accessibility and polish (skipped)
+
+**Decision:** skipped, as a direct consequence of skipping Phase 3 — these items
+only apply to the hide-on-scroll/overlay behaviour that was dropped. Left
+documented below in case Phase 3 is revisited later.
 
 - [ ] 4.1 When hidden, the bar must not be focusable/announced mid-animation in
       a confusing way; confirm `Slide`'s default behaviour is acceptable and
@@ -216,21 +232,45 @@ back in on any upward scroll.
 
 ## Phase 5 — Tests
 
-- [ ] 5.1 Add `tests/mobile-header.spec.ts` running at a narrow viewport
+Scope: the current implementation (Phase 1-2 only — pinned document, merged
+always-visible bar; no hide-on-scroll).
+
+- [x] 5.1 Add `tests/mobile-header.spec.ts` running at a narrow viewport
       (`page.setViewportSize`, ~390x670): - regression for Phase 1: after
-      sending messages, `document.scrollingElement.scrollTop === 0` and the
-      document is not scrollable. - the hamburger and account buttons are inside
-      the viewport bounding box while the message list is pinned to the
-      bottom. - scrolling the message list down hides the bar; scrolling up
-      reveals it.
-- [ ] 5.2 Confirm the merged bar keeps the existing selectors working, and
+      sending enough messages to fill the screen,
+      `document.scrollingElement.scrollHeight` equals `clientHeight` (the
+      document itself never becomes scrollable). - all top-bar functions
+      (hamburger/open-conversations button, account menu button) remain within
+      the viewport's bounding box, and clickable, after the message list has
+      scrolled/auto-scrolled to the bottom of a long conversation. - the merged
+      bar is not too tall: assert its height stays within a reasonable bound
+      (e.g. well under half the viewport height) so it doesn't itself crowd out
+      the message list on a short screen.
+
+      Added two `datonfly-*` marker classes needed to locate the header
+          reliably (per [CONVENTIONS.md](../../CONVENTIONS.md)'s selector rules,
+          no reliance on localized text): `datonfly-chat-header` on the header
+          `Box` and `datonfly-open-thread-list-button` on the hamburger
+          `IconButton`, both in
+          [ChatEmbed.tsx](../../packages/chat-ui-mui/src/ChatEmbed.tsx). The test
+          also does two functional checks after scrolling: clicking the hamburger
+          reveals `.datonfly-new-conversation-button` (thread list drawer opened),
+          and clicking the account button reveals
+          `.datonfly-chat-settings-menuitem` (account menu opened).
+
+- [x] 5.2 Confirm the merged bar keeps the existing selectors working, and
       re-run the specs that touch the app bar / drawer:
       [tests/thread-management.spec.ts](../../tests/thread-management.spec.ts)
       and
       [tests/member-management.spec.ts](../../tests/member-management.spec.ts).
-- [ ] 5.3 Run each affected spec file individually (not the whole suite, to
-      avoid LLM rate-limit flakes). Requires the dev server to be running.
-- [ ] 5.4 Run `pnpm lint:fix` and fix anything the changes introduced.
+- [x] 5.3 Run each affected spec file individually (not the whole suite, to
+      avoid LLM rate-limit flakes). Requires the dev server to be running. Ran
+      `tests/mobile-header.spec.ts`, `tests/thread-management.spec.ts`,
+      `tests/member-management.spec.ts`, `tests/auto-scroll.spec.ts` together
+      (10 tests) — all pass.
+- [x] 5.4 Run `pnpm lint:fix` and fix anything the changes introduced. Fixed 6
+      `no-non-null-assertion` errors in the new spec by deriving safe fallbacks
+      instead of `!`-asserting `boundingBox()`/`viewportSize()` results.
 
 ## Open questions
 

@@ -1,9 +1,11 @@
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
+import Fab from "@mui/material/Fab";
 import { keyframes } from "@mui/material/styles";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useEffect, useRef, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
@@ -113,6 +115,9 @@ function TimestampDivider({
 /** Pixel threshold from the top of the scroll container that triggers loading more messages. */
 const LOAD_MORE_SCROLL_THRESHOLD = 80;
 
+/** Pixel distance from the bottom within which auto-scroll resumes. */
+const STICK_TO_BOTTOM_THRESHOLD = 64;
+
 /** Props for the {@link MessageList} component. */
 export interface MessageListProps {
     /** Ordered list of messages to render. */
@@ -138,9 +143,11 @@ export interface MessageListProps {
 /**
  * Scrollable list of {@link MessageBubble} components.
  *
- * Automatically scrolls to the bottom whenever the message list or streaming
- * state changes. Shows an animated thinking indicator while the assistant is
- * preparing its response.
+ * Sticks to the bottom as the message list or streaming state changes, unless
+ * the user scrolls up to read older content — in which case a "jump to
+ * bottom" button appears, and auto-scroll resumes once they scroll back near
+ * the bottom, click that button, or send a message themselves. Shows an
+ * animated thinking indicator while the assistant is preparing its response.
  *
  * When `hasMore` is `true`, detects scroll-to-top and calls `onLoadMore`.
  */
@@ -160,16 +167,38 @@ export function MessageList({
     const showThinking = isStreaming === true && !lastMsg?.streaming;
     const prevLengthRef = useRef(messages.length);
     const wasStreamingRef = useRef(false);
+    // Whether the view should keep tracking new content. Suspended while the
+    // user is deliberately scrolling away from the bottom to read older
+    // content, so it doesn't get yanked back down mid-read.
+    const stickToBottomRef = useRef(true);
+    // Mirrors the negation of stickToBottomRef for rendering the jump-to-bottom button.
+    const [showJumpToBottom, setShowJumpToBottom] = useState(false);
     const tsLabels: FormatTimestampLabels = { justNow: t("justNow"), yesterday: t("yesterday") };
 
     // Scroll to bottom on new messages or streaming state change
     useEffect(() => {
         const prevLen = prevLengthRef.current;
         const didAppend = messages.length > prevLen;
+        const didShrink = messages.length < prevLen;
         prevLengthRef.current = messages.length;
 
         const streamingJustEnded = wasStreamingRef.current && !lastMsg?.streaming;
         wasStreamingRef.current = !!lastMsg?.streaming;
+
+        // A shrink only happens when the thread is switched (or cleared), which
+        // always starts a fresh view the user hasn't scrolled in yet.
+        if (didShrink) {
+            stickToBottomRef.current = true;
+            setShowJumpToBottom(false);
+        }
+        // Sending a message always jumps to the bottom, regardless of whatever
+        // suspended auto-scroll while reading a previous reply.
+        if (didAppend && lastMsg?.authorId != null && lastMsg.authorId === currentUserId) {
+            stickToBottomRef.current = true;
+            setShowJumpToBottom(false);
+        }
+
+        if (!stickToBottomRef.current) return;
 
         // Auto-scroll when messages are appended, during streaming content updates,
         // when the thinking indicator is shown, or when streaming just completed
@@ -183,57 +212,118 @@ export function MessageList({
                 el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
             }
         }
-    }, [messages, showThinking, lastMsg?.streaming]);
+    }, [messages, showThinking, lastMsg?.streaming, lastMsg?.authorId, currentUserId]);
 
-    // Detect scroll-to-top and trigger load more
+    // Detect scroll-to-top (load more), suspend auto-scroll when the user
+    // scrolls up on purpose, and resume it once they're back near the bottom.
     useEffect(() => {
         const el = scrollRef.current;
-        if (!el || !hasMore || !onLoadMore) return;
+        if (!el) return;
+
+        const unstick = (): void => {
+            if (!stickToBottomRef.current) return;
+            stickToBottomRef.current = false;
+            setShowJumpToBottom(true);
+            // Re-target the in-flight smooth scroll at the current position so
+            // it stops there instead of fighting the gesture.
+            el.scrollTo({ top: el.scrollTop, behavior: "auto" });
+        };
+
+        const handleWheel = (event: WheelEvent): void => {
+            if (event.deltaY < 0) unstick();
+        };
+
+        let touchStartY: number | null = null;
+        const handleTouchStart = (event: TouchEvent): void => {
+            touchStartY = event.touches[0]?.clientY ?? null;
+        };
+        const handleTouchMove = (event: TouchEvent): void => {
+            const y = event.touches[0]?.clientY;
+            if (touchStartY != null && y != null && y > touchStartY) unstick();
+            touchStartY = y ?? touchStartY;
+        };
 
         const handleScroll = (): void => {
-            if (!isLoadingHistory && el.scrollTop < LOAD_MORE_SCROLL_THRESHOLD) {
+            if (hasMore && onLoadMore && !isLoadingHistory && el.scrollTop < LOAD_MORE_SCROLL_THRESHOLD) {
                 onLoadMore();
+            }
+            const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+            if (distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD) {
+                stickToBottomRef.current = true;
+                setShowJumpToBottom(false);
             }
         };
 
+        el.addEventListener("wheel", handleWheel, { passive: true });
+        el.addEventListener("touchstart", handleTouchStart, { passive: true });
+        el.addEventListener("touchmove", handleTouchMove, { passive: true });
         el.addEventListener("scroll", handleScroll, { passive: true });
         return () => {
+            el.removeEventListener("wheel", handleWheel);
+            el.removeEventListener("touchstart", handleTouchStart);
+            el.removeEventListener("touchmove", handleTouchMove);
             el.removeEventListener("scroll", handleScroll);
         };
     }, [hasMore, onLoadMore, isLoadingHistory]);
 
+    const handleJumpToBottom = useCallback(() => {
+        stickToBottomRef.current = true;
+        setShowJumpToBottom(false);
+        const el = scrollRef.current;
+        if (el) {
+            el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        }
+    }, []);
+
     return (
-        <Box ref={scrollRef} className="datonfly-message-list" sx={{ flex: 1, overflow: "auto", p: 2 }}>
-            {isLoadingHistory && (
-                <Box sx={{ display: "flex", justifyContent: "center", pb: 1 }}>
-                    <CircularProgress size={20} />
-                </Box>
-            )}
-            {messages.flatMap((msg, i) => {
-                const prev = i > 0 ? messages[i - 1] : undefined;
-                const elements: ReactElement[] = [];
-                if (msg.createdAt && shouldShowTimestamp(prev?.createdAt, msg.createdAt)) {
+        <Box sx={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <Box ref={scrollRef} className="datonfly-message-list" sx={{ flex: 1, overflow: "auto", p: 2 }}>
+                {isLoadingHistory && (
+                    <Box sx={{ display: "flex", justifyContent: "center", pb: 1 }}>
+                        <CircularProgress size={20} />
+                    </Box>
+                )}
+                {messages.flatMap((msg, i) => {
+                    const prev = i > 0 ? messages[i - 1] : undefined;
+                    const elements: ReactElement[] = [];
+                    if (msg.createdAt && shouldShowTimestamp(prev?.createdAt, msg.createdAt)) {
+                        elements.push(
+                            <TimestampDivider
+                                key={`ts-${msg.id}`}
+                                date={msg.createdAt}
+                                locale={i18n.language}
+                                labels={tsLabels}
+                            />,
+                        );
+                    }
                     elements.push(
-                        <TimestampDivider
-                            key={`ts-${msg.id}`}
-                            date={msg.createdAt}
-                            locale={i18n.language}
-                            labels={tsLabels}
+                        <MessageBubble
+                            key={msg.id}
+                            message={msg}
+                            isOwnMessage={msg.authorId != null && msg.authorId === currentUserId}
+                            components={components}
                         />,
                     );
-                }
-                elements.push(
-                    <MessageBubble
-                        key={msg.id}
-                        message={msg}
-                        isOwnMessage={msg.authorId != null && msg.authorId === currentUserId}
-                        components={components}
-                    />,
-                );
-                return elements;
-            })}
-            {showThinking && !streamingStatus && <ThinkingBubble label={t("assistantIsThinking")} />}
-            {isStreaming && streamingStatus && <StatusBubble status={streamingStatus} />}
+                    return elements;
+                })}
+                {showThinking && !streamingStatus && <ThinkingBubble label={t("assistantIsThinking")} />}
+                {isStreaming && streamingStatus && <StatusBubble status={streamingStatus} />}
+            </Box>
+            {showJumpToBottom && (
+                <Fab
+                    className="datonfly-scroll-to-bottom"
+                    aria-label={t("scrollToBottom")}
+                    size="small"
+                    // Don't steal focus from the composer input the user was typing in.
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                    }}
+                    onClick={handleJumpToBottom}
+                    sx={{ position: "absolute", bottom: 16, right: 16 }}
+                >
+                    <KeyboardArrowDownIcon />
+                </Fab>
+            )}
         </Box>
     );
 }

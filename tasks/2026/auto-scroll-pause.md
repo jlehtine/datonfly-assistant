@@ -126,23 +126,27 @@ Extend [tests/auto-scroll.spec.ts](../../tests/auto-scroll.spec.ts); the
 existing two tests must keep passing unchanged (they are the regression guard
 for the default sticky behaviour). New cases:
 
-- [ ] 2.1 During a streaming reply, `mouse.wheel(0, -300)` over the message list
+- [x] 2.1 During a streaming reply, `mouse.wheel(0, -300)` over the message list
       suspends auto-scroll: the container stays away from the bottom until the
       reply completes.
-- [ ] 2.2 The jump-to-bottom button becomes visible while suspended and hidden
+- [x] 2.2 The jump-to-bottom button becomes visible while suspended and hidden
       again once back at the bottom.
-- [ ] 2.3 Clicking the button returns to the bottom and resumes auto-scroll for
+- [x] 2.3 Clicking the button returns to the bottom and resumes auto-scroll for
       the next message.
-- [ ] 2.4 Manually scrolling back to the bottom (without the button) also
+- [x] 2.4 Manually scrolling back to the bottom (without the button) also
       resumes auto-scroll.
-- [ ] 2.5 Sending a message while suspended jumps back to the bottom.
+- [x] 2.5 Sending a message while suspended jumps back to the bottom.
 
 Run only this spec: `pnpm exec playwright test tests/auto-scroll.spec.ts` (dev
-server must already be running).
+server must already be running). All 6 tests (2 original + 4 new) pass, run
+twice to check for flakiness. Test 2.1 needed a few filler exchanges first so
+the long streamed reply has room to overflow the viewport while still streaming,
+not just once complete — a single long reply didn't overflow the default
+1280x720 viewport on its own.
 
 ## Phase 3 — Wrap-up
 
-- [ ] 3.1 `pnpm lint:fix` and fix anything the change introduced.
-- [ ] 3.2 Update the `MessageList` doc comment, which currently claims it
+- [x] 3.1 `pnpm lint:fix` and fix anything the change introduced.
+- [x] 3.2 Update the `MessageList` doc comment, which currently claims it
       "Automatically scrolls to the bottom whenever the message list or
       streaming state changes".

@@ -10,6 +10,7 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
 import TextField from "@mui/material/TextField";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import {
     useCallback,
     useEffect,
@@ -367,6 +368,9 @@ export function Composer({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isDisabled = disabled ?? false;
     const fileInputEnabled = fileInputLimits !== undefined;
+    // On touch-primary devices the on-screen keyboard's Enter key is the only way
+    // to insert a line break, so it must not send; the send button submits there.
+    const touchPrimary = useMediaQuery("(pointer: coarse)");
 
     // Revoke object URLs on unmount to avoid leaks. The ref mirrors the latest
     // pending list so the unmount cleanup and event callbacks see current data.
@@ -490,6 +494,7 @@ export function Composer({
     );
 
     const handleKeyDown = (e: KeyboardEvent): void => {
+        if (touchPrimary) return;
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSend(text);

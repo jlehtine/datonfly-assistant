@@ -150,3 +150,13 @@ not just once complete — a single long reply didn't overflow the default
 - [x] 3.2 Update the `MessageList` doc comment, which currently claims it
       "Automatically scrolls to the bottom whenever the message list or
       streaming state changes".
+
+## Phase 4 — Post-review fixes
+
+- [x] 4.1 Clicking the jump-to-bottom `Fab` stole focus from the composer input
+      (default browser button-focus behaviour on click). Fixed by preventing
+      default on the `Fab`'s `onMouseDown`, which stops it from being focused
+      without affecting the `onClick` handler. Verified manually: typing in the
+      composer, then clicking the button, leaves focus (and the in-progress
+      draft) in the composer textarea. `tests/auto-scroll.spec.ts` still passes
+      (6/6).

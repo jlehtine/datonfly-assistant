@@ -314,6 +314,10 @@ export function MessageList({
                     className="datonfly-scroll-to-bottom"
                     aria-label={t("scrollToBottom")}
                     size="small"
+                    // Don't steal focus from the composer input the user was typing in.
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                    }}
                     onClick={handleJumpToBottom}
                     sx={{ position: "absolute", bottom: 16, right: 16 }}
                 >

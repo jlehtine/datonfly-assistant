@@ -5,6 +5,13 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
         <title>Datonfly Assistant</title>
         <style>
+            /*
+             * Pin the document to the viewport so it never scrolls on its own —
+             * only the app's inner containers (e.g. the message list) do. Without
+             * this, mobile browsers can make html/body taller than the visual
+             * viewport (address bar collapse, on-screen keyboard), letting the
+             * page scroll and drag the app bar out of view.
+             */
             :root {
                 --app-height: 100vh;
             }

@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
@@ -78,6 +78,12 @@ export interface ChatHistoryEmbedConfig {
      * If omitted, a new thread is created automatically via `POST /threads`.
      */
     onBeforeSend?: (() => Promise<string>) | undefined;
+    /**
+     * Optional host-supplied controls (e.g. an account menu button) rendered
+     * at the trailing end of the chat header. Used on narrow viewports where
+     * the host merges its own app bar into this header.
+     */
+    headerActions?: ReactNode | undefined;
 }
 
 /** Props for the {@link ChatHistoryEmbed} component. */
@@ -131,6 +137,7 @@ function ChatHistoryInner({
         messageComponents,
         onBeforeSend,
         onSelectedThreadIdChange,
+        headerActions,
     } = config;
     const { t } = useTranslation();
 
@@ -362,6 +369,7 @@ function ChatHistoryInner({
                                   setDrawerOpen(true);
                               }
                             : undefined,
+                        headerActions,
                     }}
                 />
             </Box>

@@ -14,7 +14,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Route, Routes, useLocation, useMatch, useNavigate } from "react-router-dom";
 
@@ -42,6 +42,8 @@ export function App(): ReactElement {
     const { user, loading, authMode, login, logout } = useAuth();
     const isDesktop = useMediaQuery("(min-height:768px)");
     const maxRows = isDesktop ? 10 : 4;
+    // Same breakpoint ChatEmbed/ChatHistoryEmbed use to switch to their mobile layout.
+    const isNarrow = useMediaQuery("(max-width:640px)");
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [switchAnchorEl, setSwitchAnchorEl] = useState<null | HTMLElement>(null);
     const handleMenuOpen = useCallback((e: React.MouseEvent<HTMLElement>) => {
@@ -93,71 +95,92 @@ export function App(): ReactElement {
         );
     }
 
+    const accountButton = (
+        <IconButton
+            className="datonfly-user-menu-button"
+            color="inherit"
+            onClick={handleMenuOpen}
+            aria-label={t("userMenu")}
+        >
+            <AccountCircle />
+        </IconButton>
+    );
+
+    const accountMenus = (
+        <>
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+                <MenuItem disabled>
+                    <ListItemText primary={user.name} />
+                </MenuItem>
+                {authMode === "fake" && (
+                    <MenuItem onClick={handleSwitchOpen}>
+                        <ListItemIcon>
+                            <SwitchAccountIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primary={t("switchUser")} />
+                    </MenuItem>
+                )}
+                <MenuItem className="datonfly-chat-settings-menuitem" onClick={handleSettingsOpen}>
+                    <ListItemIcon>
+                        <SettingsIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary={t("chatSettings")} />
+                </MenuItem>
+                <Divider />
+                <MenuItem onClick={handleLogout}>
+                    <ListItemText primary={t("signOut")} />
+                </MenuItem>
+            </Menu>
+            {authMode === "fake" && (
+                <Menu anchorEl={switchAnchorEl} open={Boolean(switchAnchorEl)} onClose={handleSwitchClose}>
+                    {FAKE_USERS.map((fu) => (
+                        <MenuItem
+                            key={fu.id}
+                            selected={fu.name === user.name}
+                            onClick={() => {
+                                handleSwitchUser(fu.id);
+                            }}
+                        >
+                            <ListItemText primary={fu.name} />
+                        </MenuItem>
+                    ))}
+                </Menu>
+            )}
+            <Dialog className="datonfly-chat-settings-dialog" open={settingsOpen} onClose={handleSettingsClose}>
+                <ChatUserSettingsEmbed
+                    config={{ url: BACKEND_URL, locale: i18n.language }}
+                    onSaved={handleSettingsClose}
+                />
+            </Dialog>
+        </>
+    );
+
     return (
         <Box sx={{ display: "flex", flexDirection: "column", height: "var(--app-height)" }}>
-            <AppBar position="static" elevation={0}>
-                <Toolbar sx={{ maxWidth: "80rem", width: "100%", mx: "auto" }}>
-                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                        {t("appTitle")}
-                    </Typography>
-                    <IconButton
-                        className="datonfly-user-menu-button"
-                        color="inherit"
-                        onClick={handleMenuOpen}
-                        aria-label={t("userMenu")}
-                    >
-                        <AccountCircle />
-                    </IconButton>
-                    <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-                        <MenuItem disabled>
-                            <ListItemText primary={user.name} />
-                        </MenuItem>
-                        {authMode === "fake" && (
-                            <MenuItem onClick={handleSwitchOpen}>
-                                <ListItemIcon>
-                                    <SwitchAccountIcon fontSize="small" />
-                                </ListItemIcon>
-                                <ListItemText primary={t("switchUser")} />
-                            </MenuItem>
-                        )}
-                        <MenuItem className="datonfly-chat-settings-menuitem" onClick={handleSettingsOpen}>
-                            <ListItemIcon>
-                                <SettingsIcon fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText primary={t("chatSettings")} />
-                        </MenuItem>
-                        <Divider />
-                        <MenuItem onClick={handleLogout}>
-                            <ListItemText primary={t("signOut")} />
-                        </MenuItem>
-                    </Menu>
-                    {authMode === "fake" && (
-                        <Menu anchorEl={switchAnchorEl} open={Boolean(switchAnchorEl)} onClose={handleSwitchClose}>
-                            {FAKE_USERS.map((fu) => (
-                                <MenuItem
-                                    key={fu.id}
-                                    selected={fu.name === user.name}
-                                    onClick={() => {
-                                        handleSwitchUser(fu.id);
-                                    }}
-                                >
-                                    <ListItemText primary={fu.name} />
-                                </MenuItem>
-                            ))}
-                        </Menu>
-                    )}
-                    <Dialog className="datonfly-chat-settings-dialog" open={settingsOpen} onClose={handleSettingsClose}>
-                        <ChatUserSettingsEmbed
-                            config={{ url: BACKEND_URL, locale: i18n.language }}
-                            onSaved={handleSettingsClose}
-                        />
-                    </Dialog>
-                </Toolbar>
-            </AppBar>
+            {!isNarrow && (
+                <AppBar position="static" elevation={0}>
+                    <Toolbar sx={{ maxWidth: "80rem", width: "100%", mx: "auto" }}>
+                        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                            {t("appTitle")}
+                        </Typography>
+                        {accountButton}
+                    </Toolbar>
+                </AppBar>
+            )}
+            {accountMenus}
             <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "center" }}>
                 <Box sx={{ width: "100%", maxWidth: "80rem" }}>
                     <Routes>
-                        <Route path="*" element={<ChatRoutePage locale={i18n.language} maxRows={maxRows} />} />
+                        <Route
+                            path="*"
+                            element={
+                                <ChatRoutePage
+                                    locale={i18n.language}
+                                    maxRows={maxRows}
+                                    headerActions={isNarrow ? accountButton : undefined}
+                                />
+                            }
+                        />
                     </Routes>
                 </Box>
             </Box>
@@ -169,9 +192,10 @@ interface ChatPageProps {
     locale: string;
     maxRows: number;
     selectedThreadId: string | null;
+    headerActions?: ReactNode | undefined;
 }
 
-function ChatPage({ locale, maxRows, selectedThreadId }: ChatPageProps): ReactElement {
+function ChatPage({ locale, maxRows, selectedThreadId, headerActions }: ChatPageProps): ReactElement {
     const navigate = useNavigate();
 
     const handleThreadIdChange = useCallback(
@@ -196,12 +220,13 @@ function ChatPage({ locale, maxRows, selectedThreadId }: ChatPageProps): ReactEl
                 messageComponents: highlightComponents,
                 selectedThreadId,
                 onSelectedThreadIdChange: handleThreadIdChange,
+                headerActions,
             }}
         />
     );
 }
 
-function ChatRoutePage({ locale, maxRows }: Omit<ChatPageProps, "selectedThreadId">): ReactElement {
+function ChatRoutePage({ locale, maxRows, headerActions }: Omit<ChatPageProps, "selectedThreadId">): ReactElement {
     const navigate = useNavigate();
     const location = useLocation();
     const threadMatch = useMatch("/threads/:threadId");
@@ -212,5 +237,12 @@ function ChatRoutePage({ locale, maxRows }: Omit<ChatPageProps, "selectedThreadI
         }
     }, [location.pathname, navigate, threadMatch]);
 
-    return <ChatPage locale={locale} maxRows={maxRows} selectedThreadId={threadMatch?.params.threadId ?? null} />;
+    return (
+        <ChatPage
+            locale={locale}
+            maxRows={maxRows}
+            selectedThreadId={threadMatch?.params.threadId ?? null}
+            headerActions={headerActions}
+        />
+    );
 }

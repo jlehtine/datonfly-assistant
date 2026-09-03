@@ -63,18 +63,18 @@ assume it owns the document.
       diagnosis.
 
       **Result:** could not be reproduced live — headless Chromium (used by
-          both the integrated browser tool and Playwright) has no real browser
-          chrome/address bar, so `100vh` (large viewport) and `100dvh` (dynamic
-          viewport) are computed identically regardless of viewport size, and
-          resizing the viewport recomputes `height: 100%` consistently rather than
-          reproducing the real-device mismatch. The diagnosis in the Problem
-          section above is based on static analysis of
-          [packages/frontend/index.html](../../packages/frontend/index.html) and
-          is left as the working assumption; Phase 1's fixes (pinning to
-          `var(--app-height)`, `overflow: hidden`, and scrolling the container
-          instead of `scrollIntoView`) are correct and defensive regardless, and
-          will need real-device confirmation (or at least Chrome DevTools mobile
-          emulation with toolbar simulation) after landing.
+              both the integrated browser tool and Playwright) has no real browser
+              chrome/address bar, so `100vh` (large viewport) and `100dvh` (dynamic
+              viewport) are computed identically regardless of viewport size, and
+              resizing the viewport recomputes `height: 100%` consistently rather than
+              reproducing the real-device mismatch. The diagnosis in the Problem
+              section above is based on static analysis of
+              [packages/frontend/index.html](../../packages/frontend/index.html) and
+              is left as the working assumption; Phase 1's fixes (pinning to
+              `var(--app-height)`, `overflow: hidden`, and scrolling the container
+              instead of `scrollIntoView`) are correct and defensive regardless, and
+              will need real-device confirmation (or at least Chrome DevTools mobile
+              emulation with toolbar simulation) after landing.
 
 - [x] Note the measured heights of both bars, for the padding work in Phase 2.
       App `AppBar`/`Toolbar` measured at 56px in a 390px-wide viewport (MUI's
@@ -123,11 +123,14 @@ reachable again; Phase 2 is about reclaiming space.
 Goal: one bar on narrow viewports, owned by `ChatEmbed`, carrying the host app's
 actions.
 
-- [ ] 2.1 Add an optional `headerActions?: ReactNode` to the `ChatEmbed` config
+- [x] 2.1 Add an optional `headerActions?: ReactNode` to the `ChatEmbed` config
       and forward it through `ChatHistoryEmbed`'s config. It renders at the
       trailing end of the thread header, after the member avatars and invite
       button. Document it as "host-supplied actions for the chat header".
-- [ ] 2.2 In
+      Right-aligned unconditionally (`ml: threadId ? 0 : "auto"`) so it stays at
+      the trailing edge even when no thread is selected and the members/invite
+      block (which normally provides the `ml: "auto"`) isn't rendered.
+- [x] 2.2 In
       [packages/frontend/src/App.tsx](../../packages/frontend/src/App.tsx),
       derive the same narrow breakpoint (`useMediaQuery("(max-width:640px)")`)
       and, when narrow, render no `AppBar`/`Toolbar`; instead pass the account
@@ -135,16 +138,31 @@ actions.
       `headerActions`. Wide viewports keep the existing `AppBar` untouched. Keep
       the `datonfly-user-menu-button` marker class on the button in both layouts
       so existing e2e selectors keep working.
-- [ ] 2.3 Extract the menus/dialog JSX so it is rendered once and shared by both
+- [x] 2.3 Extract the menus/dialog JSX so it is rendered once and shared by both
       layouts rather than duplicated. The anchor state (`anchorEl`,
       `switchAnchorEl`) stays in `App`.
-- [ ] 2.4 On narrow viewports the header must render even with no thread
+- [x] 2.4 On narrow viewports the header must render even with no thread
       selected (it already does, via the `onOpenThreadList` branch of the render
       condition) — verify the empty-thread case still shows the hamburger and
-      the account button.
-- [ ] 2.5 Check that the app title being dropped on narrow viewports is
+      the account button. Verified live: with no thread selected, the merged bar
+      shows the hamburger on the left and the account button on the right.
+- [x] 2.5 Check that the app title being dropped on narrow viewports is
       acceptable; the thread title replaces it. If a title is still wanted when
-      no thread is selected, fall back to `t("appTitle")`.
+      no thread is selected, fall back to `t("appTitle")`. Decided: acceptable
+      as-is — no fallback added. With no thread selected the bar still shows the
+      hamburger and account button; an empty title slot there is a minor,
+      acceptable gap rather than something worth extra `chat-ui-mui` API surface
+      for.
+
+Verified live at a 390×670 viewport: merged bar shows hamburger + thread title
+
+- member avatar + invite button + account button in one row; document does not
+  scroll (`scrollHeight === clientHeight`, `body` is `position: fixed` +
+  `overflow: hidden`). Re-ran
+  [tests/auto-scroll.spec.ts](../../tests/auto-scroll.spec.ts),
+  [tests/thread-management.spec.ts](../../tests/thread-management.spec.ts), and
+  [tests/member-management.spec.ts](../../tests/member-management.spec.ts) — all
+  9 tests pass.
 
 ## Phase 3 — Hide-on-scroll behaviour
 

@@ -239,6 +239,14 @@ reason, scroll-to-bottom logic must scroll its own container directly (e.g.
 scrollable ancestor — on mobile that includes the document, dragging the whole
 page.
 
+**Auto-scroll suspension.** `MessageList` sticks to the bottom by default but
+suspends that while the user scrolls up (wheel/touch) to read older content,
+resuming when they scroll back near the bottom, click the "jump to bottom"
+button, or send a message themselves. Unsticking is driven by scroll _intent_
+(`wheel`/`touchmove` direction), not raw scroll position, since
+`scrollTo({ behavior: "smooth" })` emits its own `scroll` events that a
+position-only rule would misread as the user scrolling away mid-animation.
+
 **Narrow viewports.** Below the `(max-width:640px)` breakpoint, `ChatEmbed` and
 `ChatHistoryEmbed` switch to a mobile layout (thread list becomes a `Drawer`,
 members become a bottom sheet). `ChatEmbed`'s `headerActions` config prop lets a

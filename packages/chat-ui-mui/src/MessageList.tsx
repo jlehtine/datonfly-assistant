@@ -154,7 +154,6 @@ export function MessageList({
     onLoadMore,
 }: MessageListProps): ReactElement {
     const { t, i18n } = useTranslation();
-    const endRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const currentUserId = useCurrentUserId();
     const lastMsg = messages[messages.length - 1];
@@ -177,7 +176,12 @@ export function MessageList({
         // (the bubble may resize when syntax highlighting kicks in) — but NOT when
         // old messages are prepended at the top via history loading.
         if (didAppend || showThinking || lastMsg?.streaming || streamingJustEnded) {
-            endRef.current?.scrollIntoView({ behavior: "smooth" });
+            // Scroll the list container directly, not scrollIntoView, which would
+            // also scroll any scrollable ancestor (e.g. the document on mobile).
+            const el = scrollRef.current;
+            if (el) {
+                el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+            }
         }
     }, [messages, showThinking, lastMsg?.streaming]);
 
@@ -230,7 +234,6 @@ export function MessageList({
             })}
             {showThinking && !streamingStatus && <ThinkingBubble label={t("assistantIsThinking")} />}
             {isStreaming && streamingStatus && <StatusBubble status={streamingStatus} />}
-            <Box ref={endRef} className="datonfly-message-list-end" />
         </Box>
     );
 }

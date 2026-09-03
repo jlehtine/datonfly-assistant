@@ -228,6 +228,24 @@ The UI is built with **Material UI** (`@mui/material`). Use Material UI
 components for all user-facing elements. For icons, use **Material Icons**
 (`@mui/icons-material`).
 
+**Mobile viewport.** `packages/frontend/index.html` pins `html`/`body`/`#root`
+to `var(--app-height)` (`100dvh`, falling back to `100vh`) with
+`overflow: hidden` and a `position: fixed` body, so the document itself is never
+scrollable — only purpose-built inner containers (e.g. the message list) scroll.
+This is `frontend`-only: `chat-ui-mui` is embeddable in host pages and must
+never apply document-level CSS or assume it owns `<body>`/`<html>`. For the same
+reason, scroll-to-bottom logic must scroll its own container directly (e.g.
+`element.scrollTo(...)`), not `scrollIntoView()`, which also scrolls any
+scrollable ancestor — on mobile that includes the document, dragging the whole
+page.
+
+**Narrow viewports.** Below the `(max-width:640px)` breakpoint, `ChatEmbed` and
+`ChatHistoryEmbed` switch to a mobile layout (thread list becomes a `Drawer`,
+members become a bottom sheet). `ChatEmbed`'s `headerActions` config prop lets a
+host app fold its own header controls (e.g. an account menu button) into the
+chat header instead of stacking a second app bar above it — see
+`packages/frontend/src/App.tsx` for the pattern.
+
 ## Database
 
 - All tables live in the **`dfa`** (Datonfly Assistant) PostgreSQL schema. This

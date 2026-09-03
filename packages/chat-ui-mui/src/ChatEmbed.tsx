@@ -8,7 +8,15 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactElement } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+    type ComponentType,
+    type ReactElement,
+    type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 
@@ -97,6 +105,12 @@ export interface ChatEmbedConfig {
      * the thread. The parent should deselect the thread.
      */
     onLeftThread?: (() => void) | undefined;
+    /**
+     * Optional host-supplied controls (e.g. an account menu button) rendered
+     * at the trailing end of the chat header. Used on narrow viewports where
+     * the host merges its own app bar into this header.
+     */
+    headerActions?: ReactNode | undefined;
 }
 
 /** Props for the {@link ChatEmbed} component. */
@@ -161,6 +175,7 @@ export function ChatEmbed({ config, connection }: ChatEmbedProps): ReactElement 
                         onRenameThread={config.onRenameThread}
                         onThreadUpdated={config.onThreadUpdated}
                         onLeftThread={config.onLeftThread}
+                        headerActions={config.headerActions}
                     />
                 </CurrentUserIdContext.Provider>
             </ChatClientContext.Provider>
@@ -182,6 +197,7 @@ interface ChatInnerProps {
     onRenameThread?: ((title: string) => void) | undefined;
     onThreadUpdated?: ((event: ThreadUpdatedEvent) => void) | undefined;
     onLeftThread?: (() => void) | undefined;
+    headerActions?: ReactNode | undefined;
 }
 
 function ChatInner({
@@ -198,6 +214,7 @@ function ChatInner({
     onRenameThread,
     onThreadUpdated,
     onLeftThread,
+    headerActions,
 }: ChatInnerProps): ReactElement {
     const { t } = useTranslation();
     const client = useChatClient();
@@ -256,6 +273,7 @@ function ChatInner({
         <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {(thread && !isNarrow) || onOpenThreadList ? (
                 <Box
+                    className="datonfly-chat-header"
                     sx={{
                         px: 2,
                         py: 1,
@@ -268,6 +286,7 @@ function ChatInner({
                 >
                     {onOpenThreadList && (
                         <IconButton
+                            className="datonfly-open-thread-list-button"
                             size="small"
                             aria-label={t("openConversations")}
                             onClick={onOpenThreadList}
@@ -313,6 +332,11 @@ function ChatInner({
                                     <PersonAddAltIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
+                        </Box>
+                    )}
+                    {headerActions && (
+                        <Box sx={{ display: "flex", alignItems: "center", ml: threadId ? 0 : "auto" }}>
+                            {headerActions}
                         </Box>
                     )}
                 </Box>

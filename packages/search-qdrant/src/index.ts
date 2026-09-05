@@ -19,6 +19,10 @@ export interface QdrantSearchOptions {
     denseWeight?: number | undefined;
     /** RRF weight for the sparse (lexical/BM25) channel. Defaults to `1.0`. */
     sparseWeight?: number | undefined;
+    /** Minimum cosine score for a dense-channel candidate to enter the fused ranking. Omit to disable. */
+    denseScoreThreshold?: number | undefined;
+    /** Minimum BM25 score for a sparse-channel candidate to enter the fused ranking. Omit to disable. */
+    sparseScoreThreshold?: number | undefined;
     /** Logger for error/info reporting. Defaults to a no-op logger. */
     logger?: ProviderLogger | undefined;
     /** Embeddings request timeout in milliseconds. Defaults to `120_000` (2 minutes). */
@@ -53,6 +57,8 @@ export function createQdrantSearch(options: QdrantSearchOptions): QdrantSearchRe
         languages: options.languages,
         denseWeight: options.denseWeight,
         sparseWeight: options.sparseWeight,
+        denseScoreThreshold: options.denseScoreThreshold,
+        sparseScoreThreshold: options.sparseScoreThreshold,
         logger: options.logger,
     });
 

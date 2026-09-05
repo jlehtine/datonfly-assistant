@@ -262,6 +262,8 @@ export interface BackendConfig {
               languages: string[];
               denseWeight: number | undefined;
               sparseWeight: number | undefined;
+              denseScoreThreshold: number | undefined;
+              sparseScoreThreshold: number | undefined;
               embeddingsTimeoutMs: number | undefined;
           }
         | undefined;
@@ -392,6 +394,14 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
               languages: parseLanguages(reader.prefixed("SEARCH_LANGUAGES")),
               denseWeight: parsePositiveNumber(reader.prefixed("SEARCH_DENSE_WEIGHT"), "DF_SEARCH_DENSE_WEIGHT"),
               sparseWeight: parsePositiveNumber(reader.prefixed("SEARCH_SPARSE_WEIGHT"), "DF_SEARCH_SPARSE_WEIGHT"),
+              denseScoreThreshold: parsePositiveNumber(
+                  reader.prefixed("SEARCH_DENSE_SCORE_THRESHOLD"),
+                  "DF_SEARCH_DENSE_SCORE_THRESHOLD",
+              ),
+              sparseScoreThreshold: parsePositiveNumber(
+                  reader.prefixed("SEARCH_SPARSE_SCORE_THRESHOLD"),
+                  "DF_SEARCH_SPARSE_SCORE_THRESHOLD",
+              ),
               embeddingsTimeoutMs: parsePositiveNumber(
                   reader.prefixed("EMBEDDINGS_TIMEOUT_MS"),
                   "DF_EMBEDDINGS_TIMEOUT_MS",

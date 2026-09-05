@@ -106,22 +106,27 @@ interpretable in isolation.
 Cheap, no schema change, independently shippable, and worth landing on its own
 before any indexing change.
 
-- [ ] 1.1 Add `score_threshold` to the dense prefetch in
+- [x] 1.1 Add `score_threshold` to the dense prefetch in
       `QdrantSearchProvider.search`, sourced from a new
       `QdrantSearchConfig.denseScoreThreshold` (cosine, BGE-M3 — expect
-      something in the 0.4–0.6 range, start from 0.4). Verify Qdrant accepts
-      `score_threshold` inside a `prefetch` entry in the version in use.
-- [ ] 1.2 Add the equivalent optional threshold for the sparse prefetch
+      something in the 0.4–0.6 range, start from 0.4). Confirmed Qdrant accepts
+      `score_threshold` directly on a `Prefetch` entry (and at the top level of
+      `QueryGroupsRequest`, used by the sparse-only fallback) in the client's
+      generated schema types.
+- [x] 1.2 Add the equivalent optional threshold for the sparse prefetch
       (`sparseScoreThreshold`); BM25 scores are unbounded so this defaults to
       off.
-- [ ] 1.3 Plumb both through `createQdrantSearch` options and
+- [x] 1.3 Plumb both through `createQdrantSearch` options and
       `packages/backend/src/config.ts` as `DF_SEARCH_DENSE_SCORE_THRESHOLD` /
       `DF_SEARCH_SPARSE_SCORE_THRESHOLD`.
-- [ ] 1.4 Stop over-fetching blindly in `ThreadController.search`: the
+- [x] 1.4 Stop over-fetching blindly in `ThreadController.search`: the
       `limit * 3` is there to survive the read-time membership re-check, but it
       also means a short result list is always padded. Keep the over-fetch, but
       return only the groups that survived the threshold rather than filling to
-      `limit`.
+      `limit`. No functional change was needed here: the loop already only ever
+      pushes groups Qdrant returned and never pads, so once 1.1/1.2 make Qdrant
+      itself threshold-filter, a short result list is the correct outcome — only
+      the clarifying comment changed.
 - [ ] 1.5 Re-run the Phase 0 eval; record before/after here.
 
 ## Phase 2 — Thread summary generation

@@ -130,7 +130,9 @@ export class ThreadController {
             recency: { halfLifeDays: this.recencyHalfLifeDays, weight: this.recencyWeight },
         });
 
-        // Qdrant already ranked, grouped and recency-decayed; just enrich with thread titles.
+        // Qdrant already ranked, grouped, threshold-filtered and recency-decayed; just enrich with thread
+        // titles. A short (or empty) list here means few threads cleared the relevance threshold, not that
+        // we ran out of eligible slots -- nothing pads the list back up to `limit`.
         const results: {
             threadId: string;
             title: string;

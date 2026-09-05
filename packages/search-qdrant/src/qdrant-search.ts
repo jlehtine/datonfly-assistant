@@ -43,6 +43,11 @@ export interface QdrantSearchConfig {
     denseWeight?: number | undefined;
     /** RRF weight for the sparse (lexical/BM25) channel. Defaults to `1.0`. */
     sparseWeight?: number | undefined;
+    /** Minimum cosine score for a dense-channel candidate to enter the fused ranking. Omit to disable. */
+    denseScoreThreshold?: number | undefined;
+    /** Minimum BM25 score for a sparse-channel candidate to enter the fused ranking. Omit to disable
+     * (BM25 scores are unbounded, so there is no single sensible universal default). */
+    sparseScoreThreshold?: number | undefined;
     /** Logger for error/info reporting. */
     logger?: ProviderLogger | undefined;
 }
@@ -63,6 +68,8 @@ export class QdrantSearchProvider implements ISearchProvider {
     private readonly languages: string[];
     private readonly denseWeight: number;
     private readonly sparseWeight: number;
+    private readonly denseScoreThreshold: number | undefined;
+    private readonly sparseScoreThreshold: number | undefined;
     private readonly logger: ProviderLogger;
     private readonly readyCollections = new Set<string>();
 
@@ -73,6 +80,8 @@ export class QdrantSearchProvider implements ISearchProvider {
         this.languages = config.languages ?? [];
         this.denseWeight = config.denseWeight ?? 1.0;
         this.sparseWeight = config.sparseWeight ?? 1.0;
+        this.denseScoreThreshold = config.denseScoreThreshold;
+        this.sparseScoreThreshold = config.sparseScoreThreshold;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
     }
 
@@ -174,19 +183,34 @@ export class QdrantSearchProvider implements ISearchProvider {
 
         // Dense stays primary; sparse (lexical) is fused in for names, identifiers and exact words that
         // semantic search misses. Degrades to sparse-only, rather than failing, if embedding is down.
-        const sparseSource = { query: sparseVector, using: "lexical", weight: this.sparseWeight };
-        const denseSource = denseVector ? { query: denseVector, using: "dense", weight: this.denseWeight } : undefined;
+        const sparseSource = {
+            query: sparseVector,
+            using: "lexical",
+            weight: this.sparseWeight,
+            scoreThreshold: this.sparseScoreThreshold,
+        };
+        const denseSource = denseVector
+            ? { query: denseVector, using: "dense", weight: this.denseWeight, scoreThreshold: this.denseScoreThreshold }
+            : undefined;
         const rankedQuery = denseSource
             ? {
                   prefetch: [denseSource, sparseSource].map((source) => ({
                       query: source.query,
                       using: source.using,
                       limit: prefetchLimit,
+                      ...(source.scoreThreshold !== undefined ? { score_threshold: source.scoreThreshold } : {}),
                   })),
                   query: { rrf: { weights: [denseSource.weight, sparseSource.weight] } },
                   limit: prefetchLimit,
               }
-            : { query: sparseSource.query, using: sparseSource.using, limit: prefetchLimit };
+            : {
+                  query: sparseSource.query,
+                  using: sparseSource.using,
+                  limit: prefetchLimit,
+                  ...(sparseSource.scoreThreshold !== undefined
+                      ? { score_threshold: sparseSource.scoreThreshold }
+                      : {}),
+              };
 
         // Build membership filter from the caller-supplied filter.
         const threadIds = options.filter?.threadIds ?? [];

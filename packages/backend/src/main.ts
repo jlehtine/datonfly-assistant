@@ -97,6 +97,8 @@ async function bootstrap(): Promise<void> {
             languages: cfg.search.languages,
             denseWeight: cfg.search.denseWeight,
             sparseWeight: cfg.search.sparseWeight,
+            denseScoreThreshold: cfg.search.denseScoreThreshold,
+            sparseScoreThreshold: cfg.search.sparseScoreThreshold,
             embeddingsTimeoutMs: cfg.search.embeddingsTimeoutMs,
             logger: searchLogger,
         });

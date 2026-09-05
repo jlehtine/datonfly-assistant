@@ -239,6 +239,8 @@ describe("loadBackendConfig", () => {
                 languages: ["english"],
                 denseWeight: undefined,
                 sparseWeight: undefined,
+                denseScoreThreshold: undefined,
+                sparseScoreThreshold: undefined,
             });
         });
 
@@ -264,6 +266,25 @@ describe("loadBackendConfig", () => {
             expect(() =>
                 loadBackendConfig(validEnv({ DF_QDRANT_URL: "http://localhost:6333", DF_SEARCH_DENSE_WEIGHT: "0" })),
             ).toThrow('DF_SEARCH_DENSE_WEIGHT must be a positive number, got "0"');
+        });
+
+        it("parses the dense and sparse score thresholds", () => {
+            const config = loadBackendConfig(
+                validEnv({
+                    DF_QDRANT_URL: "http://localhost:6333",
+                    DF_SEARCH_DENSE_SCORE_THRESHOLD: "0.4",
+                    DF_SEARCH_SPARSE_SCORE_THRESHOLD: "2.5",
+                }),
+            );
+            expect(config.search).toMatchObject({ denseScoreThreshold: 0.4, sparseScoreThreshold: 2.5 });
+        });
+
+        it("throws on a non-positive dense score threshold", () => {
+            expect(() =>
+                loadBackendConfig(
+                    validEnv({ DF_QDRANT_URL: "http://localhost:6333", DF_SEARCH_DENSE_SCORE_THRESHOLD: "0" }),
+                ),
+            ).toThrow('DF_SEARCH_DENSE_SCORE_THRESHOLD must be a positive number, got "0"');
         });
 
         it("defaults recency weight and hits-per-thread to undefined, left to chat-server's own defaults", () => {

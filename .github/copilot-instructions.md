@@ -54,10 +54,23 @@ progress is visible at a glance:
 sort and read in execution order. Top-level phases are `## Phase N —
 <title>` with an increasing integer `N` (`Phase 0`, `Phase 1`, …); subsections
 use a dotted `### N.M <title>` form where `M` increases within the phase
-(`0.1`, `0.2`, `1.1`, …). Always assign the next unused number to later work —
-never renumber existing phases/steps to insert in the middle. If something
-must slot between existing items, append it with the next free number (or a
-deeper `N.M.K` level) rather than shifting the others.
+(`0.1`, `0.2`, `1.1`, …).
+
+Numbers become stable identifiers once a plan is **committed** or once any of
+its steps have been **executed** — from that point they may be referenced from
+commits, branches, review comments and conversations, so never renumber them.
+Assign the next unused number to later work instead; if something must slot
+between existing items, append it with the next free number (or a deeper `N.M.K`
+level) rather than shifting the others.
+
+Before that point — while a plan is still uncommitted and no step has run — it
+is just a draft. Renumber it freely into a clean sequence, and reorganise or
+delete parts of it as the plan changes. A draft plan does not need to record its
+own revision history: earlier drafts, superseded structures and abandoned step
+numbering carry no value once nothing references them. Rationale is the
+exception — preserve the reasoning behind rejected alternatives and the insights
+found while planning, since those constrain future changes, but state them as
+current fact rather than as a narrative of what an earlier draft said.
 
 Keep steps concrete and actionable, ordered by dependency where it matters. Put
 brief context, decisions, or rationale inline under a section when it helps a

@@ -162,25 +162,43 @@ two stripped-down calls — while seeing the _real_ context (tool results,
 thinking blocks, attachments) instead of a flattened text rendering. The only
 way this goes wrong is row three, and every item in 2.1 exists to prevent it.
 
-**Blocked on two user actions, both needed before continuing past 2.3:**
+**Resolved.** `output_config.format` is confirmed **not** cache-neutral by
+Anthropic's own documentation: "Changing the `output_config.format` parameter
+will invalidate any prompt cache for that conversation thread" (structured
+outputs docs, "Prompt modification and token costs"). No live call was needed
+for that half of 2.1.5 -- it is unambiguous, not merely unlisted.
 
-- 2.1.5's cache-neutrality check for `output_config.format` needs a live call
-  against the real Anthropic API (network access, `ANTHROPIC_API_KEY`, real
-  cost) — the fixture playback server does not simulate cache billing, so this
-  cannot be resolved from this environment on its own. Everything from 2.1
-  onward (and 2.2, which depends on 2.1's outcome) waits on this.
-- While implementing 2.3, the local dev Postgres (`DF_DATABASE_URL` in `.env`
-  points at the docker-compose instance on `localhost:5432`) turned out to have
-  **zero tables**, even though the backend process is up and listening on
-  `:3000`. That is consistent with the Postgres container having been recreated
-  (fresh volume) after the backend last ran its startup migration — the backend
-  would not crash from that, it would just start failing on every DB query.
-  `createPostgresPersistence` runs all pending migrations automatically on next
-  call, which would apply the _entire_ migration history, not just this branch's
-  addition, to whatever is actually in that database — not something to do
-  unilaterally against a shared dev server's database. 2.3's code is
-  type-checked and unit-tested but not yet verified against a real migration
-  run.
+What _was_ worth a live call, because nothing documents it with the same
+certainty: whether an always-declared-but-**unforced** tool, appended to with a
+trailing instruction and `tool_choice` never touched, actually gets a real model
+to (a) keep the cache and (b) call the tool anyway. Ran
+`experiment:summary-cache`
+(`packages/agent-anthropic/src/fixtures/summary-cache-experiment.ts`) against
+`claude-opus-5` (three-turn conversation, `record_thread_summary` tool declared
+throughout, never forced):
+
+| Turn                                                                                    | cache read                       | cache write | What it proves                                                                                                                         |
+| --------------------------------------------------------------------------------------- | -------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1                                                                                       | 0                                | 1501        | Baseline write (system + tool definition).                                                                                             |
+| 2                                                                                       | 1501                             | 181         | Exact read-back of turn 1's write; new message-level breakpoint written.                                                               |
+| 3 (the summary-call shape: trailing instruction, tool present, `tool_choice` untouched) | **1682** (= 1501 + 181, exactly) | 137         | **Full read of everything previously cached** — nothing was invalidated by the tool's presence or by leaving `tool_choice` at default. |
+
+Turn 3 also returned `stop_reason: "tool_use"` with a well-formed
+`record_thread_summary` call (`{ title, topics }`, three sensibly-scoped topics)
+despite never being forced — instruction-only invocation works in practice, not
+just in theory. 2.1.3, 2.1.5 and 2.1.6 are marked resolved below from this
+evidence; 2.2 onward is now unblocked.
+
+(The Postgres "zero tables" observation while implementing 2.3 was checking the
+wrong schema — `\dt` without a search path only shows `public`, and every table
+here lives in `dfa`. `dfa.thread_topic` was already present and correctly
+migrated; 2.3.2 is now verified end-to-end against the live dev database:
+insert, list in ordinal order, replace-clears-the-old-batch, and empty-array
+cleanup all behave as designed, tested non-destructively against a real thread
+and restored to empty afterward. The dev database's 296 threads / 854 messages
+are almost entirely from automated E2E tests, not representative conversation
+content — not useful for the Phase 0 baseline eval, which needs realistic data
+the user is separately arranging to migrate in.)
 
 ### 2.1 Cache alignment
 
@@ -202,12 +220,14 @@ saving.
       _creation_ instead of reading the existing entry. Place it at the same
       absolute index the turn used, so the call reads and refreshes (both billed
       at the $0.50 hit rate) and creates nothing.
-- [ ] 2.1.3 **Do not touch `tool_choice`.** The invalidation table lists **Tool
+- [x] 2.1.3 **Do not touch `tool_choice`.** The invalidation table lists **Tool
       choice** as tools ✓, system ✓, **messages ✘** — "changes to `tool_choice`
       parameter only affect message blocks". Forced tool use, which would
       otherwise be the natural way to get a typed result, is therefore
       incompatible with reading the turn's cache. Leave `tool_choice` at its
-      default on every request.
+      default on every request. Confirmed live: three-turn
+      `experiment:summary-cache` run (see above) got a full cache read on turn 3
+      with the tool declared throughout and `tool_choice` never set.
 - [ ] 2.1.4 **Match the thinking configuration and effort exactly.** **Thinking
       parameters** and **Effort setting** sit in the same ✘ column for message
       blocks: the configuration is rendered into the prompt, so changing it
@@ -217,24 +237,23 @@ saving.
       `output_config.effort` through unchanged. (Setting effort explicitly to
       the model's default is equivalent to omitting it, so either is fine as
       long as both requests agree.)
-- [ ] 2.1.5 **Verify structured outputs (`output_config.format`) — the preferred
-      mechanism for a typed result.** The table covers `output_config.effort`
-      but says nothing about `format`, and unlisted is not the same as safe, so
-      check empirically against `cache_read_input_tokens`. Confirm at the same
-      time that `format` coexists with the `tools` array the turn already
-      carries, and that the SDK version and `requiredBetas` in
-      `packages/agent-anthropic/src/config.ts` support it. If it is
-      cache-neutral, use it: a guaranteed schema, no tool, no parsing.
-- [ ] 2.1.6 **Fallback if `format` invalidates:** declare a
-      `record_thread_summary` tool in the standard tool set so the `tools` array
-      stays byte-identical on every request, invoke it by instruction (never by
-      `tool_choice`), and parse a line-formatted text reply when the model
-      answers instead of calling it — first non-empty line is the title, each
-      subsequent non-empty line is one topic, leading list markers stripped.
-      That format cannot hard-fail, and a mangled result costs one thread's
-      indexing quality until the next regeneration. Only build this branch if
-      2.1.5 rules structured outputs out; it carries an executable tool, ~100
-      cached tokens on every request, and occasional unprompted invocation.
+- [x] 2.1.5 **`output_config.format` (structured outputs) is ruled out.**
+      Confirmed by Anthropic's own docs, no live call needed: "Changing the
+      `output_config.format` parameter will invalidate any prompt cache for that
+      conversation thread." 2.1.6 is therefore the mechanism, not a fallback.
+- [x] 2.1.6 **Declare `record_thread_summary` in the standard tool set, invoke
+      it by instruction, never by `tool_choice`.** Keeps the `tools` array
+      byte-identical on every request. Confirmed live (see above): the model
+      called the tool unforced, with a correctly-shaped `{ title, topics }`
+      result, on a request that also achieved a full cache read. Parse a
+      line-formatted text reply as the fallback for turns where the model
+      answers instead of calling the tool — first non-empty line is the title,
+      each subsequent non-empty line is one topic, leading list markers
+      stripped. That format cannot hard-fail, and a mangled result costs one
+      thread's indexing quality until the next regeneration. Remaining costs to
+      accept: ~100 cached tokens of tool definition on every request, and
+      occasional unprompted invocation (2.2.10's job to treat as legitimate, not
+      an error).
 - [ ] 2.1.7 Watch for the attachment trap: `threadMessagesToAgentMessages` skips
       loading attachment bytes on the title path precisely because they were
       never needed. A cache-aligned request must include them to match the
@@ -290,10 +309,9 @@ saving.
       `IPersistenceProvider`; replacement is a single transaction so a thread
       never has a partially-updated topic set. Persisting topics keeps a full
       reindex free of LLM calls and lets the UI show topic text without a Qdrant
-      round trip. Type-checked and unit-tested (core, persistence-pg,
-      chat-server all build clean against the two new interface methods); **not
-      yet verified against a live migration run** -- see the blocker note above
-      Phase 2's remaining items.
+      round trip. Verified live against the dev database (migrated, `dfa`
+      schema): insert, ordinal ordering, replace-clears-old-batch, and
+      empty-array cleanup all behave as designed.
 
 ### 2.4 Trigger and application
 
@@ -447,15 +465,14 @@ Kept because the reasoning constrains future changes, not as a change log.
   a real topic.
 - **Forced tool use for the structured result.** The natural choice, rejected on
   documented evidence (2.1.3): a `tool_choice` change invalidates message
-  blocks, which is the entire cached conversation. Structured outputs (2.1.5)
-  recover the same guarantee without the invalidation.
-- **Modelling summarisation as a tool when structured outputs are available.**
-  Once `tool_choice` is off the table, a tool's only advantage over structured
-  outputs is that a user could ask "summarise this conversation" and have the
-  result persisted and indexed. That is a separate feature with its own surface
-  (an executable tool, a write path reachable from inside the agent loop,
-  tool-result rendering, unprompted-invocation risk) and should not ride along
-  on this work. Raise it as its own TODO.md entry if wanted.
+  blocks, which is the entire cached conversation.
+- **Structured outputs (`output_config.format`) instead of a tool.** Would have
+  been strictly better than a tool if it worked \u2014 no executable surface, no
+  parsing, no unprompted-invocation risk \u2014 but Anthropic's own docs rule it
+  out (2.1.5): changing `output_config.format` invalidates the cache outright,
+  the same failure mode as forcing `tool_choice`. An always-declared, unforced
+  tool (2.1.6) is the only mechanism tried that keeps the cache intact,
+  confirmed live against a real model.
 - **JSON in the reply text.** Considered as the fallback format and rejected in
   favour of a line-oriented one (2.1.6): truncated or lightly malformed JSON
   yields nothing, whereas "title on the first line, one topic per line after"

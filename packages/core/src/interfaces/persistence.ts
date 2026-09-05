@@ -1,5 +1,5 @@
 import type { ContentPart, MessageRole, ProviderReplayData, ThreadMessage } from "../types/message.js";
-import type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole } from "../types/thread.js";
+import type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole, ThreadTopic } from "../types/thread.js";
 import type { User } from "../types/user.js";
 
 /** Options for creating a new thread. */
@@ -161,6 +161,27 @@ export interface IPersistenceProvider {
     ): Promise<Thread>;
     /** Permanently delete a thread and all its messages. */
     deleteThread(threadId: string): Promise<void>;
+
+    /**
+     * List the generated topics for a thread, in generation order (see {@link ThreadTopic}).
+     *
+     * Returns an empty array both when no batch has been generated yet and when the last
+     * generated batch was empty (e.g. a small-talk-only thread) — the two are indistinguishable
+     * from this call alone; callers that need to tell them apart also check
+     * {@link Thread.titleGeneratedAt} or an equivalent marker of "generation has run".
+     */
+    listTopics(threadId: string): Promise<ThreadTopic[]>;
+    /**
+     * Replace a thread's entire topic set with a newly generated batch, in a single transaction
+     * so the thread never has a partially-updated set. Pass an empty array to clear the topics
+     * (e.g. a small-talk-only thread) while still recording that generation ran.
+     */
+    replaceTopics(
+        threadId: string,
+        topics: string[],
+        generatedAt: Date,
+        generatedAtMessageCount: number,
+    ): Promise<ThreadTopic[]>;
 
     /**
      * Get the persisted agent code-execution container ID for a thread, or

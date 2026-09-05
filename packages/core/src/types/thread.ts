@@ -59,3 +59,17 @@ export interface ThreadMemberInfo {
      */
     agentAlias?: string | undefined;
 }
+
+/** A generated topic summarising part of a thread's conversation (see {@link IPersistenceProvider.listTopics}). */
+export interface ThreadTopic {
+    /** The thread this topic belongs to. */
+    threadId: string;
+    /** Short topic description, as returned by the summarisation call. */
+    topic: string;
+    /** Position among the topics generated in the same batch (0-based, generation order). */
+    ordinal: number;
+    /** When this batch of topics was generated. */
+    generatedAt: Date;
+    /** Thread message count at generation time, used to detect a stale batch that needs regenerating. */
+    generatedAtMessageCount: number;
+}

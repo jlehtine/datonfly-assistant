@@ -77,6 +77,16 @@ export interface AttachmentsTable {
     origin: ColumnType<string, string | undefined, never>;
 }
 
+/** Kysely table definition for the `thread_topic` database table. */
+export interface ThreadTopicsTable {
+    id: Generated<string>;
+    thread_id: string;
+    topic: string;
+    ordinal: number;
+    generated_at: Date;
+    generated_at_message_count: number;
+}
+
 // ─── Database ───
 
 /** Kysely database schema mapping table names to their definitions. */
@@ -87,6 +97,7 @@ export interface Database {
     message: MessagesTable;
     thread_user_state: ThreadUserStateTable;
     attachment: AttachmentsTable;
+    thread_topic: ThreadTopicsTable;
 }
 
 // ─── Row Types ───
@@ -120,3 +131,8 @@ export type NewThreadUserState = Insertable<ThreadUserStateTable>;
 export type AttachmentRow = Selectable<AttachmentsTable>;
 /** Insertable row type for the `attachment` table. */
 export type NewAttachment = Insertable<AttachmentsTable>;
+
+/** Selected (read) row type for the `thread_topic` table. */
+export type ThreadTopicRow = Selectable<ThreadTopicsTable>;
+/** Insertable row type for the `thread_topic` table. */
+export type NewThreadTopic = Insertable<ThreadTopicsTable>;

@@ -17,10 +17,19 @@ import type {
     ThreadMemberInfo,
     ThreadMemberRole,
     ThreadMessage,
+    ThreadTopic,
     User,
 } from "@datonfly-assistant/core";
 
-import type { AttachmentRow, Database, MessageRow, ThreadMemberRow, ThreadRow, UserRow } from "./schema.js";
+import type {
+    AttachmentRow,
+    Database,
+    MessageRow,
+    ThreadMemberRow,
+    ThreadRow,
+    ThreadTopicRow,
+    UserRow,
+} from "./schema.js";
 
 /**
  * {@link IPersistenceProvider} implementation backed by a PostgreSQL database via Kysely.
@@ -213,6 +222,44 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
     async deleteThread(threadId: string): Promise<void> {
         await this.qb.deleteFrom("thread").where("id", "=", threadId).execute();
+    }
+
+    async listTopics(threadId: string): Promise<ThreadTopic[]> {
+        const rows = await this.qb
+            .selectFrom("thread_topic")
+            .selectAll()
+            .where("thread_id", "=", threadId)
+            .orderBy("ordinal", "asc")
+            .execute();
+        return rows.map(toThreadTopic);
+    }
+
+    async replaceTopics(
+        threadId: string,
+        topics: string[],
+        generatedAt: Date,
+        generatedAtMessageCount: number,
+    ): Promise<ThreadTopic[]> {
+        return await this.db.transaction().execute(async (tx) => {
+            const trx = tx.withSchema("dfa");
+            await trx.deleteFrom("thread_topic").where("thread_id", "=", threadId).execute();
+            if (topics.length === 0) return [];
+
+            const rows = await trx
+                .insertInto("thread_topic")
+                .values(
+                    topics.map((topic, ordinal) => ({
+                        thread_id: threadId,
+                        topic,
+                        ordinal,
+                        generated_at: generatedAt,
+                        generated_at_message_count: generatedAtMessageCount,
+                    })),
+                )
+                .returningAll()
+                .execute();
+            return rows.map(toThreadTopic);
+        });
     }
 
     async getThreadContainerId(threadId: string): Promise<string | null> {
@@ -715,5 +762,15 @@ function toAttachmentRecord(row: Omit<AttachmentRow, "bytes">): AttachmentRecord
         size: row.size,
         createdAt: row.created_at,
         origin: row.origin as "user" | "agent",
+    };
+}
+
+function toThreadTopic(row: ThreadTopicRow): ThreadTopic {
+    return {
+        threadId: row.thread_id,
+        topic: row.topic,
+        ordinal: row.ordinal,
+        generatedAt: row.generated_at,
+        generatedAtMessageCount: row.generated_at_message_count,
     };
 }

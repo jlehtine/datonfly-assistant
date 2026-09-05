@@ -162,6 +162,26 @@ two stripped-down calls — while seeing the _real_ context (tool results,
 thinking blocks, attachments) instead of a flattened text rendering. The only
 way this goes wrong is row three, and every item in 2.1 exists to prevent it.
 
+**Blocked on two user actions, both needed before continuing past 2.3:**
+
+- 2.1.5's cache-neutrality check for `output_config.format` needs a live call
+  against the real Anthropic API (network access, `ANTHROPIC_API_KEY`, real
+  cost) — the fixture playback server does not simulate cache billing, so this
+  cannot be resolved from this environment on its own. Everything from 2.1
+  onward (and 2.2, which depends on 2.1's outcome) waits on this.
+- While implementing 2.3, the local dev Postgres (`DF_DATABASE_URL` in `.env`
+  points at the docker-compose instance on `localhost:5432`) turned out to have
+  **zero tables**, even though the backend process is up and listening on
+  `:3000`. That is consistent with the Postgres container having been recreated
+  (fresh volume) after the backend last ran its startup migration — the backend
+  would not crash from that, it would just start failing on every DB query.
+  `createPostgresPersistence` runs all pending migrations automatically on next
+  call, which would apply the _entire_ migration history, not just this branch's
+  addition, to whatever is actually in that database — not something to do
+  unilaterally against a shared dev server's database. 2.3's code is
+  type-checked and unit-tested but not yet verified against a real migration
+  run.
+
 ### 2.1 Cache alignment
 
 Anthropic's cache invalidation table follows the hierarchy `tools` → `system` →
@@ -262,15 +282,18 @@ saving.
 
 ### 2.3 Persistence
 
-- [ ] 2.3.1 New `thread_topic` table (`id`, `threadId`, `topic`, `ordinal`,
+- [x] 2.3.1 New `thread_topic` table (`id`, `threadId`, `topic`, `ordinal`,
       `generatedAt`, `generatedAtMessageCount`) via a data-preserving migration
       under `packages/persistence-pg/src/migrations/`, following the existing
       `YYYY-MM-DDM000N-label.ts` naming. Cascade-delete with the thread.
-- [ ] 2.3.2 Add `listTopics(threadId)` / `replaceTopics(threadId, topics)` to
+- [x] 2.3.2 Add `listTopics(threadId)` / `replaceTopics(threadId, topics)` to
       `IPersistenceProvider`; replacement is a single transaction so a thread
       never has a partially-updated topic set. Persisting topics keeps a full
       reindex free of LLM calls and lets the UI show topic text without a Qdrant
-      round trip.
+      round trip. Type-checked and unit-tested (core, persistence-pg,
+      chat-server all build clean against the two new interface methods); **not
+      yet verified against a live migration run** -- see the blocker note above
+      Phase 2's remaining items.
 
 ### 2.4 Trigger and application
 

@@ -1,7 +1,7 @@
 export type { UserIdentity } from "./auth.js";
 export type { MemberSearchStrategy } from "./member-search-strategy.js";
 export type { User } from "./user.js";
-export type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole } from "./thread.js";
+export type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole, ThreadTopic } from "./thread.js";
 export type {
     ThreadMessage,
     MessageRole,

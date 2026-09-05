@@ -21,6 +21,7 @@
         "build": "tsc --project tsconfig.build.json",
         "dev": "tsc --watch --project tsconfig.build.json",
         "test": "vitest run --dir src",
+        "search:eval": "pnpm run build && node dist/bin/search-eval.js",
         "lint": "eslint src/",
         "lint:fix": "eslint src/ --fix"
     },
@@ -30,6 +31,7 @@
         "snowball-stemmers": "^0.6.0"
     },
     "devDependencies": {
+        "@types/node": "^25.9.5",
         "@types/snowball-stemmers": "^0.6.2",
         "typescript": "^6.0.3",
         "vitest": "^4.1.10"

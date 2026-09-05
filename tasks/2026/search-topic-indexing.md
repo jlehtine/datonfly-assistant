@@ -88,11 +88,12 @@ conversation happened to use.
 Nothing here can be tuned without a before/after comparison; RRF scores are not
 interpretable in isolation.
 
-- [ ] 0.1 Add a dev-only CLI in `search-qdrant` (`src/bin/search-eval.ts`) that
+- [x] 0.1 Add a dev-only CLI in `search-qdrant` (`src/bin/search-eval.ts`) that
       runs a list of queries against a live Qdrant + Infinity and prints, per
       query, the top-k threads with **per-channel** detail: dense rank + cosine
-      score, sparse rank + BM25 score, fused rank, and the matched text.
-- [ ] 0.2 Support a query file (`queries.jsonl`: `{ q, expectThreadIds? }`) so a
+      score, sparse rank + BM25 score, fused rank, and the matched text. Run via
+      `pnpm --filter @datonfly-assistant/search-qdrant search:eval -- --queries     <file> [--query <text> ...] [--collection <name>] [--limit <k>]`.
+- [x] 0.2 Support a query file (`queries.jsonl`: `{ q, expectThreadIds? }`) so a
       run is repeatable, and print recall@k / MRR when expectations are given.
 - [ ] 0.3 Capture a baseline run against the current index on the test
       deployment; commit the query file (not the results) and note the baseline

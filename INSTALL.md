@@ -312,6 +312,48 @@ code `rate_limited`.
 
 ---
 
+## Importing Production-like Thread Data into Dev
+
+Search relevance work needs realistic thread data, but a production-like
+database also holds other people's chats and must not be copied wholesale.
+`scripts/db/` has three plain-SQL tools for this, run through `psql` — nothing
+needs to be installed on the server beyond the `postgres` Compose service
+already there.
+
+**Export** (read-only, safe to run against a production-like database) dumps one
+user's threads as JSONL. Only _solo_ threads — where that user is both the owner
+and the only member — are included, so no other person's messages or identity
+(the `dfa.user` row itself is never exported) ever leave the server:
+
+```bash
+ssh SERVER 'cd <deploy-dir> && docker compose exec -T postgres \
+    psql -U datonfly -d datonfly -q -v ON_ERROR_STOP=1 -v email=user@example.com' \
+    < scripts/db/export-threads.sql > threads.jsonl
+```
+
+**Import** (dev-only, destructive-adjacent — inserts into the local database)
+loads a dump into the local Compose Postgres, re-attached to a chosen dev user
+(defaults to the first fake user, `fake.alice@dev.invalid`). Thread, message,
+attachment and topic ids are preserved, so importing the same dump twice is a
+no-op:
+
+```bash
+pnpm db:import-threads threads.jsonl [target-email]
+```
+
+**Clear** (dev-only, destructive) deletes thread history in the local database —
+either one user's owned threads, or, with no argument, every thread:
+
+```bash
+pnpm db:clear-threads [email]
+```
+
+After an import (or any change to the message data), rebuild the search index
+with `POST /datonfly-assistant/admin/reindex` (see "Rate Limiting" above for its
+tier) — these scripts only touch Postgres, never the search index.
+
+---
+
 ## Google Cloud OIDC Setup
 
 ### 1. Create a Google Cloud project

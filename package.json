@@ -15,6 +15,8 @@
         "test:e2e": "playwright test",
         "test:e2e:headed": "playwright test --headed",
         "psql": "docker compose exec postgres psql -U datonfly -d datonfly",
+        "db:import-threads": "scripts/db/import-threads.sh",
+        "db:clear-threads": "scripts/db/clear-threads.sh",
         "prepare": "husky"
     },
     "devDependencies": {

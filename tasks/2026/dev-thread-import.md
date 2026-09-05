@@ -1,6 +1,7 @@
 # Importing production-like thread data into the dev environment
 
-Branch: `dev-thread-import`
+Branch: `search-topic-indexing` (support tooling for that work, kept on the same
+branch rather than split out).
 
 ## Problem
 
@@ -68,43 +69,61 @@ All thread-associated rows, in foreign-key order: `thread`, `thread_member`,
 
 ## Phase 1 — Export
 
-- [ ] 1.1 Add `scripts/db/export-threads.sql`: takes `:email`, resolves it to a
+- [x] 1.1 Add `scripts/db/export-threads.sql`: takes `:email`, resolves it to a
       user id, collects the qualifying solo-owned thread ids into one CTE-backed
       selection, and emits the six tables as JSONL on stdout in FK order. Fail
       loudly (`ON_ERROR_STOP` plus an explicit assertion) if the email matches
       no user, rather than emitting an empty dump.
-- [ ] 1.2 Verify against the dev database: seed a couple of threads, export,
+- [x] 1.2 Verify against the dev database: seed a couple of threads, export,
       inspect the JSONL by hand for completeness and for absence of `dfa.user`
       data.
 
 ## Phase 2 — Import
 
-- [ ] 2.1 Add `scripts/db/import-threads.sql`: takes `:target_email`, reads the
+- [x] 2.1 Add `scripts/db/import-threads.sql`: takes `:target_email`, reads the
       staging table, inserts each table in FK order with user references
       remapped and `ON CONFLICT DO NOTHING`, and prints per-table counts.
-- [ ] 2.2 Add `scripts/db/import-threads.sh`, the dev-side wrapper that runs the
+- [x] 2.2 Add `scripts/db/import-threads.sh`, the dev-side wrapper that runs the
       three steps against the Compose `postgres` service: create/truncate
       `dfa_import`, `\copy … FROM STDIN` the dump file, run the transform, then
       drop the staging schema. Arguments: dump file, target email (defaulting to
       the first fake user, `fake.alice@dev.invalid`).
-- [ ] 2.3 Wire it up as a root `package.json` script (`db:import-threads`).
-- [ ] 2.4 Verify a round trip on the dev database: export, clear, import, and
+- [x] 2.3 Wire it up as a root `package.json` script (`db:import-threads`).
+- [x] 2.4 Verify a round trip on the dev database: export, clear, import, and
       confirm threads, messages, attachments and topics all come back attached
       to the dev user, and that a second import of the same dump is a no-op.
 
 ## Phase 3 — Clearing thread history
 
-- [ ] 3.1 Add `scripts/db/clear-threads.sql`: with `:email` set, delete the
+- [x] 3.1 Add `scripts/db/clear-threads.sql`: with `:email` set, delete the
       threads that user owns; with `:email` empty, delete every thread. Cascades
       handle members, messages, attachments, topics and per-user state.
-- [ ] 3.2 Add the root `package.json` script (`db:clear-threads`), guarded so it
+- [x] 3.2 Add the root `package.json` script (`db:clear-threads`), guarded so it
       is obvious it targets the local Compose database.
 
 ## Phase 4 — Documentation
 
-- [ ] 4.1 Document the export/import/clear workflow in `INSTALL.md`, including
+- [x] 4.1 Document the export/import/clear workflow in `INSTALL.md`, including
       the reindex step (`POST /datonfly-assistant/admin/reindex`) that must
       follow an import, and a warning that the import and clear scripts are
       dev-only.
-- [ ] 4.2 Link this file from `search-topic-indexing.md` Phase 0.3 as the way to
+- [x] 4.2 Link this file from `search-topic-indexing.md` Phase 0.3 as the way to
       obtain the baseline corpus.
+
+## Implementation notes
+
+- psql does not interpolate `:'var'` inside `DO $$ ... $$` bodies (dollar-quoted
+  strings are opaque to it), so the "does this user exist" checks use `\gset` +
+  `\if` instead of a `DO` block.
+- `\quit <code>` is not accepted by this psql version (silently warns and exits
+  0 anyway). The failure path instead prints via `\warn` (stderr, so it never
+  contaminates the export's stdout JSONL) and then runs a deliberately failing
+  statement (`SELECT 1/0`) to get a real non-zero exit under `ON_ERROR_STOP`.
+- Verified end-to-end against the local Compose Postgres with a throwaway pair
+  of `test.source@dev.invalid` / `test.target@dev.invalid` users (not the fake
+  users used by E2E tests): export → import → re-import (no-op, confirmed by
+  0-row inserts) → scoped clear. Covered a message with embedded quotes and a
+  newline, an attachment's binary bytes, and a thread topic, all round-tripping
+  correctly and all user references remapped to the target. Also verified the
+  "unknown email" failure path (non-zero exit, no stdout output) for both export
+  and clear. Cleaned up the throwaway users afterwards.

@@ -97,7 +97,9 @@ interpretable in isolation.
       run is repeatable, and print recall@k / MRR when expectations are given.
 - [ ] 0.3 Capture a baseline run against the current index on the test
       deployment; commit the query file (not the results) and note the baseline
-      numbers in this file.
+      numbers in this file. To get a realistic corpus into dev without copying
+      other people's chats, see [dev-thread-import.md](dev-thread-import.md) for
+      the export/import/clear tooling.
 - [ ] 0.4 Record the observed dense cosine score distribution for good vs. junk
       hits — this is what sets the Phase 1 threshold.
 

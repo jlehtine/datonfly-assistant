@@ -50,6 +50,20 @@ What was established:
       lose their message. Until then the spec stays as-is rather than being
       papered over with a retry, so the flake keeps surfacing it.
 
+## Unresolved: semantic search returns noise and misses matching topics
+
+Thread search surfaces too many irrelevant threads — typically short,
+contentless messages ("Hello", "That's all, thanks") — and sometimes misses a
+thread that clearly discusses the queried topic. Three causes: every message is
+dense-embedded regardless of content, the dense unit of retrieval is a single
+message rather than a conversation topic, and no relevance cutoff is applied at
+any stage of the query. Title generation is a related weak point: it still
+summarises only the last 20 messages, so long threads get a title that describes
+their tail rather than their subject.
+
+Plan:
+[tasks/2026/search-topic-indexing.md](tasks/2026/search-topic-indexing.md).
+
 ## Future: custom and MCP tools cannot emit files
 
 Custom and MCP tools still return text only (`ITool.execute` →

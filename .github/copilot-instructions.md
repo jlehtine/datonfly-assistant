@@ -89,6 +89,24 @@ files), and its corresponding entry (if any) in `TODO.md` has been resolved or
 removed. Cleanup is a documentation step, not a plain deletion: nothing of
 lasting value should be lost when a plan file is removed.
 
+## Implementation Workflow
+
+When asked to implement a plan, follow the workflow below by default. More
+detailed instructions given by the user always overrule it.
+
+Loop over the following sequence until the implementation is complete:
+
+1. **Select the next slice.** Pick the next piece of work from the plan that is
+   of a suitable size and, preferably, independently verifiable.
+2. **Implement and verify the slice.** Stop and report back to the user if you
+   hit anything that requires a significant change to the plan, needs user
+   input, or needs the user to change the dev server environment (including
+   starting or stopping services).
+3. **Commit the slice.**
+
+Committing each completed slice is part of this workflow, so it does not need
+separate permission — but only slices, and only while implementing a plan.
+
 ## Dependency Licensing
 
 Vet the license of any third-party dependency before adding it.
@@ -112,8 +130,9 @@ need to check formatting.
 
 ## Version Control
 
-Do not commit changes unless the user explicitly asks you to. Stage and make
-commits only on explicit user permission or instruction.
+Do not commit changes unless the user explicitly asks you to, or the commit is
+the final step of a slice in the implementation workflow above. Otherwise, stage
+and make commits only on explicit user permission or instruction.
 
 Merge a feature branch with a merge commit, not a fast-forward or squash:
 `git merge --no-ff --no-edit`.

@@ -1,0 +1,156 @@
+{
+    "scenario": "thread-summary-cache-aligned",
+    "request": {
+        "method": "POST",
+        "path": "/v1/messages?beta=true",
+        "headers": {
+            "accept": "application/json",
+            "anthropic-beta": "context-management-2025-06-27,compact-2026-01-12",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "user-agent": "Anthropic/JS 0.74.0",
+            "x-stainless-arch": "x64",
+            "x-stainless-lang": "js",
+            "x-stainless-os": "Linux",
+            "x-stainless-package-version": "0.74.0",
+            "x-stainless-retry-count": "0",
+            "x-stainless-runtime": "node",
+            "x-stainless-runtime-version": "v24.12.0",
+            "x-stainless-timeout": "600"
+        },
+        "body": {
+            "model": "claude-opus-5",
+            "max_tokens": 4096,
+            "system": [
+                {
+                    "type": "text",
+                    "text": "You are a personal AI assistant in a one-on-one conversation. Each of the user's messages includes a header line with their name and timestamp, for example:\n\n[Alice] @ 2026-04-10T14:30+02:00\n\nHow do I fix this bug?\n\nUse the timestamp to understand when messages were sent relative to each other.",
+                    "cache_control": {
+                        "type": "ephemeral"
+                    }
+                }
+            ],
+            "tools": [
+                {
+                    "type": "code_execution_20260120",
+                    "name": "code_execution"
+                },
+                {
+                    "type": "web_search_20260209",
+                    "name": "web_search"
+                },
+                {
+                    "type": "web_fetch_20260209",
+                    "name": "web_fetch"
+                },
+                {
+                    "name": "record_thread_summary",
+                    "description": "Record a short title and the distinct topics discussed in this conversation so far. Call this only when the user explicitly asks for a summary of the conversation, or when explicitly instructed to do so at the end of a message. An empty topics list is the correct answer when the conversation so far is only greetings, small talk, or acknowledgements with no substantive subject yet.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "A short, descriptive title (3-8 words) for the conversation, in the language the participants are predominantly using."
+                            },
+                            "topics": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "Up to 5 short (roughly 100 characters or fewer) descriptions of the distinct topics discussed. Empty if there is no substantive topic yet."
+                            }
+                        },
+                        "required": ["title", "topics"]
+                    },
+                    "cache_control": {
+                        "type": "ephemeral"
+                    }
+                }
+            ],
+            "thinking": {
+                "type": "adaptive",
+                "display": "summarized"
+            },
+            "context_management": {
+                "edits": [
+                    {
+                        "type": "compact_20260112",
+                        "trigger": {
+                            "type": "input_tokens",
+                            "value": 120000
+                        }
+                    }
+                ]
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "[MenuAlias] @ 2026-09-05T10:36+03:00\n\nGive me a short list of some of the most well-known number series."
+                        }
+                    ]
+                },
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "thinking",
+                            "thinking": "I'm thinking \"number series\" probably means famous sequences like Fibonacci, primes, squares, and powers of 2, though it could also mean classic infinite series like harmonic or geometric sums. I'll keep the answer brief, covering both interpretations concisely.",
+                            "signature": "CAISkwUKjgEIERgCKkDlkseaqe0rNE3qZcnuBjyfCuOu7MeAquuweg3yE3T/CtbToaf9EeTNdE7SZY48Qm/eF7NGkjliWEp3TRIfROikMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ3NzhjY2NjZC00ZTEyLTQ2NTQtOWYwZC0zMDg0ZmE3ZWMzZjOoAY6N79QGEgzjSiPlDAynV601n1gaDIDUpWbi6oY/p9lRCCIw8Mu3C1Xv+4kKCvunTfe+7oC2LMM/5P7uvPN2taAAFi3WH4hBxhDSiXFWVpYfZV2hKrEDYpFJyZdS93Z/ujXDN4Dk+HyLXDd1DCyjJqZvzqIvGaN4J7c1gEPI9hSIRA1RIeKStPG3Odmi4rBwsfMJHEZECF76ggbSAl2ttgCSeBALFRgy/HrYTYSu7gHXfjt3Vh57cOhuMV8U1kFWSofa0+oz897gxZXOR1caGPW/Y1eg/stGVddj909S3ekOE6TYIfXS1033wmvFkbRjsEMyv9DPdiMdV8brHguosd777MX/MgCctBIo9nO0v1qzwg5BdhJVMCP9dyNtIzEf9syLAhwaMJMTeoeupxmjJDGA1dPp7Er67dUETjkV+FWPsbdyi3i1IQ1aJKeS9fyP0DwBi3Isax/tdUugcVCJ5WX3/1/efj+4fC3s80mL/3W6Duy6pZ6EQHHU8oAxHRKI1v2uYUXnwbzakUS1awq7U1NkUH1YU7DmZrsEvuKFd0jsXFDwk0p5qd+5O8hyMnry4R8K7QoeKd8/mmrzQGOnKfmD+S8GH1vXJsdQBg0AYFjJdGlSCV6RoLAWEUKEbBo2zMo6CAF39GUjzTavnsuE8UyhW/K0U3h7yqNz/VRkhNPplucKKR1MkxgB"
+                        },
+                        {
+                            "text": "Here are some of the best-known ones:\n\n**Famous sequences**\n- **Natural numbers** \u2014 1, 2, 3, 4, 5, \u2026\n- **Even / odd numbers** \u2014 2, 4, 6, 8, \u2026 and 1, 3, 5, 7, \u2026\n- **Prime numbers** \u2014 2, 3, 5, 7, 11, 13, 17, \u2026\n- **Square numbers** \u2014 1, 4, 9, 16, 25, \u2026\n- **Triangular numbers** \u2014 1, 3, 6, 10, 15, \u2026 (sums of the first n naturals)\n- **Powers of 2** \u2014 1, 2, 4, 8, 16, 32, \u2026\n- **Fibonacci** \u2014 1, 1, 2, 3, 5, 8, 13, 21, \u2026 (each term is the sum of the two before it)\n- **Lucas numbers** \u2014 2, 1, 3, 4, 7, 11, 18, \u2026 (same rule, different start)\n- **Factorials** \u2014 1, 2, 6, 24, 120, 720, \u2026\n- **Catalan numbers** \u2014 1, 1, 2, 5, 14, 42, \u2026 (counting problems in combinatorics)\n- **Perfect numbers** \u2014 6, 28, 496, 8128, \u2026\n\n**Famous infinite series (sums)**\n- **Geometric series** \u2014 1 + \u00bd + \u00bc + \u215b + \u2026 = 2\n- **Harmonic series** \u2014 1 + \u00bd + \u2153 + \u00bc + \u2026 (diverges, slowly)\n- **Basel problem** \u2014 1 + \u00bc + \u2151 + 1/16 + \u2026 = \u03c0\u00b2/6\n- **Leibniz series** \u2014 1 \u2212 \u2153 + \u2155 \u2212 1/7 + \u2026 = \u03c0/4\n\nWant me to go deeper on any of these \u2014 say, the properties of Fibonacci or how the primes are distributed?",
+                            "type": "text"
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "[MenuAlias] @ 2026-09-05T10:37+03:00\n\nWhich of these number series come up in a natural context (in relation to the physical natural world)?"
+                        }
+                    ]
+                },
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "thinking",
+                            "thinking": "I'm thinking through natural examples: Fibonacci in phyllotaxis and sunflower patterns (though often overstated), primes in cicada life cycles, powers of two in cell division and radioactive decay, and squares showing up in the inverse-square law and Galileo's falling-body distances.\n\nThen there's the odd-number rule for falling bodies, triangular numbers in sphere packing and handshake problems, Catalan numbers surfacing in RNA folding structures, and the harmonic series appearing everywhere in musical overtones \u2014 that feels like the standout connection, along with the Basel sum showing up in Stefan-Boltzmann and Planck's law integrals. Perfect numbers, by contrast, really don't have a clear natural counterpart. I want to keep the answer substantive but not overly long.",
+                            "signature": "CAISwgoKjgEIERgCKkAhhaofngI0agxDfk0aUFd00FcIqMtpFW/Ytufd/QiaSEKYjcw+2oGQbaQtW7YTaOutWgYDZAgcyCtq1nFj9iLPMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ3NzhjY2NjZC00ZTEyLTQ2NTQtOWYwZC0zMDg0ZmE3ZWMzZjOoAbON79QGEgygxO6xoDIpb1LDKIkaDM4a23mjMv7g/kGJoiIwu026j0utlScuw5Fe4IHzVEaQvgw8N+moZWjWYgoYh6NuG7VO1IR1+LN1EZRUb3nDKuAIuUlxDY4DNsa9Y6BciZqhPJzNrTiyIB2l5sziG0gNiTb2S7RQSR9EBlXwlztxOGRxE7nZFwksILSB32+xXxJs9azXf7HFieaYHX/75iTitKb9egzsbW7FVRiz8Tv0q5oO9YVNbfCJdMVCKdX9C7jQLWM5H1QiU1JSf2QRNtRYxagl1sml+hrfSJJSnr/AraKJirfN1NgycxRJRzsnV5zRpCAX9Mfm9Y44u/8uAQZ4gGSaOmlmwwAEdzdhNE6C455913NeTqXP/UJy8eIvbkHShfPq+fbKc9zERM7yV2UNliS8e+PEv7mWD41mW8AKdsotPgXxd4VFJr0zxb/RMPZY+QQXVfcFolwIehJ+d5hQgZxhFeznvvqSjUK42PhtMYWZZhXAuMj4aPS1wOznT2TxNhe6jc5uLSbQnK62ZrI7GEfL5I/quRV9CQExGqabhxpCWY1B6eioJgb0qk4c9r56tUVVGohPb+FjeLZj4ljbuV8UpPlVOvTfk9GQaA4BcnYDH2sGRgTcDZex0IeF1joFg5jpMPZ1LAY3dzs2ayRah4B6kvk4JTT04oWNaapD5yX93s7aw111l04PEmcVcUkC1OWeNrbntIIG9/LtqbaNsoeXc+1BrB9Ow3nzXe940Hi/A9RtkerfZnzeE7WyaIzjnOmxPRaqlvmMDmurY2SJ1cKTc27K577ANwDA7yse+8rwPrDPXY0oO1zvwHf8Z/AhO6nJBxWrH9Ts82i1OAM1ufZrCe1hF36dkG/X8wgilkKU6vsFxUobsY+cqGxztLnfTTtT7uFdXFLcX20iMy92mjS0DRV293uyn/oLlJb9DgJXeQqGdSnf9csSxwc0/BjYH6s+WvXMV0K/AeDs+7gmNo91awc+TW+D/iprijRjAx/0SlWucCTkrBKw9v4hMfjPJHEmfy3jkR+WQEUfwziYfFTZ/8TQiJ6qqPD7L26/9dluuVEuIPbhCUhV21+3/iEwujKmYv7M/RJcCccHIbvUIjkWwVrUnCVKq2Y6PeEkWJ8DbTPtA9O/LHAE8FTjofB7+sEhvTTEBLU/xkXsl6ym07IxZWVXc7qc4HO/phSQLGF4+Y19+kCOFi12zqovyP7/U/jPgzMXXx+daHOqH9fqNhs3WMvijpvMJgwYDsofqLbaUuHf+4/gRnH7RzxHmI3wLpEbIkEskpQWGNXgWcD8vfoMX0/Ox5mjUbyC68aABHDtqIDlXajEEOmRzhJVKiyizeoApZyClH8PhFThzwuHeoiZVRphtB99wIFJBsl+LAm664EfSe7K5/AWGr+2kRY/JUoXBaf3iiHUtFhKNRpqr3wN5WsjoyomB7IWr7vaZeTeGiYVlhqzg30mjOg+IY8KRMVewm9U0wTy0K854IoBz7Nut3qgiMdmlow+PQT7ps/dPg5VvX85pDcNRGsW6DEZ3JPnrZRw+W4rEf/yiEuXj3w9fuEpZUBcbeqgMZHACXR80YsN3qO+31RxeY7K4qdfgRgB"
+                        },
+                        {
+                            "text": "Here's the honest breakdown \u2014 some show up genuinely and pervasively, others are more folklore.\n\n**Strong, well-documented appearances**\n\n- **Fibonacci / Lucas numbers** \u2014 plant phyllotaxis. Leaf, seed and floret arrangements (sunflower heads, pinecones, pineapples, daisy petals) very often follow Fibonacci counts, because a divergence angle near the golden angle (~137.5\u00b0) packs new primordia efficiently without overlap. Lucas numbers appear in a minority of plants with the same mechanism. This one is real, though it's also the most over-hyped sequence in pop science \u2014 most \"Fibonacci in nature\" claims about nautilus shells, galaxies and faces are wrong.\n\n- **Odd numbers** \u2014 Galileo's law of falling bodies: in successive equal time intervals, a falling object covers distances in the ratio 1 : 3 : 5 : 7 : \u2026, which is exactly why total distance goes as the **squares** (1, 4, 9, 16). A nice case of two sequences being the same fact.\n\n- **Powers of 2 / geometric series** \u2014 cell division (1 \u2192 2 \u2192 4 \u2192 8 cells), radioactive decay and half-lives (each half-life leaves \u00bd, \u00bc, \u215b \u2026), and any exponential growth or decay process. The convergent geometric sum is why a decaying sample's total emitted particles is finite.\n\n- **Natural numbers and their reciprocals \u2014 the harmonic series** \u2014 vibrating strings and air columns. The overtones of a string are at 1\u00d7, 2\u00d7, 3\u00d7, 4\u00d7\u2026 the fundamental frequency (wavelengths 1/n). The word \"harmonic\" in mathematics comes from exactly this physical fact. Hydrogen's spectral lines also involve 1/n\u00b2 differences.\n\n- **Squares** \u2014 inverse-square laws: gravity, electrostatics, light and sound intensity all fall off as 1/r\u00b2, a direct consequence of surface area of a sphere growing as r\u00b2. Energy levels, kinetic energy (v\u00b2) and so on.\n\n- **Prime numbers** \u2014 periodical cicadas (*Magicicada*) emerge on 13- and 17-year cycles. The standard explanation is that prime periods minimize overlap with predator or parasite cycles and with each other. It's one of the few plausible cases of primes being \"selected for\" by nature.\n\n- **Triangular / tetrahedral numbers** \u2014 close packing. Stacking spheres (or cannonballs, or fruit) in a triangular pyramid gives layer sizes 1, 3, 6, 10, \u2026 and cumulative totals 1, 4, 10, 20, \u2026. Relevant to crystal structures and cluster chemistry (\"magic numbers\" of atoms in clusters).\n\n- **Basel sum and relatives** \u2014 \u03c0\u00b2/6 and its cousins turn up when you integrate Planck's blackbody law; the Stefan\u2013Boltzmann constant contains \u03b6(4) = \u03c0\u2074/90. Not visible to the eye, but genuinely embedded in how hot objects radiate.\n\n**Weaker or mainly combinatorial**\n\n- **Catalan numbers** \u2014 count RNA secondary-structure foldings, phylogenetic tree shapes, and polymer configurations. Real, but it's nature-through-combinatorics rather than something you'd observe directly.\n- **Factorials** \u2014 appear in statistical mechanics and entropy counting (arrangements of particles), not as observable objects.\n- **Perfect numbers** \u2014 essentially no role in nature. Pure number theory curiosity.\n\nIf I had to pick the deepest one physically, it's the harmonic series \u2014 the whole of acoustics, music theory and much of quantum mechanics rests on integer-indexed modes of vibration.",
+                            "type": "text",
+                            "cache_control": {
+                                "type": "ephemeral"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": "Call the record_thread_summary tool now to record a title and the topics discussed in this conversation."
+                }
+            ]
+        }
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "content-type": "application/json"
+        },
+        "body": "{\"model\":\"claude-opus-5\",\"id\":\"msg_011CejukRRVeHoc8RkkFz5kV\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"I'll go ahead and use this tool now.\",\"signature\":\"CAIS/wEKjgEIERgCKkAGwlZECF51q7Zetath9qr1vPRgsayhNQHftW4LhQUVBllaz/vUAuvKCr7YhW7x6A4sjc8uSRO7tjwf30NO8aDsMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ3NzhjY2NjZC00ZTEyLTQ2NTQtOWYwZC0zMDg0ZmE3ZWMzZjOoAceN79QGEgyL0PSiUFNm8EBe/+4aDOgI2MBgHavTf0L6kSIwnjAmtXUuDCXU4raJsswCWF3iYjyoNXu6FLH6OWHc58VmAbRD2QKrym0qAmPUt6bAKh4rk2d9umVIV1MIsW3r5E1liYCyWazxUrCcXlyPSpQYAQ==\"},{\"type\":\"tool_use\",\"id\":\"toolu_0193EhW3pqiYdrmeyaGDif5H\",\"name\":\"record_thread_summary\",\"input\":{\"title\":\"Famous Number Sequences and Their Natural Occurrences\",\"topics\":[\"List of well-known number sequences: primes, Fibonacci, Lucas, Catalan, triangular, factorials, perfect numbers\",\"Famous infinite series: geometric, harmonic, Basel problem, Leibniz series for pi\",\"Fibonacci and Lucas numbers in plant phyllotaxis, plus common overhyped claims\",\"Physical occurrences: odd numbers in falling bodies, inverse-square laws, powers of 2 in decay and cell division\",\"Prime cicada cycles, sphere packing via triangular numbers, Basel sum in blackbody radiation\"]},\"caller\":{\"type\":\"direct\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":34,\"cache_creation_input_tokens\":1718,\"cache_read_input_tokens\":7650,\"cache_creation\":{\"ephemeral_5m_input_tokens\":1718,\"ephemeral_1h_input_tokens\":0},\"iterations\":[{\"input_tokens\":34,\"output_tokens\":298,\"cache_read_input_tokens\":7650,\"cache_creation_input_tokens\":1718,\"cache_creation\":{\"ephemeral_5m_input_tokens\":1718,\"ephemeral_1h_input_tokens\":0},\"type\":\"message\"}],\"output_tokens\":298,\"output_tokens_details\":{\"thinking_tokens\":8},\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"context_management\":{\"applied_edits\":[]}}",
+        "frames": [
+            {
+                "atMs": 6755,
+                "text": "{\"model\":\"claude-opus-5\",\"id\":\"msg_011CejukRRVeHoc8RkkFz5kV\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"I'll go ahead and use this tool now.\",\"signature\":\"CAIS/wEKjgEIERgCKkAGwlZECF51q7Zetath9qr1vPRgsayhNQHftW4LhQUVBllaz/vUAuvKCr7YhW7x6A4sjc8uSRO7tjwf30NO8aDsMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ3NzhjY2NjZC00ZTEyLTQ2NTQtOWYwZC0zMDg0ZmE3ZWMzZjOoAceN79QGEgyL0PSiUFNm8EBe/+4aDOgI2MBgHavTf0L6kSIwnjAmtXUuDCXU4raJsswCWF3iYjyoNXu6FLH6OWHc58VmAbRD2QKrym0qAmPUt6bAKh4rk2d9umVIV1MIsW3r5E1liYCyWazxUrCcXlyPSpQYAQ==\"},{\"type\":\"tool_use\",\"id\":\"toolu_0193EhW3pqiYdrmeyaGDif5H\",\"name\":\"record_thread_summary\",\"input\":{\"title\":\"Famous Number Sequences and Their Natural Occurrences\",\"topics\":[\"List of well-known number sequences: primes, Fibonacci, Lucas, Catalan, triangular, factorials, perfect numbers\",\"Famous infinite series: geometric, harmonic, Basel problem, Leibniz series for pi\",\"Fibonacci and Lucas numbers in plant phyllotaxis, plus common overhyped claims\",\"Physical occurrences: odd numbers in falling bodies, inverse-square laws, powers of 2 in decay and cell division\",\"Prime cicada cycles, sphere packing via triangular numbers, Basel sum in blackbody radiation\"]},\"caller\":{\"type\":\"direct\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":34,\"cache_creation_input_tokens\":1718,\"cache_read_input_tokens\":7650,\"cache_creation\":{\"ephemeral_5m_input_tokens\":1718,\"ephemeral_1h_input_tokens\":0},\"iterations\":[{\"input_tokens\":34,\"output_tokens\":298,\"cache_read_input_tokens\":7650,\"cache_creation_input_tokens\":1718,\"cache_creation\":{\"ephemeral_5m_input_tokens\":1718,\"ephemeral_1h_input_tokens\":0},\"type\":\"message\"}],\"output_tokens\":298,\"output_tokens_details\":{\"thinking_tokens\":8},\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"context_management\":{\"applied_edits\":[]}}"
+            }
+        ]
+    }
+}

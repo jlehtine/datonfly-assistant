@@ -477,12 +477,20 @@ describe("AnthropicAgent.shouldRespond", () => {
     });
 });
 
-describe("AnthropicAgent.generateTitle", () => {
-    it("returns the title text from a non-streaming call", async () => {
+describe("AnthropicAgent.generateThreadSummary", () => {
+    it("returns the title from a non-streaming call on the standalone (titleModelName) path", async () => {
         await withServer(["title"], async (server) => {
-            const agent = createAgent(server.baseUrl);
+            // titleModelName set -> the standalone path, matching how this fixture was recorded
+            // (record-fixtures.ts sets titleModelName for the "generateThreadSummary" call type).
+            const agent = new AnthropicAgent({
+                modelName: "claude-opus-5",
+                titleModelName: "claude-opus-5",
+                apiKey: "sk-ant-test",
+                baseUrl: server.baseUrl,
+                providerOptions: { maxRetries: 0, disableCaching: true },
+            });
 
-            const title = await agent.generateTitle(
+            const result = await agent.generateThreadSummary(
                 [
                     userMessage("What's the capital of France?"),
                     { role: "ai", content: [{ type: "text", text: "The capital of France is Paris." }] },
@@ -490,7 +498,34 @@ describe("AnthropicAgent.generateTitle", () => {
                 "thread-1",
             );
 
-            expect(title).toBe("Capital of France Question");
+            // Recorded before the tool-based rewrite: a plain-text reply, parsed through the
+            // line-format fallback (first line = title, no further lines = no topics).
+            expect(result.title).toBe("Capital of France Question");
+            expect(result.topics).toEqual([]);
+        });
+    });
+
+    it("returns the title and topics from a record_thread_summary tool call on the cache-aligned (default) path", async () => {
+        await withServer(["thread-summary-cache-aligned"], async (server) => {
+            // titleModelName unset -> the default cache-aligned path, matching how this fixture
+            // was captured live (DF_ANTHROPIC_TRAFFIC_DUMP_DIR, DF_AGENT_TITLE_MODEL unset).
+            const agent = new AnthropicAgent({
+                modelName: "claude-opus-5",
+                apiKey: "sk-ant-test",
+                baseUrl: server.baseUrl,
+                providerOptions: { maxRetries: 0, disableCaching: true },
+            });
+
+            const result = await agent.generateThreadSummary(
+                [
+                    userMessage("Tell me some famous number sequences."),
+                    { role: "ai", content: [{ type: "text", text: "Sure, here are a few classic ones..." }] },
+                ],
+                "thread-1",
+            );
+
+            expect(result.title).toBe("Famous Number Sequences and Their Natural Occurrences");
+            expect(result.topics).toHaveLength(5);
         });
     });
 });

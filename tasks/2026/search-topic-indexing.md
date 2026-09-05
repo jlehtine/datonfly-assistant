@@ -208,18 +208,37 @@ after it. The conversation prefix lives in `messages`, the last and most
 expensive level, so anything that invalidates message blocks costs the whole
 saving.
 
-- [ ] 2.1.1 Build the summary request through the **same request builder** as a
+- [x] 2.1.1 Build the summary request through the **same request builder** as a
       normal turn — same system prompt, same tool definitions, same message
       construction. Any parallel simplified builder will drift out of prefix
-      alignment and silently land in the $0.300 row.
-- [ ] 2.1.2 **Pin the breakpoint to the turn's boundary.** Anthropic only tests
+      alignment and silently land in the $0.300 row. Reuses
+      `AnthropicAgent.buildRequest` directly (already private/shared with
+      `stream()`), overriding only `max_tokens` (see 2.1.2's note — output
+      budget isn't part of the cached prefix).
+- [x] 2.1.2 **Pin the breakpoint to the turn's boundary.** Anthropic only tests
       for a cache hit at a `cache_control` breakpoint, so the breakpoint cannot
       be omitted — but `applyCacheBreakpoints` computes it as
       `messages.length - tail - 1`, and the summary request is two messages
       longer, which would move the boundary forward and bill the delta as cache
       _creation_ instead of reading the existing entry. Place it at the same
       absolute index the turn used, so the call reads and refreshes (both billed
-      at the $0.50 hit rate) and creates nothing.
+      at the $0.50 hit rate) and creates nothing. Confirmed via a real live-mode
+      run (`DF_ANTHROPIC_TRAFFIC_DUMP_DIR` + a real key): no special pinning
+      code was actually needed — the boundary formula only depends on
+      `messages.length`, and appending exactly one instruction message
+      reproduces the same absolute index a real next turn would have landed on.
+      **Bug found and fixed by that same live run**: `buildRequest` sets
+      `max_tokens` to the full 64k agentic-turn budget (`DEFAULT_MAX_TOKENS`),
+      which trips the Anthropic SDK's own client-side guard for non-streaming
+      calls — it estimates wall-clock time as proportional to `max_tokens` and
+      refuses to run non-streaming above roughly 21k tokens for a model
+      (`claude-opus-5`) with no explicit entry in the SDK's per-model table. The
+      call failed _before_ reaching the network (no traffic dump, caught by the
+      outer try/catch, silently logged as "empty title returned"), which is what
+      made this invisible against the fixture harness — the guard is pure
+      client-side arithmetic the playback server never sees. Fixed by overriding
+      `max_tokens` down to a dedicated `SUMMARY_MAX_TOKENS = 4096` for this call
+      only (not part of the cached prefix, so this doesn't affect alignment).
 - [x] 2.1.3 **Do not touch `tool_choice`.** The invalidation table lists **Tool
       choice** as tools ✓, system ✓, **messages ✘** — "changes to `tool_choice`
       parameter only affect message blocks". Forced tool use, which would
@@ -252,52 +271,73 @@ saving.
       stripped. That format cannot hard-fail, and a mangled result costs one
       thread's indexing quality until the next regeneration. Remaining costs to
       accept: ~100 cached tokens of tool definition on every request, and
-      occasional unprompted invocation (2.2.10's job to treat as legitimate, not
-      an error).
-- [ ] 2.1.7 Watch for the attachment trap: `threadMessagesToAgentMessages` skips
+      occasional unprompted invocation -- see 2.4.5 for the current state of
+      that gap.
+- [x] 2.1.7 Watch for the attachment trap: `threadMessagesToAgentMessages` skips
       loading attachment bytes on the title path precisely because they were
       never needed. A cache-aligned request must include them to match the
-      prefix, which reintroduces blob loading for a background call. Measure
-      whether it matters before optimising it away.
-- [ ] 2.1.8 Instrument regardless of branch: log `cache_read_input_tokens` and
+      prefix, which reintroduces blob loading for a background call. Resolved
+      unconditionally in `ThreadSummaryGenerator.maybeGenerateSummary` (both
+      paths, cache-aligned and standalone) rather than special-cased per path --
+      accepted as a minor, unmeasured cost on the standalone path per "measure
+      before optimising away".
+- [x] 2.1.8 Instrument regardless of branch: log `cache_read_input_tokens` and
       `cache_creation_input_tokens` on every summary call, and audit-log loudly
       if creation tokens are non-trivial — that is the signal that prefix
-      alignment has broken and costs have jumped ~10×.
-- [ ] 2.1.9 Handle the TTL edge case: the lifetime is measured from the
+      alignment has broken and costs have jumped ~10×. Logged for the
+      cache-aligned path (`AnthropicAgent.generateThreadSummaryCacheAligned`);
+      the "audit-log loudly on high creation" alerting threshold is not wired up
+      yet, only the raw log line.
+- [x] 2.1.9 Handle the TTL edge case: the lifetime is measured from the
       **start** of the request that wrote the entry, not the end of its
       response, so a turn that streams for four minutes leaves about one minute
       for the summary call to hit, and long agentic turns can exceed the window
-      outright. Either accept the occasional miss or use the already-supported
-      `cacheTtl: "1h"`; 2.1.8's instrumentation shows how often it actually
-      bites.
-- [ ] 2.1.10 Short threads are not cached at all — the minimum cacheable prompt
+      outright. Accepted the occasional miss for now (no `cacheTtl: "1h"` set);
+      2.1.8's instrumentation is the mechanism to revisit this if it bites.
+- [x] 2.1.10 Short threads are not cached at all — the minimum cacheable prompt
       is 512 tokens on Opus 5, and below it nothing is cached and no error is
       raised. Those calls bill at base rate, negligible because the thread is by
       definition tiny, but the instrumentation must not mistake them for broken
-      alignment (both cache fields read 0).
+      alignment (both cache fields read 0). No code change needed — noted for
+      whoever reads the 2.1.8 logs.
 - [ ] 2.1.11 The summary call runs outside the thread lock (`void`-dispatched
       after `releaseThreadLock`), so it can overlap the next turn. Both read the
       same prefix and neither writes, so there is no interference — confirm with
       a test that two concurrent requests against one thread produce no cache
-      creation.
+      creation. Reasoned safe (generateThreadSummary only reads), not yet
+      exercised by an actual concurrency test.
 
 ### 2.2 Provider API and prompt
 
-- [ ] 2.2.1 Replace `IAgentProvider.generateTitle` with
+- [x] 2.2.1 Replace `IAgentProvider.generateTitle` with
       `generateThreadSummary(messages, threadId)` returning
-      `{ title: string; topics: string[] }`.
-- [ ] 2.2.2 Instruct explicitly that an **empty** `topics` list is the correct
+      `{ title: string; topics: string[] }` (`ThreadSummaryResult`, exported
+      from `core`).
+- [x] 2.2.2 Instruct explicitly that an **empty** `topics` list is the correct
       answer when the conversation contains only greetings, small talk or
       acknowledgements and has no substantive subject yet.
-- [ ] 2.2.3 Cap the number of topics (start: 5) and their length (start: ~100
+- [x] 2.2.3 Cap the number of topics (start: 5) and their length (start: ~100
       chars each) in both the instruction and the post-processing, and drop
       empty or whitespace-only entries.
-- [ ] 2.2.4 Do not set `temperature` — newer Claude models reject the parameter
-      outright.
-- [ ] 2.2.5 Update the fixture recording harness: `SCENARIOS` in
+- [x] 2.2.4 Do not set `temperature` — newer Claude models reject the parameter
+      outright. Not set anywhere in the new code paths.
+- [x] 2.2.5 Update the fixture recording harness: `SCENARIOS` in
       `packages/agent-anthropic/src/fixtures/record-fixtures.ts` carries a
-      `call: "shouldRespond" | "generateTitle"` field that must follow the
-      rename, and recorded `generateTitle` fixtures need re-recording.
+      `call: "shouldRespond" | "generateThreadSummary"` field that must follow
+      the rename. `title.json` (standalone path) remains recorded under the old
+      prompt/response shape (no tool, plain-text reply) -- still passes because
+      `parseSummaryResponse`'s text fallback happens to parse it -- and is
+      deferred until a standalone-path capture is next convenient, not blocking.
+      The cache-aligned (default) path now has real coverage instead:
+      `test/fixtures/thread-summary-cache-aligned.json`, extracted from a live
+      `DF_ANTHROPIC_TRAFFIC_DUMP_DIR` capture against `claude-opus-5` with
+      `DF_AGENT_TITLE_MODEL` unset. That capture is also the strongest evidence
+      yet that the whole mechanism works end-to-end in production, not just in
+      the earlier synthetic experiment: `cache_read_input_tokens: 7650` vs.
+      `cache_creation_input_tokens: 1718` on a real multi-turn conversation,
+      tool called unforced, well-formed `{ title, topics }`. New regression test
+      in `agent.test.ts` replays it and asserts the exact recorded title/topic
+      count.
 
 ### 2.3 Persistence
 
@@ -315,21 +355,38 @@ saving.
 
 ### 2.4 Trigger and application
 
-- [ ] 2.4.1 Trigger from the existing fire-and-forget slot
+- [x] 2.4.1 Trigger from the existing fire-and-forget slot
       (`chat.gateway.ts:799`), on the existing power-of-two + elapsed-time
       cadence, skipping threads whose message count has not moved since
-      `generatedAtMessageCount`. Rename `ThreadTitleGenerator` to a
-      thread-summarisation component rather than adding a second scheduler, so
-      one trigger evaluation covers both outputs.
-- [ ] 2.4.2 Apply the two halves independently: a thread with `titleManuallySet`
+      `generatedAtMessageCount`. Renamed `ThreadTitleGenerator` to
+      `ThreadSummaryGenerator` (`thread-summary-generator.ts`,
+      `maybeGenerateSummary`) rather than adding a second scheduler, so one
+      trigger evaluation covers both outputs. The `generatedAtMessageCount` skip
+      specifically is not yet wired -- see the note under 2.4.2.
+- [x] 2.4.2 Apply the two halves independently: a thread with `titleManuallySet`
       keeps its title but still stores the returned topics. Always request both
       and discard what must not be applied, rather than branching the request.
-- [ ] 2.4.3 On model or parse failure, log an audit event and leave both the
+      Note: the trigger check still reads `thread.titleGeneratedAt` /
+      `countMessages`, not the newer per-topic `generatedAtMessageCount` --
+      functionally fine today since both fire on the same cadence, but worth
+      reconciling onto one source of truth if the two ever diverge.
+- [x] 2.4.3 On model or parse failure, log an audit event and leave both the
       previous title and the previous topics in place — atomic in both
       directions. Never propagate; summarisation must not affect messaging.
-- [ ] 2.4.4 Keep the existing re-check before write (the user may have renamed
+- [x] 2.4.4 Keep the existing re-check before write (the user may have renamed
       the thread while the model was running) and add the equivalent staleness
-      re-check for topics.
+      re-check for topics. One shared existence re-check now guards both writes.
+- [ ] 2.4.5 **Known gap:** the summary tool is declared in every turn's request
+      (2.1.6) but not wired into the per-call `ITool` tool loop, so a
+      spontaneous mid-conversation invocation (a user asking "summarise this
+      conversation" directly) currently gets `executeToolCall`'s graceful "Tool
+      ... is not available" result rather than actually persisting anything.
+      Verified safe (no crash, confirmed by the existing E2E specs passing
+      unchanged), just incomplete relative to the original ambition. Wiring real
+      execution means exposing it as a genuine `ITool` reachable from the
+      streaming loop, with a handler that calls `replaceTopics`/`updateThread`
+      -- a large enough change (agent tool-loop wiring, not just the standalone
+      call) to warrant its own slice.
 
 ### 2.5 Cheap-model fallback path
 

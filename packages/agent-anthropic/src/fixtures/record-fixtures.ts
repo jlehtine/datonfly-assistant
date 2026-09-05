@@ -159,10 +159,10 @@ interface Scenario {
      * Which provider entry point to record through.
      *
      * Defaults to the streaming `stream()` path used by every chat scenario.
-     * `"shouldRespond"` and `"generateTitle"` exercise the two non-streaming
-     * calls instead.
+     * `"shouldRespond"` and `"generateThreadSummary"` exercise the two
+     * non-streaming calls instead.
      */
-    call?: "stream" | "shouldRespond" | "generateTitle";
+    call?: "stream" | "shouldRespond" | "generateThreadSummary";
 }
 
 const SCENARIOS: Scenario[] = [
@@ -318,8 +318,10 @@ const SCENARIOS: Scenario[] = [
     },
     {
         name: "title",
-        description: "Non-streaming generateTitle() call summarizing a short conversation.",
-        call: "generateTitle",
+        description:
+            "Non-streaming generateThreadSummary() call on the standalone (titleModelName) path -- " +
+            "summarizing a short conversation into a title and topics.",
+        call: "generateThreadSummary",
         messages: [
             { role: "human", content: [{ type: "text", text: "What's the capital of France?" }] },
             { role: "ai", content: [{ type: "text", text: "The capital of France is Paris." }] },
@@ -425,7 +427,7 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string,
         baseUrl: proxy.url,
         maxTokens: 1024,
         ...(scenario.call === "shouldRespond" ? { triageModelName: model } : {}),
-        ...(scenario.call === "generateTitle" ? { titleModelName: model } : {}),
+        ...(scenario.call === "generateThreadSummary" ? { titleModelName: model } : {}),
         ...scenario.config,
         ...(scenario.name === "tool-loop" ? { defaultTools: await toolLoopTools() } : {}),
         providerOptions: { enableCompaction: false, ...scenario.providerOptions },
@@ -436,8 +438,8 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string,
     try {
         if (scenario.call === "shouldRespond") {
             await agent.shouldRespond(scenario.messages, "fixture-thread", 2);
-        } else if (scenario.call === "generateTitle") {
-            await agent.generateTitle(scenario.messages, "fixture-thread");
+        } else if (scenario.call === "generateThreadSummary") {
+            await agent.generateThreadSummary(scenario.messages, "fixture-thread");
         } else {
             const stream = await agent.stream(scenario.messages, "fixture-thread", "fixture-user", controller.signal);
             await drain(stream, controller, scenario.abortAfterChunks);

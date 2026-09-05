@@ -60,7 +60,7 @@ import {
 import { buildAuthorAliases, extractText, resolveAttachmentData, threadMessagesToAgentMessages } from "./messages.js";
 import { RateLimitService } from "./rate-limit/rate-limit.service.js";
 import { ThreadRoomManager } from "./thread-room-manager.js";
-import { ThreadTitleGenerator } from "./title-generator.js";
+import { ThreadSummaryGenerator } from "./thread-summary-generator.js";
 import type { TranscribeFn } from "./transcription.controller.js";
 
 /** Callback that validates a raw token string and returns the user identity, or `null` on failure. */
@@ -154,7 +154,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     @WebSocketServer()
     private readonly server!: Server;
 
-    private titleGenerator!: ThreadTitleGenerator;
+    private titleGenerator!: ThreadSummaryGenerator;
     private roomManager!: ThreadRoomManager;
 
     /** Per-thread mutex: thread IDs for which the lock is currently held. */
@@ -221,8 +221,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             });
         }
 
-        // Set up title generator
-        this.titleGenerator = new ThreadTitleGenerator({
+        // Set up thread summary (title + topics) generator
+        this.titleGenerator = new ThreadSummaryGenerator({
             persistence: this.persistence,
             agent: this.agent,
             auditLogger: this.auditLogger,
@@ -796,7 +796,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 });
 
                 // Fire-and-forget title generation.
-                void this.titleGenerator.maybeGenerateTitle(threadId);
+                void this.titleGenerator.maybeGenerateSummary(threadId);
             } finally {
                 this.releaseThreadLock(threadId);
             }

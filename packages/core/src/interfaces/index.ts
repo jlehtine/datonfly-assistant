@@ -23,6 +23,7 @@ export type {
     AgentUsage,
     Citation,
     ShouldRespondResult,
+    ThreadSummaryResult,
 } from "./agent.js";
 export type {
     IPersistenceProvider,

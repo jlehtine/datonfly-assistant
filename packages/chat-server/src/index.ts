@@ -25,8 +25,8 @@ export {
 } from "./constants.js";
 
 export type { ValidateTokenFn } from "./chat.gateway.js";
-export { ThreadTitleGenerator } from "./title-generator.js";
-export type { OnTitleUpdatedFn, ThreadTitleGeneratorConfig } from "./title-generator.js";
+export { ThreadSummaryGenerator } from "./thread-summary-generator.js";
+export type { OnTitleUpdatedFn, ThreadSummaryGeneratorConfig } from "./thread-summary-generator.js";
 export { threadMessagesToAgentMessages, extractText } from "./messages.js";
 export type { TrustedReverseProxy } from "./trusted-proxy.service.js";
 export { RateTier } from "./rate-limit/rate-tier.decorator.js";

@@ -24,6 +24,7 @@ export interface AuditData {
     bytes?: number | undefined;
     attachmentId?: string | undefined;
     fileRef?: string | undefined;
+    topicCount?: number | undefined;
 }
 
 /**

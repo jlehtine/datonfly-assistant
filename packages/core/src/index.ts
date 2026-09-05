@@ -63,6 +63,7 @@ export type {
     AgentUsage,
     Citation,
     ShouldRespondResult,
+    ThreadSummaryResult,
     IPersistenceProvider,
     CreateThreadOptions,
     ListThreadsOptions,

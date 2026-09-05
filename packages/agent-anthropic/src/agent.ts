@@ -12,6 +12,7 @@ import {
     type ITool,
     type ProviderLogger,
     type ShouldRespondResult,
+    type ThreadSummaryResult,
 } from "@datonfly-assistant/core";
 
 import { applyCacheBreakpoints } from "./caching.js";
@@ -73,10 +74,109 @@ const TRIAGE_TOOL: Anthropic.Beta.BetaTool = {
     },
 };
 
-const TITLE_INSTRUCTION =
-    "Generate a short, descriptive title (3-8 words) for the above conversation. " +
-    "The title MUST be in the same language that the participants are predominantly using in the conversation. " +
-    "Respond with ONLY the title, no quotes, no explanation.";
+/** Name of the tool used to record a generated thread title and topics. */
+const SUMMARY_TOOL_NAME = "record_thread_summary";
+
+/**
+ * Declared in every request's tool set (not just the dedicated summary call) so the `tools`
+ * array stays byte-identical across turns -- adding a tool only for the summary call would
+ * change that array and invalidate the tools/system/messages prompt cache for every turn.
+ * Not wired into the per-call `ITool` tool loop: if the model calls it mid-conversation,
+ * `executeToolCall` already replies with a graceful "not available" tool result rather than
+ * persisting anything, since only the dedicated {@link AnthropicAgent.generateThreadSummary}
+ * call currently acts on it.
+ */
+const SUMMARY_TOOL: Anthropic.Beta.BetaTool = {
+    name: SUMMARY_TOOL_NAME,
+    description:
+        "Record a short title and the distinct topics discussed in this conversation so far. Call this only " +
+        "when the user explicitly asks for a summary of the conversation, or when explicitly instructed to do " +
+        "so at the end of a message. An empty topics list is the correct answer when the conversation so far " +
+        "is only greetings, small talk, or acknowledgements with no substantive subject yet.",
+    input_schema: {
+        type: "object",
+        properties: {
+            title: {
+                type: "string",
+                description:
+                    "A short, descriptive title (3-8 words) for the conversation, in the language the " +
+                    "participants are predominantly using.",
+            },
+            topics: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                    "Up to 5 short (roughly 100 characters or fewer) descriptions of the distinct topics " +
+                    "discussed. Empty if there is no substantive topic yet.",
+            },
+        },
+        required: ["title", "topics"],
+    },
+};
+
+const SUMMARY_INSTRUCTION = `Call the ${SUMMARY_TOOL_NAME} tool now to record a title and the topics discussed in this conversation.`;
+
+/** Caps applied to a generated summary, independent of what the instruction itself asks for. */
+const MAX_SUMMARY_TOPICS = 5;
+const MAX_TOPIC_LENGTH = 100;
+const MAX_TITLE_LENGTH = 200;
+
+/**
+ * Output budget for a summary call, deliberately far below {@link DEFAULT_MAX_TOKENS}.
+ *
+ * `buildRequest` otherwise sets `max_tokens` to the same 64k budget a full agentic turn
+ * gets, which trips the SDK's own non-streaming guard: it estimates wall-clock time as
+ * proportional to `max_tokens` and refuses to run non-streaming if that estimate exceeds
+ * 10 minutes (roughly `max_tokens > 21_333` for a model with no explicit entry in the
+ * SDK's per-model table, which `claude-opus-5` currently has none of) -- failing before any
+ * request reaches the network, so a traffic dump never sees it. Doesn't affect the cache:
+ * `max_tokens` isn't part of the cached prefix.
+ */
+const SUMMARY_MAX_TOKENS = 4096;
+
+/** Trim, cap and drop-empty a raw title/topics pair from either the tool call or the text fallback. */
+function sanitizeSummary(rawTitle: string, rawTopics: string[]): ThreadSummaryResult {
+    const title = rawTitle
+        .replace(/^["']+|["']+$/g, "")
+        .trim()
+        .slice(0, MAX_TITLE_LENGTH);
+    const topics = rawTopics
+        .map((topic) => topic.trim())
+        .filter((topic) => topic.length > 0)
+        .slice(0, MAX_SUMMARY_TOPICS)
+        .map((topic) => topic.slice(0, MAX_TOPIC_LENGTH));
+    return { title, topics };
+}
+
+/**
+ * Extract `{ title, topics }` from a summary response: prefer a `record_thread_summary` tool
+ * call, and fall back to parsing plain text for the (rarer) turns where the model answers
+ * instead of calling the tool -- first non-empty line is the title, each subsequent non-empty
+ * line is one topic, leading list markers stripped. The fallback format cannot hard-fail; a
+ * mangled result just costs one thread's indexing quality until the next regeneration.
+ */
+function parseSummaryResponse(response: Anthropic.Beta.BetaMessage): ThreadSummaryResult {
+    for (const block of response.content) {
+        if (block.type === "tool_use" && block.name === SUMMARY_TOOL_NAME) {
+            const input = (block.input ?? {}) as { title?: unknown; topics?: unknown };
+            const topics = Array.isArray(input.topics)
+                ? input.topics.filter((topic): topic is string => typeof topic === "string")
+                : [];
+            return sanitizeSummary(typeof input.title === "string" ? input.title : "", topics);
+        }
+    }
+
+    const text = response.content
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("\n");
+    const lines = text
+        .split("\n")
+        .map((line) => line.trim().replace(/^[-*•]\s*/, ""))
+        .filter((line) => line.length > 0);
+    const [title = "", ...topics] = lines;
+    return sanitizeSummary(title, topics);
+}
 
 /**
  * Chat agent backed by an Anthropic model through the official SDK.
@@ -152,7 +252,7 @@ export class AnthropicAgent implements IAgentProvider {
         tools: ITool[],
         containerId: string | undefined,
     ): Omit<Anthropic.Beta.Messages.MessageCreateParamsStreaming, "messages" | "stream"> {
-        const allTools = [...this.serverTools, ...tools.map(toolToParam)];
+        const allTools = [...this.serverTools, ...tools.map(toolToParam), SUMMARY_TOOL];
         const thinking = buildThinkingParam(this.options);
         const outputConfig = buildOutputConfig(this.options);
         const contextManagement = buildContextManagement(this.options, this.contextWindowSize);
@@ -337,35 +437,85 @@ export class AnthropicAgent implements IAgentProvider {
     /**
      * @inheritdoc
      *
-     * Uses {@link titleModelName} when configured, falling back to the main
-     * model otherwise — titling always runs, just against whichever model the
-     * deployment chose for it.
+     * Cache-aligned by default ({@link titleModelName} unset): reuses the same
+     * request builder and tool set a normal turn uses, with the instruction
+     * appended as a trailing message, so it reads back the turn's own prompt
+     * cache instead of paying base rate for the whole thread on every call.
+     * Setting {@link titleModelName} switches to a separate model on a fresh,
+     * uncached request instead -- see {@link generateThreadSummaryStandalone}.
      */
-    async generateTitle(messages: AgentMessage[], threadId: string): Promise<string> {
+    async generateThreadSummary(messages: AgentMessage[], threadId: string): Promise<ThreadSummaryResult> {
+        return this.titleModelName
+            ? this.generateThreadSummaryStandalone(messages, threadId)
+            : this.generateThreadSummaryCacheAligned(messages, threadId);
+    }
+
+    /** Cache-aligned path: same request builder, same tool set, same model as a normal turn. */
+    private async generateThreadSummaryCacheAligned(
+        messages: AgentMessage[],
+        threadId: string,
+    ): Promise<ThreadSummaryResult> {
+        const logger = this.logger.child({
+            vendor: PROVIDER_ID,
+            model: this.modelName,
+            operation: "generateThreadSummary",
+            threadId,
+        });
+        const conversation = agentMessagesToParams(trimBeforeCompaction(messages));
+        const requestMessages: Anthropic.Beta.BetaMessageParam[] = [
+            ...conversation.messages,
+            { role: "user", content: SUMMARY_INSTRUCTION },
+        ];
+        // Same tool set (this.defaultTools) and builder as stream()'s default call, so the
+        // `tools` array -- and therefore the cache -- lines up with the turn that just ran.
+        const request = this.buildRequest(conversation.system, requestMessages, this.defaultTools, undefined);
+
+        try {
+            const response = await this.client.beta.messages.create({
+                ...request,
+                max_tokens: SUMMARY_MAX_TOKENS,
+                messages: requestMessages,
+            });
+            logger.info(
+                {
+                    cacheReadInputTokens: response.usage.cache_read_input_tokens ?? 0,
+                    cacheCreationInputTokens: response.usage.cache_creation_input_tokens ?? 0,
+                },
+                "Thread summary cache usage",
+            );
+            return parseSummaryResponse(response);
+        } catch (error) {
+            logger.error({ phase: "thread-summary", ...describeApiError(error) }, "Assistant API call failed");
+            return { title: "", topics: [] };
+        }
+    }
+
+    /** Fallback path for a deployment that would rather not spend main-model tokens on background work. */
+    private async generateThreadSummaryStandalone(
+        messages: AgentMessage[],
+        threadId: string,
+    ): Promise<ThreadSummaryResult> {
         const model = this.titleModelName ?? this.modelName;
         const logger = this.logger.child({
             vendor: PROVIDER_ID,
             model,
-            operation: "generateTitle",
+            operation: "generateThreadSummary",
             threadId,
         });
-        const conversation = agentMessagesToParams(messages);
+        const conversation = agentMessagesToParams(trimBeforeCompaction(messages));
 
         try {
             const response = await this.client.beta.messages.create({
                 model,
-                max_tokens: 100,
+                max_tokens: 300,
                 ...(conversation.system ? { system: conversation.system } : {}),
-                messages: [...conversation.messages, { role: "user", content: TITLE_INSTRUCTION }],
+                tools: [SUMMARY_TOOL],
+                messages: [...conversation.messages, { role: "user", content: SUMMARY_INSTRUCTION }],
             });
-            return response.content
-                .filter((block) => block.type === "text")
-                .map((block) => block.text)
-                .join("")
-                .trim();
+            return parseSummaryResponse(response);
         } catch (error) {
-            logger.error({ phase: "title", ...describeApiError(error) }, "Assistant API call failed");
-            return "";
+            logger.error({ phase: "thread-summary", ...describeApiError(error) }, "Assistant API call failed");
+            return { title: "", topics: [] };
         }
     }
 }

@@ -201,6 +201,14 @@ export interface ShouldRespondResult {
     reason?: string | undefined;
 }
 
+/** Result of summarising a thread into a title and a list of topics (see {@link IAgentProvider.generateThreadSummary}). */
+export interface ThreadSummaryResult {
+    /** Short, descriptive title for the thread. Empty when generation failed. */
+    title: string;
+    /** Distinct topics discussed, in generation order. Empty for small-talk-only threads or on failure. */
+    topics: string[];
+}
+
 /**
  * Per-call options for {@link IAgentProvider.run} and {@link IAgentProvider.stream}.
  *
@@ -345,12 +353,17 @@ export interface IAgentProvider {
     shouldRespond(messages: AgentMessage[], threadId: string, memberCount: number): Promise<ShouldRespondResult>;
 
     /**
-     * Generate a short, descriptive title summarizing the conversation so far.
+     * Summarise a thread into a title and a list of distinct topics discussed.
      *
-     * @param messages - Conversation messages to summarize (already windowed by the caller).
-     * @param threadId - The thread being titled, for logging/telemetry.
+     * On failure (model error, unparseable response) returns
+     * `{ title: "", topics: [] }` — callers must treat an empty `title` as "no
+     * change" and leave any previously stored title/topics untouched.
+     *
+     * @param messages - Full thread history (implementations decide how much
+     *   of it to use — a cache-aligned implementation wants all of it).
+     * @param threadId - The thread being summarised, for logging/telemetry.
      */
-    generateTitle(messages: AgentMessage[], threadId: string): Promise<string>;
+    generateThreadSummary(messages: AgentMessage[], threadId: string): Promise<ThreadSummaryResult>;
 
     /** Return the context window size (in tokens) of the underlying model. */
     getContextWindowSize(): number;

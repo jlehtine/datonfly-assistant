@@ -5,6 +5,12 @@
 All source identifiers (variables, functions, classes, etc.) and documentation
 (comments, JSDoc, READMEs, commit messages) are written in **English**.
 
+## Commit Messages
+
+Write focused, terse commit messages that document the **reason for** and
+**intent of** the change. Do not enumerate the individual code changes — the
+diff already shows them.
+
 ## TypeScript
 
 Strict TypeScript everywhere. All packages use strict compiler settings.

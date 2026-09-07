@@ -35,13 +35,17 @@ Use [TODO.md](../TODO.md) to track unresolved issues and planned features at a
 high level — not sequenced plans. Follow the rules documented at the top of that
 file.
 
-Before starting non-trivial work, write a step-by-step plan to a per-task file
-under `tasks/<year>/<label>.md`, where `<year>` is the calendar year the task
-was started and `<label>` names the task or feature — typically the same label
-used for its feature branch (e.g. `tasks/2026/composer-remount-fix.md` for a
-branch named `composer-remount-fix`). Link the plan file from the relevant
-`TODO.md` entry if one exists. Neither `TODO.md` nor the `tasks/` plan files are
-permanent documentation — durable facts belong in the long-lived docs (README,
+Write a step-by-step plan to a per-task file under `tasks/<year>/<label>.md`
+when the user asks for a plan — not routinely before starting work. Most
+changes, including multi-file bug fixes, need no plan file; just make the
+change. When in doubt, ask rather than writing one unprompted.
+
+In that path, `<year>` is the calendar year the task was started and `<label>`
+names the task or feature — typically the same label used for its feature branch
+(e.g. `tasks/2026/composer-remount-fix.md` for a branch named
+`composer-remount-fix`). Link the plan file from the relevant `TODO.md` entry if
+one exists. Neither `TODO.md` nor the `tasks/` plan files are permanent
+documentation — durable facts belong in the long-lived docs (README,
 CONVENTIONS).
 
 **Structure.** Express individual steps as GitHub-style task list items so

@@ -413,6 +413,12 @@ export function Composer({
                     setPending((prev) => [...prev, { ...base, status: "error", error: t("attachmentTooMany") }]);
                     continue;
                 }
+                // A picked entry the platform could only partially materialize yields
+                // plausible metadata but no bytes; uploading it would store an empty file.
+                if (file.size === 0) {
+                    setPending((prev) => [...prev, { ...base, status: "error", error: t("attachmentNotReadable") }]);
+                    continue;
+                }
                 if (tooLarge) {
                     setPending((prev) => [...prev, { ...base, status: "error", error: t("attachmentTooLarge") }]);
                     continue;
@@ -433,11 +439,12 @@ export function Composer({
                                     : p,
                             ),
                         );
-                    } catch {
+                    } catch (error) {
+                        const detail = error instanceof Error ? error.message : String(error);
                         setPending((prev) =>
                             prev.map((p) =>
                                 p.localId === localId
-                                    ? { ...p, status: "error", error: t("attachmentUploadFailed") }
+                                    ? { ...p, status: "error", error: `${t("attachmentUploadFailed")}: ${detail}` }
                                     : p,
                             ),
                         );
@@ -447,6 +454,23 @@ export function Composer({
         },
         [client, fileInputLimits, t],
     );
+
+    // Chrome on Android fires `change` with an empty list when it cannot resolve the
+    // picked entry (e.g. a cloud-backed gallery item) into readable bytes. A cancelled
+    // picker fires the separate `cancel` event instead, so this is always a real failure.
+    const addUnreadableFileError = useCallback((): void => {
+        setPending((prev) => [
+            ...prev,
+            {
+                localId: crypto.randomUUID(),
+                name: "",
+                mimeType: "",
+                size: 0,
+                status: "error",
+                error: t("attachmentNotReadable"),
+            },
+        ]);
+    }, [t]);
 
     const removeAttachment = useCallback(
         (localId: string): void => {
@@ -593,6 +617,7 @@ export function Composer({
                         onChange={(e) => {
                             const files = Array.from(e.target.files ?? []);
                             if (files.length > 0) addFiles(files);
+                            else addUnreadableFileError();
                             e.target.value = "";
                         }}
                     />

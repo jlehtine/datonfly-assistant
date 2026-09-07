@@ -30,6 +30,7 @@ const fi: FlatKeys<typeof en> = {
     attachmentTooMany: "Liian monta liitettä",
     attachmentUnsupported: "Tiedostotyyppiä ei tueta",
     attachmentUploadFailed: "Lataus epäonnistui",
+    attachmentNotReadable: "Tiedostoa ei voitu lukea. Tallenna se ensin laitteelle.",
 
     // ── AudioInputTool ──
     recordAudio: "Nauhoita ääntä",

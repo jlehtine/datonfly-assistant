@@ -55,6 +55,21 @@ test("upload a text attachment, preview it, send, and render with a download lin
     await expect(page.locator(".datonfly-attachment-previews")).toHaveCount(0);
 });
 
+test("report an error when the picker delivers no readable file", async ({ page }) => {
+    await page.goto("/");
+
+    const composer = composerInput(page);
+    await expect(composer).toBeEnabled({ timeout: 10_000 });
+
+    // Chrome on Android fires `change` with an empty FileList when it cannot turn
+    // the picked entry into readable bytes; this must not be silently ignored.
+    await page.locator(".datonfly-attachment-input").setInputFiles([]);
+
+    const preview = page.locator(".datonfly-attachment-preview").first();
+    await expect(preview).toBeVisible({ timeout: 10_000 });
+    await expect(preview).toHaveAttribute("data-attachment-status", "error");
+});
+
 test("remove an uploaded attachment before sending", async ({ page }) => {
     await page.goto("/");
 

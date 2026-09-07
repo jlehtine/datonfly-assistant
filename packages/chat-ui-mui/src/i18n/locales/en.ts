@@ -24,6 +24,7 @@ const en = {
     attachmentTooMany: "Too many attachments",
     attachmentUnsupported: "Unsupported file type",
     attachmentUploadFailed: "Upload failed",
+    attachmentNotReadable: "File could not be read. Try saving it to the device first.",
 
     // ── AudioInputTool ──
     recordAudio: "Record audio",

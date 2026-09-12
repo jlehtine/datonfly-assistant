@@ -77,6 +77,21 @@ All thread-associated rows, in foreign-key order: `thread`, `thread_member`,
 - [x] 1.2 Verify against the dev database: seed a couple of threads, export,
       inspect the JSONL by hand for completeness and for absence of `dfa.user`
       data.
+- [x] 1.3 **Bug found in real use:** exporting from a production-like database
+      that predates the `thread_topic` migration failed outright
+      (`relation     "dfa.thread_topic" does not exist`), since the last `COPY`
+      block assumed the table always exists. `ON_ERROR_STOP` only stops the
+      script at that point, though -- every earlier `COPY` (thread,
+      thread_member, message, thread_user_state, attachment) had already
+      completed and flushed to stdout, so no data from those was lost, only the
+      trailing topic export. Fixed with the same `\gset`/`\if` guard pattern
+      already used for the "user not found" check, keyed on
+      `to_regclass('dfa.thread_topic')`, so an older source database now exports
+      everything else and skips topics with a `\warn` rather than aborting.
+      Verified against the local Compose Postgres in both states (table present,
+      and temporarily renamed away to simulate an older schema) using the real
+      `fake.alice@dev.invalid` E2E corpus (304 solo threads) -- correct row
+      counts either way, non-zero exit only when genuinely appropriate.
 
 ## Phase 2 — Import
 
@@ -127,3 +142,10 @@ All thread-associated rows, in foreign-key order: `thread`, `thread_member`,
   correctly and all user references remapped to the target. Also verified the
   "unknown email" failure path (non-zero exit, no stdout output) for both export
   and clear. Cleaned up the throwaway users afterwards.
+- This original verification pre-dated `thread_topic` existing on any
+  not-yet-upgraded source database, so it never exercised export against a
+  database missing that table -- see 1.3 for the gap this left and its fix.
+  `import-threads.sql` needed no equivalent guard: it dispatches per-row `_t`
+  value, so a dump with zero `thread_topic` lines (from an older source) simply
+  inserts zero topic rows, and the import _target_ is always the current dev
+  schema (auto-migrated), never an older one.

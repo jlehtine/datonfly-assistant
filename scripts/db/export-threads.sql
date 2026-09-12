@@ -106,7 +106,9 @@ COPY (
     JOIN export_thread_ids e ON e.thread_id = a.thread_id
 ) TO STDOUT;
 
--- thread_topic
+-- thread_topic (older databases predate this table; export from them still works, just without topics)
+SELECT to_regclass('dfa.thread_topic') IS NOT NULL AS thread_topic_exists \gset
+\if :thread_topic_exists
 COPY (
     SELECT json_build_object(
         '_t', 'thread_topic',
@@ -120,3 +122,6 @@ COPY (
     FROM dfa.thread_topic tt
     JOIN export_thread_ids e ON e.thread_id = tt.thread_id
 ) TO STDOUT;
+\else
+\warn dfa.thread_topic does not exist on this database (older schema) -- skipping topic export
+\endif

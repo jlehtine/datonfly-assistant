@@ -1,7 +1,8 @@
-import type { IAgentProvider, IPersistenceProvider } from "@datonfly-assistant/core";
+import type { IAgentProvider, IPersistenceProvider, ISearchProvider } from "@datonfly-assistant/core";
 
 import type { AuditLogger } from "./audit-logger.js";
 import { buildAuthorAliases, resolveAttachmentData, threadMessagesToAgentMessages } from "./messages.js";
+import { indexThreadTopics } from "./topic-indexer.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -20,6 +21,11 @@ export interface ThreadSummaryGeneratorConfig {
     agent: IAgentProvider;
     /** Called after a title has been persisted so the caller can broadcast the update. */
     onTitleUpdated: OnTitleUpdatedFn;
+    /** Optional search provider; when set, generated topics are also indexed for dense search. */
+    searchProvider?: ISearchProvider | undefined;
+    /** Whether to index topics into the dense search channel. Defaults to `true`. Independent of
+     * whether `searchProvider` is set at all -- both must hold for indexing to happen. */
+    topicIndexingEnabled?: boolean | undefined;
     /** Optional audit logger for structured audit events. */
     auditLogger?: AuditLogger | undefined;
 }
@@ -37,12 +43,16 @@ export class ThreadSummaryGenerator {
     private readonly persistence: IPersistenceProvider;
     private readonly agent: IAgentProvider;
     private readonly onTitleUpdated: OnTitleUpdatedFn;
+    private readonly searchProvider?: ISearchProvider | undefined;
+    private readonly topicIndexingEnabled: boolean;
     private readonly auditLogger?: AuditLogger | undefined;
 
     constructor(config: ThreadSummaryGeneratorConfig) {
         this.persistence = config.persistence;
         this.agent = config.agent;
         this.onTitleUpdated = config.onTitleUpdated;
+        this.searchProvider = config.searchProvider;
+        this.topicIndexingEnabled = config.topicIndexingEnabled ?? true;
         this.auditLogger = config.auditLogger;
     }
 
@@ -97,12 +107,24 @@ export class ThreadSummaryGenerator {
 
             await this.persistence.replaceTopics(threadId, result.topics, new Date(), messageCount);
 
+            const effectiveTitle = freshThread.titleManuallySet ? freshThread.title : title;
             if (!freshThread.titleManuallySet) {
                 await this.persistence.updateThread(threadId, {
                     title,
                     titleGeneratedAt: new Date(),
                 });
                 this.onTitleUpdated(threadId, title, false);
+            }
+
+            if (this.searchProvider && this.topicIndexingEnabled) {
+                await indexThreadTopics({
+                    searchProvider: this.searchProvider,
+                    threadId,
+                    title: effectiveTitle,
+                    topics: result.topics,
+                    memberIds: members.map((member) => member.userId),
+                    updatedAt: freshThread.updatedAt,
+                });
             }
 
             this.auditLogger?.audit("info", "thread-summary.generate", {

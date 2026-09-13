@@ -8,6 +8,7 @@ import {
     type IndexDocumentOptions,
     type ISearchProvider,
     type ProviderLogger,
+    type SearchDeleteFilter,
     type SearchResultGroup,
     type SemanticSearchOptions,
 } from "@datonfly-assistant/core";
@@ -121,6 +122,11 @@ export class QdrantSearchProvider implements ISearchProvider {
                 field_schema: "datetime",
                 wait: true,
             }),
+            this.client.createPayloadIndex(name, {
+                field_name: "kind",
+                field_schema: "keyword",
+                wait: true,
+            }),
         ]);
 
         this.readyCollections.add(name);
@@ -131,16 +137,22 @@ export class QdrantSearchProvider implements ISearchProvider {
         await this.ensureCollection(collection);
         const name = this.fullName(collection);
         const content = options.content.slice(0, MAX_EMBED_CHARS);
-        const lexical = documentVector(tokenize(content, this.languages));
+        const wantDense = options.channels?.dense ?? true;
+        const wantSparse = options.channels?.sparse ?? true;
 
-        let vector: NamedVector = { lexical };
-        try {
-            vector = { dense: await this.embeddings.embedQuery(content), lexical };
-        } catch (error) {
-            this.logger.warn(
-                { documentId: options.id, error: formatLoggedError(error) },
-                "Dense embedding failed for document, indexing sparse-only",
-            );
+        const vector: NamedVector = {};
+        if (wantSparse) {
+            vector.lexical = documentVector(tokenize(content, this.languages));
+        }
+        if (wantDense) {
+            try {
+                vector.dense = await this.embeddings.embedQuery(content);
+            } catch (error) {
+                this.logger.warn(
+                    { documentId: options.id, error: formatLoggedError(error) },
+                    "Dense embedding failed for document, indexing sparse-only",
+                );
+            }
         }
 
         await this.client.upsert(name, {
@@ -307,6 +319,15 @@ export class QdrantSearchProvider implements ISearchProvider {
         await this.client.delete(name, { wait: false, points: [id] });
     }
 
+    async deleteByFilter(collection: string, filter: SearchDeleteFilter): Promise<void> {
+        const name = this.fullName(collection);
+        const must: Record<string, unknown>[] = [{ key: "threadId", match: { value: filter.threadId } }];
+        if (filter.kind !== undefined) {
+            must.push({ key: "kind", match: { value: filter.kind } });
+        }
+        await this.client.delete(name, { wait: true, filter: { must } });
+    }
+
     async dropIndex(collection: string): Promise<void> {
         const name = this.fullName(collection);
         this.readyCollections.delete(name);
@@ -360,11 +381,20 @@ export class QdrantSearchProvider implements ISearchProvider {
             // it from the index entirely until the next reindex.
             const points: { id: string; vector: NamedVector; payload: Record<string, unknown> }[] = [];
             for (const doc of chunk) {
-                const lexical = documentVector(tokenize(doc.content, this.languages));
+                const wantDense = doc.channels?.dense ?? true;
+                const wantSparse = doc.channels?.sparse ?? true;
+                const vector: NamedVector = {};
+                if (wantSparse) {
+                    vector.lexical = documentVector(tokenize(doc.content, this.languages));
+                }
                 const payload = { content: doc.content, ...doc.metadata };
+                if (!wantDense) {
+                    points.push({ id: doc.id, vector, payload });
+                    continue;
+                }
                 try {
-                    const dense = await this.embeddings.embedQuery(doc.content.slice(0, MAX_EMBED_CHARS));
-                    points.push({ id: doc.id, vector: { dense, lexical }, payload });
+                    vector.dense = await this.embeddings.embedQuery(doc.content.slice(0, MAX_EMBED_CHARS));
+                    points.push({ id: doc.id, vector, payload });
                 } catch (error) {
                     this.logger.warn(
                         {
@@ -374,7 +404,7 @@ export class QdrantSearchProvider implements ISearchProvider {
                         },
                         "Dense embedding failed for document, indexing sparse-only",
                     );
-                    points.push({ id: doc.id, vector: { lexical }, payload });
+                    points.push({ id: doc.id, vector, payload });
                 }
             }
 

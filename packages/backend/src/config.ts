@@ -265,6 +265,7 @@ export interface BackendConfig {
               denseScoreThreshold: number | undefined;
               sparseScoreThreshold: number | undefined;
               embeddingsTimeoutMs: number | undefined;
+              topicIndexingEnabled: boolean;
           }
         | undefined;
     searchRecencyHalfLifeDays: number | undefined;
@@ -406,6 +407,7 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
                   reader.prefixed("EMBEDDINGS_TIMEOUT_MS"),
                   "DF_EMBEDDINGS_TIMEOUT_MS",
               ),
+              topicIndexingEnabled: reader.prefixed("SEARCH_TOPIC_INDEXING") !== "false",
           }
         : undefined;
 

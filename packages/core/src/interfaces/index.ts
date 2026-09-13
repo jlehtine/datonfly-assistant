@@ -44,6 +44,8 @@ export type {
     SemanticSearchFilter,
     SemanticSearchOptions,
     SearchResultGroup,
+    SearchPointKind,
+    SearchDeleteFilter,
 } from "./search.js";
 export type { IEmbeddingsProvider } from "./embeddings.js";
 export type { ITool, JsonSchema } from "./tool.js";

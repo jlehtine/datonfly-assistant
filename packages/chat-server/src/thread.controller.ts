@@ -19,6 +19,7 @@ import { z } from "zod";
 import {
     ERROR_CODES,
     createThreadRequestSchema,
+    formatLoggedError,
     paginationQuerySchema,
     threadListQuerySchema,
     threadSearchQuerySchema,
@@ -46,11 +47,13 @@ import {
     SEARCH_PROVIDER,
     SEARCH_RECENCY_HALF_LIFE_DAYS,
     SEARCH_RECENCY_WEIGHT,
+    SEARCH_TOPIC_INDEXING_ENABLED,
 } from "./constants.js";
 import { ResolvedUser } from "./decorators/user.decorator.js";
 import { RequireUserGuard } from "./guards/require-user.guard.js";
 import { ZodValidationPipe } from "./pipes/zod-validation.pipe.js";
 import { RateTier } from "./rate-limit/rate-tier.decorator.js";
+import { indexThreadTopics } from "./topic-indexer.js";
 
 @Controller("datonfly-assistant/threads")
 @UseGuards(RequireUserGuard)
@@ -58,6 +61,7 @@ export class ThreadController {
     constructor(
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
+        @Inject(SEARCH_TOPIC_INDEXING_ENABLED) private readonly searchTopicIndexingEnabled: boolean,
         @Inject(SEARCH_RECENCY_HALF_LIFE_DAYS) private readonly recencyHalfLifeDays: number,
         @Inject(SEARCH_RECENCY_WEIGHT) private readonly recencyWeight: number,
         @Inject(SEARCH_HITS_PER_THREAD) private readonly hitsPerThread: number,
@@ -265,7 +269,40 @@ export class ThreadController {
 
         const updated = await this.persistence.updateThread(threadId, updates);
         this.auditLogger.audit("info", "thread.update", { userId: user.id, threadId });
+        if (body.title !== undefined) {
+            this.refreshTopicIndex(threadId, updated);
+        }
         return updated;
+    }
+
+    /**
+     * Fire-and-forget: re-index a thread's topic and thread-card points after its title changes,
+     * since both are embedded with the title as a prefix. Failures are logged but never
+     * propagated — search indexing must not break a rename.
+     */
+    private refreshTopicIndex(threadId: string, thread: Thread): void {
+        const searchProvider = this.searchProvider;
+        if (!searchProvider || !this.searchTopicIndexingEnabled) return;
+
+        void (async () => {
+            const [topics, members] = await Promise.all([
+                this.persistence.listTopics(threadId),
+                this.persistence.listMembers(threadId),
+            ]);
+            await indexThreadTopics({
+                searchProvider,
+                threadId,
+                title: thread.title,
+                topics: topics.map((t) => t.topic),
+                memberIds: members.map((member) => member.userId),
+                updatedAt: thread.updatedAt,
+            });
+        })().catch((error: unknown) => {
+            this.auditLogger.audit("error", "search.topic-reindex.failed", {
+                threadId,
+                error: formatLoggedError(error),
+            });
+        });
     }
 
     @Patch(":id/my-state")

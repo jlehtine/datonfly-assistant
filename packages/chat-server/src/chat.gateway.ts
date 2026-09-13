@@ -54,6 +54,7 @@ import {
     GENERATED_FILES_ENABLED,
     PERSISTENCE_PROVIDER,
     SEARCH_PROVIDER,
+    SEARCH_TOPIC_INDEXING_ENABLED,
     TRANSCRIBE_FN,
     VALIDATE_TOKEN_FN,
 } from "./constants.js";
@@ -170,6 +171,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(VALIDATE_TOKEN_FN) private readonly validateToken: ValidateTokenFn | null,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
+        @Inject(SEARCH_TOPIC_INDEXING_ENABLED) private readonly searchTopicIndexingEnabled: boolean,
         @Optional() @Inject(TRANSCRIBE_FN) private readonly transcribeFn: TranscribeFn | null,
         @Optional() @Inject(GENERATED_FILES_ENABLED) private readonly generatedFilesEnabledOverride: boolean | null,
         private readonly auditLogger: AuditLogger,
@@ -226,6 +228,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
             persistence: this.persistence,
             agent: this.agent,
             auditLogger: this.auditLogger,
+            searchProvider: this.searchProvider ?? undefined,
+            topicIndexingEnabled: this.searchTopicIndexingEnabled,
             onTitleUpdated: (threadId: string, title: string, titleManuallySet: boolean): void => {
                 const event: ThreadUpdatedEvent = {
                     event: "thread-updated",

@@ -116,6 +116,7 @@ async function bootstrap(): Promise<void> {
         searchRecencyHalfLifeDays: cfg.searchRecencyHalfLifeDays,
         searchRecencyWeight: cfg.searchRecencyWeight,
         searchHitsPerThread: cfg.searchHitsPerThread,
+        searchTopicIndexingEnabled: cfg.search?.topicIndexingEnabled,
         trustedReverseProxy: cfg.trustedReverseProxy,
         adminSecret: cfg.adminSecret,
         adminIps: cfg.adminIps,

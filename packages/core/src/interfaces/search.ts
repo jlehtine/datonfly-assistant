@@ -12,6 +12,9 @@ export interface SearchDocument {
     highlights?: [number, number][] | undefined;
 }
 
+/** Kind of point a search document represents. `"message"` is the default when omitted. */
+export type SearchPointKind = "message" | "topic" | "thread-card";
+
 /** Options for indexing a document for semantic search. */
 export interface IndexDocumentOptions {
     /** Unique document identifier (used for updates and deletes). */
@@ -20,6 +23,13 @@ export interface IndexDocumentOptions {
     content: string;
     /** Metadata stored alongside the document and returned in search results. */
     metadata: Record<string, unknown>;
+    /**
+     * Which channels to index this document into. Both default to `true` when omitted, matching
+     * per-message indexing (the only kind before topic/thread-card points existed). Topic and
+     * thread-card points are dense-only (`{ dense: true, sparse: false }`): their embedded text is
+     * a short, curated statement, not natural conversation text for BM25 to score.
+     */
+    channels?: { dense: boolean; sparse: boolean } | undefined;
 }
 
 /** Options for performing a semantic search query. */
@@ -52,6 +62,14 @@ export interface IndexBatchResult {
     indexed: number;
     /** Number of documents skipped (e.g. empty content). */
     skipped: number;
+}
+
+/** Filter for {@link ISearchProvider.deleteByFilter}. */
+export interface SearchDeleteFilter {
+    /** Delete only points belonging to this thread. */
+    threadId: string;
+    /** Restrict to points of this kind. Omit to delete every kind for the thread. */
+    kind?: SearchPointKind | undefined;
 }
 
 /** A group of search hits belonging to the same thread. */
@@ -108,4 +126,10 @@ export interface ISearchProvider {
      * Delete a document from the index.
      */
     delete(collection: string, id: string): Promise<void>;
+
+    /**
+     * Delete every point matching a filter (e.g. all of one thread's topic points, ahead of
+     * upserting a freshly regenerated set).
+     */
+    deleteByFilter(collection: string, filter: SearchDeleteFilter): Promise<void>;
 }

@@ -80,6 +80,8 @@ export type {
     SemanticSearchFilter,
     SemanticSearchOptions,
     SearchResultGroup,
+    SearchPointKind,
+    SearchDeleteFilter,
     IEmbeddingsProvider,
     ITool,
     JsonSchema,

@@ -28,6 +28,7 @@ import {
     SEARCH_PROVIDER,
     SEARCH_RECENCY_HALF_LIFE_DAYS,
     SEARCH_RECENCY_WEIGHT,
+    SEARCH_TOPIC_INDEXING_ENABLED,
     TRANSCRIBE_FN,
     TRUSTED_REVERSE_PROXY,
     VALIDATE_TOKEN_FN,
@@ -130,6 +131,13 @@ export interface ChatModuleConfig {
     searchRecencyWeight?: number | undefined;
     /** Maximum number of hits to return per matching thread. Defaults to `3`. */
     searchHitsPerThread?: number | undefined;
+    /**
+     * Whether generated topics are indexed into the dense search channel (thread cards + one point
+     * per topic), alongside the existing per-message index. Defaults to `true`. Set `false` for a
+     * deployment that wants no topic-indexing background work; the message-level dense/sparse
+     * channel keeps working unchanged.
+     */
+    searchTopicIndexingEnabled?: boolean | undefined;
     /** Shared secret for admin endpoints. Both `adminSecret` and `adminIps` must be set. */
     adminSecret?: string | undefined;
     /** Allowed IP addresses or CIDR ranges for admin endpoints (whitespace/comma-delimited). */
@@ -231,6 +239,7 @@ export class ChatModule {
                 { provide: SEARCH_RECENCY_HALF_LIFE_DAYS, useValue: config.searchRecencyHalfLifeDays ?? 360 },
                 { provide: SEARCH_RECENCY_WEIGHT, useValue: config.searchRecencyWeight ?? 0.15 },
                 { provide: SEARCH_HITS_PER_THREAD, useValue: config.searchHitsPerThread ?? 3 },
+                { provide: SEARCH_TOPIC_INDEXING_ENABLED, useValue: config.searchTopicIndexingEnabled ?? true },
                 { provide: TRUSTED_REVERSE_PROXY, useValue: config.trustedReverseProxy ?? null },
                 { provide: ADMIN_SECRET, useValue: config.adminSecret ?? null },
                 {

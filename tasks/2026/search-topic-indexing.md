@@ -486,39 +486,61 @@ carried, which _is_ the full compacted history.
 
 ### 3.1 Indexing
 
-- [ ] 3.1.1 Extend the payload with `kind: "message" | "topic" | "thread-card"`
+- [x] 3.1.1 Extend the payload with `kind: "message" | "topic" | "thread-card"`
       and add a keyword payload index on `kind` in `ensureCollection`.
-- [ ] 3.1.2 Index one dense point per topic. Embedded text is the thread title
+- [x] 3.1.2 Index one dense point per topic. Embedded text is the thread title
       plus the topic (`"<title>\n<topic>"`) so the title contributes context to
       every topic vector. Payload carries the raw `topic` for display, plus
       `threadId`, `memberIds` and `createdAt` (= the thread's `updatedAt` at
       generation time, so the existing recency formula keeps working).
-- [ ] 3.1.3 Index one `thread-card` point per thread: title plus all topics
+- [x] 3.1.3 Index one `thread-card` point per thread: title plus all topics
       joined. This catches queries describing the thread as a whole rather than
       any single topic, and gives threads with zero topics (small talk, or
       generation not yet run) a title-based dense representation.
-- [ ] 3.1.4 Deterministic point ids so regeneration upserts in place: Qdrant ids
+- [x] 3.1.4 Deterministic point ids so regeneration upserts in place: Qdrant ids
       must be UUID or uint, so derive a UUIDv5 (sha1-based, ~10 lines, no new
       dependency) from `threadId` + ordinal for topics and from `threadId` for
-      the thread card.
-- [ ] 3.1.5 Regeneration replaces the whole topic set, so stale points must go.
+      the thread card. `derivePointId` in
+      `packages/chat-server/src/search-point-id.ts`; 3.1.2-3.1.4 implemented
+      together in `topic-indexer.ts`'s `indexThreadTopics`, called from
+      `ThreadSummaryGenerator` after each generation and from
+      `ThreadController.update` after a manual rename (3.1.8).
+- [x] 3.1.5 Regeneration replaces the whole topic set, so stale points must go.
       Add `deleteByFilter(collection, filter)` to `ISearchProvider` and delete
       `threadId = X AND kind = "topic"` before upserting the new set — `delete`
       by id alone cannot express this.
 - [ ] 3.1.6 Stop generating a dense vector for `kind: "message"` points — index
       them sparse-only. This is the change that removes the "Hello" noise.
-- [ ] 3.1.7 `indexBatch` and `index` must not force a dense embedding for
+      Deliberately its own slice (Slice B): riskiest single change, easiest to
+      isolate and revert on its own commit. Everything in 3.1 besides this item
+      is additive (topic/thread-card points indexed alongside the still-dense
+      per-message points), so it's already safe to ship and eval independently.
+- [x] 3.1.7 `indexBatch` and `index` must not force a dense embedding for
       sparse-only documents: extend `IndexDocumentOptions` with an explicit
       `channels: { dense: boolean; sparse: boolean }` rather than inferring it
       from content.
-- [ ] 3.1.8 Refresh the thread card, and re-embed topics (whose text is
+- [x] 3.1.8 Refresh the thread card, and re-embed topics (whose text is
       title-prefixed), when the title changes — manual rename or auto-generated.
-- [ ] 3.1.9 `updateThreadMembers` filters by `threadId` only, so topic points
-      pick up ACL changes unchanged — confirm with a test.
-- [ ] 3.1.10 Config flag `DF_SEARCH_TOPIC_INDEXING`, default **on**. When
+      `ThreadSummaryGenerator` re-indexes after every (re)generation regardless
+      of whether the title changed (simpler than diffing, and cheap relative to
+      the LLM call that just ran); `ThreadController.update`'s manual-rename
+      path re-indexes only when `title` was part of the patch, fire-and-forget,
+      never blocking or failing the rename itself.
+- [x] 3.1.9 `updateThreadMembers` filters by `threadId` only, so topic points
+      pick up ACL changes unchanged — confirm with a test. Test added
+      (`qdrant-search.test.ts`): asserts the `setPayload` filter has no `kind`
+      clause, so it applies uniformly to message, topic and thread-card points.
+- [x] 3.1.10 Config flag `DF_SEARCH_TOPIC_INDEXING`, default **on**. When
       disabled, fall back to today's per-message dense indexing, so a deployment
       that does not want background LLM calls keeps a working dense channel
-      rather than silently degrading to sparse-only.
+      rather than silently degrading to sparse-only. Implemented as
+      `searchTopicIndexingEnabled` (`config.ts`/`chat.module.ts`
+      `SEARCH_TOPIC_INDEXING_ENABLED`), gating whether `indexThreadTopics` is
+      ever called at all. The "fall back to per-message dense indexing" half of
+      this description is automatic today (3.1.6 hasn't landed yet, so messages
+      are always dense-indexed regardless of this flag) -- Slice B must gate
+      3.1.6's sparse-only change on this same flag, or a disabled deployment
+      would end up with no dense channel at all.
 
 ### 3.2 Reindex path
 
@@ -529,7 +551,12 @@ carried, which _is_ the full compacted history.
 - [ ] 3.2.2 Add an admin action to (re)generate topics for threads that have
       none — a backfill for existing threads, rate-limited and resumable, since
       it costs one LLM call per thread. Separate from the reindex action, which
-      must stay LLM-free.
+      must stay LLM-free. Unlike the live trigger (2.1), a backfill call has no
+      recent turn to align with — there is no hot prompt cache to read, so the
+      cache-aligned path's entire cost rationale (Phase 2's introduction) does
+      not apply here. Allow configuring a different, cheaper/faster model for
+      this path specifically (akin to `DF_AGENT_TITLE_MODEL`'s standalone path
+      in 2.5), rather than defaulting backfill to the main model.
 
 ### 3.3 Read path and UI
 

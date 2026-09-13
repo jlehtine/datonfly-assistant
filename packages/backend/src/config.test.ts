@@ -241,7 +241,20 @@ describe("loadBackendConfig", () => {
                 sparseWeight: undefined,
                 denseScoreThreshold: undefined,
                 sparseScoreThreshold: undefined,
+                topicIndexingEnabled: true,
             });
+        });
+
+        it('disables topic indexing only when DF_SEARCH_TOPIC_INDEXING is exactly "false"', () => {
+            expect(
+                loadBackendConfig(
+                    validEnv({ DF_QDRANT_URL: "http://localhost:6333", DF_SEARCH_TOPIC_INDEXING: "false" }),
+                ).search?.topicIndexingEnabled,
+            ).toBe(false);
+            expect(
+                loadBackendConfig(validEnv({ DF_QDRANT_URL: "http://localhost:6333", DF_SEARCH_TOPIC_INDEXING: "no" }))
+                    .search?.topicIndexingEnabled,
+            ).toBe(true);
         });
 
         it("splits DF_SEARCH_LANGUAGES on commas, trimming whitespace", () => {

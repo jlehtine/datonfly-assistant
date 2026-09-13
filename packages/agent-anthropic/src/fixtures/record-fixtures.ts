@@ -319,7 +319,7 @@ const SCENARIOS: Scenario[] = [
     {
         name: "title",
         description:
-            "Non-streaming generateThreadSummary() call on the standalone (titleModelName) path -- " +
+            "Non-streaming generateThreadSummary() call on the standalone (summaryModelName) path -- " +
             "summarizing a short conversation into a title and topics.",
         call: "generateThreadSummary",
         messages: [
@@ -427,7 +427,7 @@ async function record(scenario: Scenario, proxy: RecordingProxy, apiKey: string,
         baseUrl: proxy.url,
         maxTokens: 1024,
         ...(scenario.call === "shouldRespond" ? { triageModelName: model } : {}),
-        ...(scenario.call === "generateThreadSummary" ? { titleModelName: model } : {}),
+        ...(scenario.call === "generateThreadSummary" ? { summaryModelName: model } : {}),
         ...scenario.config,
         ...(scenario.name === "tool-loop" ? { defaultTools: await toolLoopTools() } : {}),
         providerOptions: { enableCompaction: false, ...scenario.providerOptions },

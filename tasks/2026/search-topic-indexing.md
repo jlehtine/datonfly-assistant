@@ -393,10 +393,10 @@ saving.
       The cache-aligned (default) path now has real coverage instead:
       `test/fixtures/thread-summary-cache-aligned.json`, extracted from a live
       `DF_ANTHROPIC_TRAFFIC_DUMP_DIR` capture against `claude-opus-5` with
-      `DF_AGENT_TITLE_MODEL` unset. That capture is also the strongest evidence
-      yet that the whole mechanism works end-to-end in production, not just in
-      the earlier synthetic experiment: `cache_read_input_tokens: 7650` vs.
-      `cache_creation_input_tokens: 1718` on a real multi-turn conversation,
+      `DF_AGENT_SUMMARY_MODEL` unset. That capture is also the strongest
+      evidence yet that the whole mechanism works end-to-end in production, not
+      just in the earlier synthetic experiment: `cache_read_input_tokens: 7650`
+      vs. `cache_creation_input_tokens: 1718` on a real multi-turn conversation,
       tool called unforced, well-formed `{ title, topics }`. New regression test
       in `agent.test.ts` replays it and asserts the exact recorded title/topic
       count.
@@ -452,7 +452,7 @@ saving.
 
 ### 2.5 Cheap-model fallback path
 
-`DF_AGENT_TITLE_MODEL` stays supported for deployments that would rather not
+`DF_AGENT_SUMMARY_MODEL` stays supported for deployments that would rather not
 spend main-model tokens on background work. That path cannot reuse the cache, so
 it rebuilds the request from a stripped text rendering and has to decide its own
 windowing.
@@ -465,7 +465,7 @@ also caps the value of the title prefix on topic vectors (3.1.2). The
 cache-aligned path has no such problem: it carries exactly the messages the turn
 carried, which _is_ the full compacted history.
 
-- [ ] 2.5.1 `DF_AGENT_TITLE_MODEL` unset → cache-aligned main model (default);
+- [ ] 2.5.1 `DF_AGENT_SUMMARY_MODEL` unset → cache-aligned main model (default);
       set → that model on the stripped text rendering.
 - [ ] 2.5.2 Replace the last-20 window with the full history, trimmed at the
       newest provider compaction boundary. `trimBeforeCompaction` in
@@ -573,9 +573,10 @@ carried, which _is_ the full compacted history.
       must stay LLM-free. Unlike the live trigger (2.1), a backfill call has no
       recent turn to align with — there is no hot prompt cache to read, so the
       cache-aligned path's entire cost rationale (Phase 2's introduction) does
-      not apply here. Allow configuring a different, cheaper/faster model for
-      this path specifically (akin to `DF_AGENT_TITLE_MODEL`'s standalone path
-      in 2.5), rather than defaulting backfill to the main model.
+      not apply here. Uses `DF_AGENT_SUMMARY_MODEL` when set, falling back to
+      the main model otherwise — the same config 2.5's standalone path reads,
+      renamed from `DF_AGENT_TITLE_MODEL` to `DF_AGENT_SUMMARY_MODEL` since it
+      now covers topics too, not just titles.
 
 ### 3.3 Read path and UI
 
@@ -648,7 +649,7 @@ Kept because the reasoning constrains future changes, not as a change log.
   granularities.
 - **A cheap model (Haiku/Sonnet) as the default summariser.** Displaced by the
   cache-aligned main model, which is both cheaper per generation and better
-  informed. Retained as the `DF_AGENT_TITLE_MODEL` escape hatch (2.5).
+  informed. Retained as the `DF_AGENT_SUMMARY_MODEL` escape hatch (2.5).
 - **Cross-encoder reranking of the fused top-k.** Out of scope — the standard
   next lever, but it needs another model served next to Infinity and should only
   be considered if Phases 1–3 fall short.

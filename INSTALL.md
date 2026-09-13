@@ -122,16 +122,17 @@ instead:
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
 DF_AGENT_MODEL=claude-opus-4-6
-DF_AGENT_TITLE_MODEL=claude-haiku-4-5
+DF_AGENT_SUMMARY_MODEL=claude-haiku-4-5
 ```
 
 - **`ANTHROPIC_API_KEY`** — Required for real use. Your Anthropic API key
   (canonical name, read by the SDK — no `DF_` prefix).
 - **`DF_AGENT_MODEL`** _(optional, default: claude-opus-4-6)_ — The model used
   for chat responses.
-- **`DF_AGENT_TITLE_MODEL`** _(optional)_ — Model for auto-generating thread
-  titles. Omit to title with `DF_AGENT_MODEL` instead; titling is always on. Set
-  it to a cheaper model to keep titling off the main model's bill.
+- **`DF_AGENT_SUMMARY_MODEL`** _(optional)_ — Model for auto-generating thread
+  titles and topics. Omit to summarise with `DF_AGENT_MODEL` instead;
+  summarisation is always on. Set it to a cheaper model to keep summarisation
+  off the main model's bill.
 
 ### Fixture Playback Harness
 

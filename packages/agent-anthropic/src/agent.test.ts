@@ -478,13 +478,13 @@ describe("AnthropicAgent.shouldRespond", () => {
 });
 
 describe("AnthropicAgent.generateThreadSummary", () => {
-    it("returns the title from a non-streaming call on the standalone (titleModelName) path", async () => {
+    it("returns the title from a non-streaming call on the standalone (summaryModelName) path", async () => {
         await withServer(["title"], async (server) => {
-            // titleModelName set -> the standalone path, matching how this fixture was recorded
-            // (record-fixtures.ts sets titleModelName for the "generateThreadSummary" call type).
+            // summaryModelName set -> the standalone path, matching how this fixture was recorded
+            // (record-fixtures.ts sets summaryModelName for the "generateThreadSummary" call type).
             const agent = new AnthropicAgent({
                 modelName: "claude-opus-5",
-                titleModelName: "claude-opus-5",
+                summaryModelName: "claude-opus-5",
                 apiKey: "sk-ant-test",
                 baseUrl: server.baseUrl,
                 providerOptions: { maxRetries: 0, disableCaching: true },
@@ -507,8 +507,8 @@ describe("AnthropicAgent.generateThreadSummary", () => {
 
     it("returns the title and topics from a record_thread_summary tool call on the cache-aligned (default) path", async () => {
         await withServer(["thread-summary-cache-aligned"], async (server) => {
-            // titleModelName unset -> the default cache-aligned path, matching how this fixture
-            // was captured live (DF_ANTHROPIC_TRAFFIC_DUMP_DIR, DF_AGENT_TITLE_MODEL unset).
+            // summaryModelName unset -> the default cache-aligned path, matching how this fixture
+            // was captured live (DF_ANTHROPIC_TRAFFIC_DUMP_DIR, DF_AGENT_SUMMARY_MODEL unset).
             const agent = new AnthropicAgent({
                 modelName: "claude-opus-5",
                 apiKey: "sk-ant-test",

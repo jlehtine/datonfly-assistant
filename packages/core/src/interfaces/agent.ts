@@ -269,10 +269,11 @@ export interface AgentConfig {
      */
     triageModelName?: string | undefined;
     /**
-     * Cheaper model used for automatic thread title generation. When omitted,
-     * the provider titles with its main model instead of skipping titling.
+     * Cheaper model used for automatic thread title/topic summarisation. When omitted, the
+     * provider summarises with its main model (cache-aligned to the conversation's live prompt
+     * cache) instead of a separate, uncached call.
      */
-    titleModelName?: string | undefined;
+    summaryModelName?: string | undefined;
     /** Maximum number of model turns in a tool-calling loop before aborting. */
     maxToolIterations?: number | undefined;
     /** Tools the agent may invoke on every call, unless a call overrides them. */

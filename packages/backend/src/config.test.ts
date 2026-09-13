@@ -55,10 +55,10 @@ describe("loadBackendConfig", () => {
 
     it("reads the vendor-neutral agent model variables", () => {
         const config = loadBackendConfig(
-            validEnv({ DF_AGENT_TRIAGE_MODEL: "claude-triage", DF_AGENT_TITLE_MODEL: "claude-title" }),
+            validEnv({ DF_AGENT_TRIAGE_MODEL: "claude-triage", DF_AGENT_SUMMARY_MODEL: "claude-title" }),
         );
         expect(config.agent.triageModelName).toBe("claude-triage");
-        expect(config.agent.titleModelName).toBe("claude-title");
+        expect(config.agent.summaryModelName).toBe("claude-title");
     });
 
     it("reads the Anthropic-namespaced server-tool toggles", () => {

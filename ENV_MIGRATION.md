@@ -116,11 +116,11 @@ not read; there is no fallback.
 
 ### Neutral (`DF_AGENT_*`)
 
-| Old name                    | New name                |
-| --------------------------- | ----------------------- |
-| `DF_ANTHROPIC_MODEL`        | `DF_AGENT_MODEL`        |
-| `DF_ANTHROPIC_TRIAGE_MODEL` | `DF_AGENT_TRIAGE_MODEL` |
-| `DF_ANTHROPIC_TITLE_MODEL`  | `DF_AGENT_TITLE_MODEL`  |
+| Old name                    | New name                 |
+| --------------------------- | ------------------------ |
+| `DF_ANTHROPIC_MODEL`        | `DF_AGENT_MODEL`         |
+| `DF_ANTHROPIC_TRIAGE_MODEL` | `DF_AGENT_TRIAGE_MODEL`  |
+| `DF_ANTHROPIC_TITLE_MODEL`  | `DF_AGENT_SUMMARY_MODEL` |
 
 `DF_AGENT_MAX_TOOL_ITERATIONS` and `DF_DEBUG_API_CONTENT` were already neutral
 and are unchanged.

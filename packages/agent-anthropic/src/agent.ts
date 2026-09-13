@@ -200,7 +200,7 @@ export class AnthropicAgent implements IAgentProvider {
     private readonly defaultSystemPrompt: string | undefined;
     private readonly serverTools: Anthropic.Beta.BetaToolUnion[];
     private readonly triageModelName: string | undefined;
-    private readonly titleModelName: string | undefined;
+    private readonly summaryModelName: string | undefined;
     private readonly debugApiContent: boolean;
     private readonly logger: ProviderLogger;
     private readonly maxGeneratedFileBytes: number;
@@ -220,7 +220,7 @@ export class AnthropicAgent implements IAgentProvider {
         this.defaultTools = config.defaultTools ?? [];
         this.defaultSystemPrompt = config.defaultSystemPrompt;
         this.triageModelName = config.triageModelName;
-        this.titleModelName = config.titleModelName;
+        this.summaryModelName = config.summaryModelName;
         this.debugApiContent = config.debugApiContent ?? false;
         this.logger = config.logger ?? NOOP_PROVIDER_LOGGER;
         this.maxGeneratedFileBytes = options.maxGeneratedFileBytes ?? DEFAULT_MAX_GENERATED_FILE_BYTES;
@@ -437,15 +437,15 @@ export class AnthropicAgent implements IAgentProvider {
     /**
      * @inheritdoc
      *
-     * Cache-aligned by default ({@link titleModelName} unset): reuses the same
+     * Cache-aligned by default ({@link summaryModelName} unset): reuses the same
      * request builder and tool set a normal turn uses, with the instruction
      * appended as a trailing message, so it reads back the turn's own prompt
      * cache instead of paying base rate for the whole thread on every call.
-     * Setting {@link titleModelName} switches to a separate model on a fresh,
+     * Setting {@link summaryModelName} switches to a separate model on a fresh,
      * uncached request instead -- see {@link generateThreadSummaryStandalone}.
      */
     async generateThreadSummary(messages: AgentMessage[], threadId: string): Promise<ThreadSummaryResult> {
-        return this.titleModelName
+        return this.summaryModelName
             ? this.generateThreadSummaryStandalone(messages, threadId)
             : this.generateThreadSummaryCacheAligned(messages, threadId);
     }
@@ -495,7 +495,7 @@ export class AnthropicAgent implements IAgentProvider {
         messages: AgentMessage[],
         threadId: string,
     ): Promise<ThreadSummaryResult> {
-        const model = this.titleModelName ?? this.modelName;
+        const model = this.summaryModelName ?? this.modelName;
         const logger = this.logger.child({
             vendor: PROVIDER_ID,
             model,

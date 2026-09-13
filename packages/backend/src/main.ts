@@ -69,7 +69,7 @@ async function bootstrap(): Promise<void> {
         modelName: cfg.agent.modelName,
         apiKey: cfg.anthropicApiKey,
         triageModelName: cfg.agent.triageModelName,
-        titleModelName: cfg.agent.titleModelName,
+        summaryModelName: cfg.agent.summaryModelName,
         debugApiContent: cfg.agent.debugApiContent,
         ...(cfg.agent.maxTokens !== undefined ? { maxTokens: cfg.agent.maxTokens } : {}),
         ...(cfg.agent.maxToolIterations !== undefined ? { maxToolIterations: cfg.agent.maxToolIterations } : {}),

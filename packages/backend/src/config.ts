@@ -233,7 +233,7 @@ export interface BackendConfig {
     agent: {
         modelName: string;
         triageModelName: string | undefined;
-        titleModelName: string | undefined;
+        summaryModelName: string | undefined;
         maxTokens: number | undefined;
         maxToolIterations: number | undefined;
         debugApiContent: boolean;
@@ -434,7 +434,7 @@ export function loadBackendConfig(env: EnvSource = process.env): BackendConfig {
         agent: {
             modelName,
             triageModelName: reader.prefixed("AGENT_TRIAGE_MODEL"),
-            titleModelName: reader.prefixed("AGENT_TITLE_MODEL"),
+            summaryModelName: reader.prefixed("AGENT_SUMMARY_MODEL"),
             maxTokens: parseOptionalPositiveInt(reader.prefixed("AGENT_MAX_TOKENS"), "DF_AGENT_MAX_TOKENS"),
             maxToolIterations: parseOptionalPositiveInt(
                 reader.prefixed("AGENT_MAX_TOOL_ITERATIONS"),

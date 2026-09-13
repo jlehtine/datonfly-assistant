@@ -95,11 +95,22 @@ interpretable in isolation.
       `pnpm --filter @datonfly-assistant/search-qdrant search:eval -- --queries     <file> [--query <text> ...] [--collection <name>] [--limit <k>]`.
 - [x] 0.2 Support a query file (`queries.jsonl`: `{ q, expectThreadIds? }`) so a
       run is repeatable, and print recall@k / MRR when expectations are given.
-- [ ] 0.3 Capture a baseline run against the current index on the test
-      deployment; commit the query file (not the results) and note the baseline
+- [ ] 0.3 Capture a baseline run against the current index and note the baseline
       numbers in this file. To get a realistic corpus into dev without copying
       other people's chats, see [dev-thread-import.md](dev-thread-import.md) for
-      the export/import/clear tooling.
+      the export/import/clear tooling. The query file is specific to the local
+      dev database and is therefore kept out of version control, under the
+      gitignored `local/` directory (`local/search-eval/queries.jsonl`); only
+      aggregate figures (recall@k, MRR, score ranges) are recorded here. A
+      synthetic, committable corpus was considered and rejected for this
+      purpose: it cannot calibrate 0.4's threshold, because generated threads
+      are systematically more topically distinct than real ones, so their
+      junk-hit scores sit too low and any threshold derived from them
+      under-filters in production. Real corpora also contain near-duplicate
+      thread clusters formed by re-asking the same question, which generation
+      does not reproduce convincingly. A synthetic corpus would still be worth
+      having as a _regression_ fixture, where relative movement matters and
+      absolute calibration does not; that is a separate task.
 - [ ] 0.4 Record the observed dense cosine score distribution for good vs. junk
       hits — this is what sets the Phase 1 threshold.
 

@@ -95,7 +95,7 @@ interpretable in isolation.
       `pnpm --filter @datonfly-assistant/search-qdrant search:eval -- --queries     <file> [--query <text> ...] [--collection <name>] [--limit <k>]`.
 - [x] 0.2 Support a query file (`queries.jsonl`: `{ q, expectThreadIds? }`) so a
       run is repeatable, and print recall@k / MRR when expectations are given.
-- [ ] 0.3 Capture a baseline run against the current index and note the baseline
+- [x] 0.3 Capture a baseline run against the current index and note the baseline
       numbers in this file. To get a realistic corpus into dev without copying
       other people's chats, see [dev-thread-import.md](dev-thread-import.md) for
       the export/import/clear tooling. The query file is specific to the local
@@ -110,9 +110,32 @@ interpretable in isolation.
       thread clusters formed by re-asking the same question, which generation
       does not reproduce convincingly. A synthetic corpus would still be worth
       having as a _regression_ fixture, where relative movement matters and
-      absolute calibration does not; that is a separate task.
-- [ ] 0.4 Record the observed dense cosine score distribution for good vs. junk
-      hits — this is what sets the Phase 1 threshold.
+      absolute calibration does not; that is a separate task. **Baseline**
+      (imported realistic corpus, 210 titled threads, EN+FI, `--limit 10`, no
+      score threshold): a 37-query set covering the corpus's topic spread — most
+      queries paraphrase real thread content as natural-language questions, a
+      handful are short topic-style queries (1-2 words, matching how search is
+      actually used day to day rather than how it's phrased in a full question),
+      and the rest name topics absent from the corpus with no `expectThreadIds`
+      — gave `recall@10 = 25/25`, `MRR ≈ 0.88` (0.87-0.90 across repeated runs
+      of the identical query set; Qdrant's HNSW dense index is approximate, so
+      MRR has run-to-run jitter of this order even with nothing else changed —
+      recall was stable at 25/25 throughout).
+- [x] 0.4 Record the observed dense cosine score distribution for good vs. junk
+      hits — this is what sets the Phase 1 threshold. Added
+      `--dense-threshold`/`--sparse-threshold` to `search-eval` so it can apply
+      the same `score_threshold` `QdrantSearchProvider.search` does, instead of
+      only observing unfiltered scores. Two distinct regimes emerged. For
+      **sentence-style queries** (natural-language questions), good hits (the
+      expected thread's own dense score) ranged 0.55-0.98, median around 0.72,
+      and junk hits (top dense score for a query with no relevant thread) ranged
+      0.41-0.56 — the ranges mostly separate around 0.5, matching 1.1's original
+      guess. For **short, topic-style queries**, the picture inverts: a genuine
+      match scored as low as 0.46, while a junk match for a different short
+      query scored as high as 0.57 — higher than the genuine short-query match,
+      and higher than any sentence-style junk observed. No single fixed cosine
+      threshold separates good from junk once short queries are in the mix; see
+      1.6.
 
 ## Phase 1 — Relevance cutoff and channel weighting
 
@@ -140,7 +163,32 @@ before any indexing change.
       pushes groups Qdrant returned and never pads, so once 1.1/1.2 make Qdrant
       itself threshold-filter, a short result list is the correct outcome — only
       the clarifying comment changed.
-- [ ] 1.5 Re-run the Phase 0 eval; record before/after here.
+- [x] 1.5 Re-run the Phase 0 eval; record before/after here. Same 37-query set
+      as 0.3, `--limit 10`: no threshold gave `recall@10 = 25/25`, `MRR ≈ 0.88`
+      (the 0.3 baseline, with the run-to-run jitter noted there);
+      `--dense-threshold 0.4` gave `25/25`, `MRR = 0.839`;
+      `--dense-threshold     0.5` gave `24/25`, `MRR = 0.853`;
+      `--dense-threshold 0.55` gave `23/25`, `MRR = 0.833`. Every threshold
+      tested drops at least one short-style query's genuine match once such
+      queries are included — 0.4 held recall at 25/25 here but sits within the
+      observed junk range from 0.4, offering no real separation; 0.5 and 0.55
+      progressively drop more. See 1.6 for what this means for shipping a
+      default.
+- [x] 1.6 **No dense score threshold is applied by default**, pending a design
+      that accounts for short, topic-style queries. 0.4's finding — that good
+      and junk scores invert for short queries, with the best junk match
+      outscoring the genuine short-query match — means picking any single fixed
+      value trades a known amount of junk suppression for an unquantified risk
+      of dropping genuine short-query matches, which are a normal way this
+      product is used. The mechanism from 1.1-1.4 (`score_threshold` on the
+      dense prefetch, config plumbing, `ThreadController.search` fetch trimming)
+      stays in place and is opt-in via `DF_SEARCH_DENSE_SCORE_THRESHOLD` for
+      anyone who has evaluated a value against their own corpus and query
+      patterns, but ships with no default and is undocumented as a
+      recommendation in `.env.example` beyond that caveat. Revisit once there's
+      a way to treat short queries differently (e.g. skip the dense floor below
+      some token count, or rely more on the sparse/fusion channels for them) and
+      that approach has itself been evaluated — not before.
 
 ## Phase 2 — Thread summary generation
 

@@ -10,10 +10,16 @@
  * Usage:
  *   node dist/bin/search-eval.js --queries queries.jsonl
  *   node dist/bin/search-eval.js --query "how do I reset my password"
+ *   node dist/bin/search-eval.js --queries queries.jsonl --dense-threshold 0.5
  *
  * `queries.jsonl` has one JSON object per line: `{ "q": "...", "expectThreadIds": ["..."] }`.
  * `expectThreadIds` is optional; when present, recall@k and reciprocal rank are printed
  * per query and averaged (MRR) across all queries that provided it.
+ *
+ * `--dense-threshold`/`--sparse-threshold` apply the same `score_threshold` that
+ * `QdrantSearchProvider.search` sends (`DF_SEARCH_DENSE_SCORE_THRESHOLD` /
+ * `DF_SEARCH_SPARSE_SCORE_THRESHOLD` in production), so a before/after run can be
+ * compared directly.
  */
 import { readFileSync } from "node:fs";
 
@@ -37,6 +43,8 @@ interface CliOptions {
     limit: number;
     queriesFile?: string;
     adhocQueries: string[];
+    denseScoreThreshold?: number;
+    sparseScoreThreshold?: number;
 }
 
 /** One Qdrant point returned by `QdrantClient.query`. */
@@ -62,7 +70,11 @@ function printUsageAndExit(): never {
     process.stderr.write(
         [
             "Usage: search-eval [--url <qdrantUrl>] [--infinity <infinityUrl>] [--collection <name>]",
-            "                    [--languages <csv>] [--limit <k>] [--queries <file.jsonl>] [--query <text> ...]",
+            "                    [--languages <csv>] [--limit <k>] [--dense-threshold <n>] [--sparse-threshold <n>]",
+            "                    [--queries <file.jsonl>] [--query <text> ...]",
+            "",
+            "--dense-threshold/--sparse-threshold mirror QdrantSearchProvider's score_threshold,",
+            "so before/after runs can be compared directly.",
             "",
             "At least one of --queries or --query must be given.",
         ].join("\n"),
@@ -106,6 +118,12 @@ function parseArgs(argv: string[]): CliOptions {
                 break;
             case "--limit":
                 options.limit = Number(next());
+                break;
+            case "--dense-threshold":
+                options.denseScoreThreshold = Number(next());
+                break;
+            case "--sparse-threshold":
+                options.sparseScoreThreshold = Number(next());
                 break;
             case "--queries":
                 options.queriesFile = next();
@@ -200,6 +218,7 @@ async function runQuery(
 }> {
     const denseVector = await embeddings.embedQuery(evalQuery.q);
     const sparseVector = queryVector(tokenize(evalQuery.q, options.languages));
+    const { denseScoreThreshold, sparseScoreThreshold } = options;
 
     const [denseResult, sparseResult, fusedResult] = await Promise.all([
         client.query(options.collection, {
@@ -207,17 +226,29 @@ async function runQuery(
             using: "dense",
             limit: options.limit,
             with_payload: true,
+            ...(denseScoreThreshold !== undefined ? { score_threshold: denseScoreThreshold } : {}),
         }),
         client.query(options.collection, {
             query: sparseVector,
             using: "lexical",
             limit: options.limit,
             with_payload: true,
+            ...(sparseScoreThreshold !== undefined ? { score_threshold: sparseScoreThreshold } : {}),
         }),
         client.query(options.collection, {
             prefetch: [
-                { query: denseVector, using: "dense", limit: options.limit },
-                { query: sparseVector, using: "lexical", limit: options.limit },
+                {
+                    query: denseVector,
+                    using: "dense",
+                    limit: options.limit,
+                    ...(denseScoreThreshold !== undefined ? { score_threshold: denseScoreThreshold } : {}),
+                },
+                {
+                    query: sparseVector,
+                    using: "lexical",
+                    limit: options.limit,
+                    ...(sparseScoreThreshold !== undefined ? { score_threshold: sparseScoreThreshold } : {}),
+                },
             ],
             // Same construct as `QdrantSearchProvider.search` — equal weights, since this tool
             // compares channels rather than tuning them.

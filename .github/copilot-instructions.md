@@ -25,8 +25,10 @@ All source identifiers (variables, functions, classes, etc.) and documentation
 - Write focused, terse commit messages that document the **reason for** and
   **intent of** the change. Do not enumerate the individual code changes — the
   diff already shows them.
-- A body paragraph is fine when the reason needs more than the summary line, but
-  keep it to rationale — not a restatement of the diff.
+- A body, if needed, is at most **one short paragraph** (a few sentences) of
+  rationale — never multiple paragraphs, headings, tables or bullet lists
+  recapping the diff. Most commits need no body at all; the summary line is
+  usually enough.
 
 ## Development Phase
 

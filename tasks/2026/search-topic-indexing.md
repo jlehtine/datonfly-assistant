@@ -546,11 +546,9 @@ carried, which _is_ the full compacted history.
       rather than silently degrading to sparse-only. Implemented as
       `searchTopicIndexingEnabled` (`config.ts`/`chat.module.ts`
       `SEARCH_TOPIC_INDEXING_ENABLED`), gating whether `indexThreadTopics` is
-      ever called at all. The "fall back to per-message dense indexing" half of
-      this description is automatic today (3.1.6 hasn't landed yet, so messages
-      are always dense-indexed regardless of this flag) -- Slice B must gate
-      3.1.6's sparse-only change on this same flag, or a disabled deployment
-      would end up with no dense channel at all.
+      ever called at all, and (since 3.1.6/Slice B) also gating whether messages
+      are indexed sparse-only or dense+sparse, so a disabled deployment keeps a
+      working dense channel.
 
 ### 3.2 Reindex path
 

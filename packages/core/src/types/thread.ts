@@ -73,3 +73,20 @@ export interface ThreadTopic {
     /** Thread message count at generation time, used to detect a stale batch that needs regenerating. */
     generatedAtMessageCount: number;
 }
+
+/**
+ * A thread's current title, topics and members, for full reindexing of the dense topic/thread-card
+ * search channel (see {@link IPersistenceProvider.loadAllThreadsWithTopics}).
+ */
+export interface ThreadWithTopics {
+    /** The thread's ID. */
+    threadId: string;
+    /** Current title. */
+    title: string;
+    /** Current topic set, in generation order (may be empty). */
+    topics: string[];
+    /** Current member user IDs. */
+    memberIds: string[];
+    /** Thread's `updatedAt`, used for the recency formula. */
+    updatedAt: Date;
+}

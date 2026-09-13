@@ -552,10 +552,21 @@ carried, which _is_ the full compacted history.
 
 ### 3.2 Reindex path
 
-- [ ] 3.2.1 `AdminController.createDocumentStream` keeps its per-message stream
+- [x] 3.2.1 `AdminController.createDocumentStream` keeps its per-message stream
       (now sparse-only) and gains a second pass over `thread_topic` emitting
       topic and thread-card documents. No per-thread grouping of the message
-      stream is needed.
+      stream is needed. Split into `createMessageDocumentStream` (unchanged
+      logic) and `createTopicDocumentStream`, run as two sequential `indexBatch`
+      calls with combined progress/audit reporting. The topic pass is built from
+      a new `IPersistenceProvider.loadAllThreadsWithTopics` (batched, joins
+      `thread` + `thread_topic` + `thread_member`) and reuses
+      `topic-indexer.ts`'s point-building logic (extracted into
+      `buildThreadTopicDocuments`, shared with `indexThreadTopics` so the two
+      can't drift apart in point shape), skipped entirely when topic indexing is
+      disabled. Verified live (read-only) against the dev database: streams all
+      211 threads correctly across batches; confirmed 0 currently have real
+      topics, since the imported corpus predates topic generation — exactly what
+      3.2.2's backfill exists to address.
 - [ ] 3.2.2 Add an admin action to (re)generate topics for threads that have
       none — a backfill for existing threads, rate-limited and resumable, since
       it costs one LLM call per thread. Separate from the reindex action, which

@@ -1,5 +1,12 @@
 import type { ContentPart, MessageRole, ProviderReplayData, ThreadMessage } from "../types/message.js";
-import type { Thread, ThreadMember, ThreadMemberInfo, ThreadMemberRole, ThreadTopic } from "../types/thread.js";
+import type {
+    Thread,
+    ThreadMember,
+    ThreadMemberInfo,
+    ThreadMemberRole,
+    ThreadTopic,
+    ThreadWithTopics,
+} from "../types/thread.js";
 import type { User } from "../types/user.js";
 
 /** Options for creating a new thread. */
@@ -264,6 +271,16 @@ export interface IPersistenceProvider {
      * `batchSize` messages (default 100). Used for full reindexing.
      */
     loadAllMessages(options?: { batchSize?: number | undefined }): AsyncIterable<ThreadMessage[]>;
+
+    /**
+     * Stream every thread's current title, topics and members, for full reindexing of the dense
+     * topic/thread-card search channel.
+     *
+     * Every thread is included, even with zero topics (small talk, or generation never run), so
+     * it still gets a title-based thread-card representation. Returns an async iterable of
+     * batches of up to `batchSize` threads (default 100).
+     */
+    loadAllThreadsWithTopics(options?: { batchSize?: number | undefined }): AsyncIterable<ThreadWithTopics[]>;
 
     // Search
     /** Search users by name or email (case-insensitive substring match). */

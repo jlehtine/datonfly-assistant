@@ -18,6 +18,7 @@ import type {
     ThreadMemberRole,
     ThreadMessage,
     ThreadTopic,
+    ThreadWithTopics,
     User,
 } from "@datonfly-assistant/core";
 
@@ -547,6 +548,62 @@ export class PostgresPersistenceProvider implements IPersistenceProvider {
 
             offset += rows.length;
             if (rows.length < batchSize) break;
+        }
+    }
+
+    async *loadAllThreadsWithTopics(options?: { batchSize?: number | undefined }): AsyncIterable<ThreadWithTopics[]> {
+        const batchSize = options?.batchSize ?? 100;
+        let offset = 0;
+
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        while (true) {
+            const threads = await this.qb
+                .selectFrom("thread")
+                .select(["id", "title", "updated_at"])
+                .orderBy("created_at", "asc")
+                .limit(batchSize)
+                .offset(offset)
+                .execute();
+
+            if (threads.length === 0) break;
+
+            const threadIds = threads.map((t) => t.id);
+
+            const topicRows = await this.qb
+                .selectFrom("thread_topic")
+                .select(["thread_id", "topic"])
+                .where("thread_id", "in", threadIds)
+                .orderBy("ordinal", "asc")
+                .execute();
+            const topicsByThread = new Map<string, string[]>();
+            for (const row of topicRows) {
+                const topics = topicsByThread.get(row.thread_id) ?? [];
+                topics.push(row.topic);
+                topicsByThread.set(row.thread_id, topics);
+            }
+
+            const memberRows = await this.qb
+                .selectFrom("thread_member")
+                .select(["thread_id", "user_id"])
+                .where("thread_id", "in", threadIds)
+                .execute();
+            const memberIdsByThread = new Map<string, string[]>();
+            for (const row of memberRows) {
+                const memberIds = memberIdsByThread.get(row.thread_id) ?? [];
+                memberIds.push(row.user_id);
+                memberIdsByThread.set(row.thread_id, memberIds);
+            }
+
+            yield threads.map((t) => ({
+                threadId: t.id,
+                title: t.title,
+                topics: topicsByThread.get(t.id) ?? [],
+                memberIds: memberIdsByThread.get(t.id) ?? [],
+                updatedAt: t.updated_at,
+            }));
+
+            offset += threads.length;
+            if (threads.length < batchSize) break;
         }
     }
 

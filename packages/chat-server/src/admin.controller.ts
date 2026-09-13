@@ -1,7 +1,12 @@
 import { Controller, Inject, Optional, Post, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 
-import { formatLoggedError, type IPersistenceProvider, type ISearchProvider } from "@datonfly-assistant/core";
+import {
+    formatLoggedError,
+    type IndexDocumentOptions,
+    type IPersistenceProvider,
+    type ISearchProvider,
+} from "@datonfly-assistant/core";
 
 import { AuditLogger } from "./audit-logger.js";
 import { Public } from "./decorators/public.decorator.js";
@@ -9,6 +14,7 @@ import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER, SEARCH_TOPIC_INDEXING_ENABLED } 
 import { AdminGuard } from "./guards/admin.guard.js";
 import { extractText } from "./messages.js";
 import { RateTier } from "./rate-limit/rate-tier.decorator.js";
+import { buildThreadTopicDocuments } from "./topic-indexer.js";
 
 @Controller("datonfly-assistant/admin")
 @Public()
@@ -48,10 +54,7 @@ export class AdminController {
 
             write("Starting reindex...");
 
-            // Stream all messages from Postgres and convert to IndexDocumentOptions.
-            const documentStream = this.createDocumentStream();
-
-            // 5-second progress timer.
+            // 5-second progress timer, shared across both passes below.
             let lastReported = 0;
             const timer = setInterval(() => {
                 if (lastReported > 0) {
@@ -61,15 +64,27 @@ export class AdminController {
             }, 5000);
 
             try {
-                const { indexed, skipped } = await this.searchProvider.indexBatch(
+                const messages = await this.searchProvider.indexBatch(
                     "messages",
-                    documentStream,
+                    this.createMessageDocumentStream(),
                     (i, _s) => {
                         lastReported = i;
                     },
                 );
+                write(`Messages: indexed ${String(messages.indexed)}, skipped ${String(messages.skipped)}.`);
+
+                write("Indexing thread topics and thread cards...");
+                const topics = await this.searchProvider.indexBatch(
+                    "messages",
+                    this.createTopicDocumentStream(),
+                    (i, _s) => {
+                        lastReported += i;
+                    },
+                );
                 clearInterval(timer);
 
+                const indexed = messages.indexed + topics.indexed;
+                const skipped = messages.skipped + topics.skipped;
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                 write(
                     `Reindex complete. Indexed: ${String(indexed)}, Skipped: ${String(skipped)}, Elapsed: ${elapsed}s`,
@@ -91,12 +106,7 @@ export class AdminController {
         res.end();
     }
 
-    private async *createDocumentStream(): AsyncGenerator<{
-        id: string;
-        content: string;
-        metadata: Record<string, unknown>;
-        channels: { dense: boolean; sparse: boolean };
-    }> {
+    private async *createMessageDocumentStream(): AsyncGenerator<IndexDocumentOptions> {
         const threadMemberCache = new Map<string, string[]>();
         // Mirrors the live indexing path in chat.gateway.ts's indexMessage: dense per-message
         // vectors are only a fallback for when there is no other dense channel (topic indexing off).
@@ -126,6 +136,24 @@ export class AdminController {
                     },
                     channels,
                 };
+            }
+        }
+    }
+
+    /**
+     * Second reindex pass: one dense-only point per topic plus one thread-card point per thread,
+     * built with the same `buildThreadTopicDocuments` `topic-indexer.ts` uses for incremental
+     * updates, so the two can never drift apart in point shape. Plain upsert stream rather than
+     * delete-then-insert, since the collection was just dropped and recreated, so there is
+     * nothing stale to delete first. Skipped entirely when topic indexing is disabled, matching
+     * `ThreadSummaryGenerator`'s own gating.
+     */
+    private async *createTopicDocumentStream(): AsyncGenerator<IndexDocumentOptions> {
+        if (!this.searchTopicIndexingEnabled) return;
+
+        for await (const batch of this.persistence.loadAllThreadsWithTopics({ batchSize: 100 })) {
+            for (const thread of batch) {
+                yield* buildThreadTopicDocuments(thread);
             }
         }
     }

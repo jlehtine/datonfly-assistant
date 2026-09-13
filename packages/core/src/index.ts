@@ -8,6 +8,7 @@ export type {
     ThreadMemberInfo,
     ThreadMemberRole,
     ThreadTopic,
+    ThreadWithTopics,
     ThreadMessage,
     MessageRole,
     ContentPart,

@@ -1345,6 +1345,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
                 id: messageId,
                 content: text,
                 metadata: { threadId, role, authorId, createdAt: new Date().toISOString(), memberIds },
+                // Topic/thread-card points (kind !== "message") carry the dense channel when topic
+                // indexing is enabled, so per-message dense vectors would only add noise (short,
+                // conversational text scores moderately against nearly any query). Falls back to
+                // dense+sparse when topic indexing is off, so there is still a working dense channel.
+                channels: { dense: !this.searchTopicIndexingEnabled, sparse: true },
             });
         })().catch((error: unknown) => {
             this.auditLogger.audit("error", "search.index.failed", {

@@ -5,7 +5,7 @@ import { formatLoggedError, type IPersistenceProvider, type ISearchProvider } fr
 
 import { AuditLogger } from "./audit-logger.js";
 import { Public } from "./decorators/public.decorator.js";
-import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER } from "./constants.js";
+import { PERSISTENCE_PROVIDER, SEARCH_PROVIDER, SEARCH_TOPIC_INDEXING_ENABLED } from "./constants.js";
 import { AdminGuard } from "./guards/admin.guard.js";
 import { extractText } from "./messages.js";
 import { RateTier } from "./rate-limit/rate-tier.decorator.js";
@@ -17,6 +17,7 @@ export class AdminController {
     constructor(
         @Inject(PERSISTENCE_PROVIDER) private readonly persistence: IPersistenceProvider,
         @Optional() @Inject(SEARCH_PROVIDER) private readonly searchProvider: ISearchProvider | null,
+        @Inject(SEARCH_TOPIC_INDEXING_ENABLED) private readonly searchTopicIndexingEnabled: boolean,
         private readonly auditLogger: AuditLogger,
     ) {}
 
@@ -94,8 +95,12 @@ export class AdminController {
         id: string;
         content: string;
         metadata: Record<string, unknown>;
+        channels: { dense: boolean; sparse: boolean };
     }> {
         const threadMemberCache = new Map<string, string[]>();
+        // Mirrors the live indexing path in chat.gateway.ts's indexMessage: dense per-message
+        // vectors are only a fallback for when there is no other dense channel (topic indexing off).
+        const channels = { dense: !this.searchTopicIndexingEnabled, sparse: true };
 
         for await (const batch of this.persistence.loadAllMessages({ batchSize: 100 })) {
             for (const msg of batch) {
@@ -119,6 +124,7 @@ export class AdminController {
                         createdAt: msg.createdAt.toISOString(),
                         memberIds,
                     },
+                    channels,
                 };
             }
         }

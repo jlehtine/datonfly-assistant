@@ -509,12 +509,22 @@ carried, which _is_ the full compacted history.
       Add `deleteByFilter(collection, filter)` to `ISearchProvider` and delete
       `threadId = X AND kind = "topic"` before upserting the new set — `delete`
       by id alone cannot express this.
-- [ ] 3.1.6 Stop generating a dense vector for `kind: "message"` points — index
+- [x] 3.1.6 Stop generating a dense vector for `kind: "message"` points — index
       them sparse-only. This is the change that removes the "Hello" noise.
       Deliberately its own slice (Slice B): riskiest single change, easiest to
       isolate and revert on its own commit. Everything in 3.1 besides this item
       is additive (topic/thread-card points indexed alongside the still-dense
       per-message points), so it's already safe to ship and eval independently.
+      Both message-indexing paths now pass
+      `channels: { dense:     !searchTopicIndexingEnabled, sparse: true }` —
+      live indexing (`ChatGateway.indexMessage`) and the admin reindex stream
+      (`AdminController.createDocumentStream`, now injecting the same flag) — so
+      a disabled deployment keeps per-message dense vectors as its only dense
+      channel, matching 3.1.10's fallback intent, and a full reindex stays
+      consistent with live indexing. Existing Qdrant points from before this
+      change keep their stale dense vectors until the next reindex or message
+      edit; a full reindex plus the 3.2.2 topic backfill (not yet built) is
+      needed to actually retire them.
 - [x] 3.1.7 `indexBatch` and `index` must not force a dense embedding for
       sparse-only documents: extend `IndexDocumentOptions` with an explicit
       `channels: { dense: boolean; sparse: boolean }` rather than inferring it

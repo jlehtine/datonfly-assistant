@@ -312,18 +312,19 @@ code `rate_limited`.
 
 ---
 
-## Importing Production-like Thread Data into Dev
+## Seeding Dev with Thread Data from Another Environment
 
-Search relevance work needs realistic thread data, but a production-like
-database also holds other people's chats and must not be copied wholesale.
-`scripts/db/` has three plain-SQL tools for this, run through `psql` — nothing
-needs to be installed on the server beyond the `postgres` Compose service
-already there.
+It's sometimes useful to bring real thread data into a development database — to
+reproduce an issue, or to work with realistic content for something like search
+relevance tuning — without copying an entire database wholesale, which would
+also copy other people's chats. `scripts/db/` has three plain-SQL tools for
+this, run through `psql` — nothing needs to be installed on the server beyond
+the `postgres` Compose service already there.
 
-**Export** (read-only, safe to run against a production-like database) dumps one
-user's threads as JSONL. Only _solo_ threads — where that user is both the owner
-and the only member — are included, so no other person's messages or identity
-(the `dfa.user` row itself is never exported) ever leave the server:
+**Export** (read-only, safe to run against any environment) dumps one user's
+threads as JSONL. Only _solo_ threads — where that user is both the owner and
+the only member — are included, so no other person's messages or identity (the
+`dfa.user` row itself is never exported) ever leave the source:
 
 ```bash
 ssh SERVER 'cd <deploy-dir> && docker compose exec -T postgres \

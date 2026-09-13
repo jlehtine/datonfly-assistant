@@ -97,9 +97,10 @@ interpretable in isolation.
       run is repeatable, and print recall@k / MRR when expectations are given.
 - [x] 0.3 Capture a baseline run against the current index and note the baseline
       numbers in this file. To get a realistic corpus into dev without copying
-      other people's chats, see [dev-thread-import.md](dev-thread-import.md) for
-      the export/import/clear tooling. The query file is specific to the local
-      dev database and is therefore kept out of version control, under the
+      other people's chats, see
+      [INSTALL.md](../../INSTALL.md#seeding-dev-with-thread-data-from-another-environment)
+      for the export/import/clear tooling. The query file is specific to the
+      local dev database and is therefore kept out of version control, under the
       gitignored `local/` directory (`local/search-eval/queries.jsonl`); only
       aggregate figures (recall@k, MRR, score ranges) are recorded here. A
       synthetic, committable corpus was considered and rejected for this

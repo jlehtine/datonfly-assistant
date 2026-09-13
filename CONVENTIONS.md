@@ -7,9 +7,16 @@ All source identifiers (variables, functions, classes, etc.) and documentation
 
 ## Commit Messages
 
-Write focused, terse commit messages that document the **reason for** and
-**intent of** the change. Do not enumerate the individual code changes — the
-diff already shows them.
+- **Sentence case**, ending with a **period**; use **imperative mood** for
+  actions (e.g. "Add support for…", "Fix an issue with…"), or a descriptive noun
+  phrase for broader changes (e.g. "Multi-user chat backend implementation.").
+- Optional **scope prefix** with a colon for scoped changes (e.g. "CoPilot
+  instructions: …", "Docker Compose: …").
+- Write focused, terse commit messages that document the **reason for** and
+  **intent of** the change. Do not enumerate the individual code changes — the
+  diff already shows them.
+- A body paragraph is fine when the reason needs more than the summary line, but
+  keep it to rationale — not a restatement of the diff.
 
 ## TypeScript
 
@@ -203,16 +210,6 @@ Run `pnpm lint` to lint all packages, or `pnpm lint:fix` to auto-fix.
 - Keep user-facing error messages separate from log formatting. Use the full
   formatted chain for logs and audit entries, but only expose end-user text when
   that is the intended behavior of the API or UI surface.
-
-## Commit Messages
-
-- **Sentence case**, ending with a **period**.
-- Use **imperative mood** when describing an action (e.g. "Add support for…",
-  "Fix an issue with…"). Descriptive noun phrases are acceptable for broader
-  changes (e.g. "Multi-user chat backend implementation.").
-- Optional **scope prefix** with a colon for scoped changes (e.g. "CoPilot
-  instructions: …", "Docker Compose: …").
-- Keep to a **single summary line** — no body paragraph.
 
 ## Editor Configuration
 

@@ -5,6 +5,29 @@ conventions in [CONVENTIONS.md](../CONVENTIONS.md). This file contains only
 agent-specific workflow rules. General project conventions live in those files —
 do not duplicate them here.
 
+The two conventions below are the exception: they are duplicated verbatim from
+`CONVENTIONS.md` because they govern the agent's own output on every turn, and
+duplication here has proven necessary to get them followed reliably. If they
+ever need to change, update both copies together.
+
+## Language
+
+All source identifiers (variables, functions, classes, etc.) and documentation
+(comments, JSDoc, READMEs, commit messages) are written in **English**.
+
+## Commit Messages
+
+- **Sentence case**, ending with a **period**; use **imperative mood** for
+  actions (e.g. "Add support for…", "Fix an issue with…"), or a descriptive noun
+  phrase for broader changes (e.g. "Multi-user chat backend implementation.").
+- Optional **scope prefix** with a colon for scoped changes (e.g. "CoPilot
+  instructions: …", "Docker Compose: …").
+- Write focused, terse commit messages that document the **reason for** and
+  **intent of** the change. Do not enumerate the individual code changes — the
+  diff already shows them.
+- A body paragraph is fine when the reason needs more than the summary line, but
+  keep it to rationale — not a restatement of the diff.
+
 ## Development Phase
 
 This software is in initial development and has not been released. Inter-package

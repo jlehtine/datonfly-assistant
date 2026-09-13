@@ -44,6 +44,13 @@ branch named `composer-remount-fix`). Link the plan file from the relevant
 permanent documentation — durable facts belong in the long-lived docs (README,
 CONVENTIONS).
 
+Because `tasks/` material is not permanent, never reference it from source code
+comments or from permanent documentation (README, CONVENTIONS, or similar). A
+plan file may itself be removed or reworked once its work lands (see Cleanup
+below), which would leave a dangling reference. If a plan's reasoning needs to
+survive, restate it as a durable comment or doc line where it's used, or migrate
+it into permanent docs — don't just point at the plan file.
+
 **Structure.** Express individual steps as GitHub-style task list items so
 progress is visible at a glance:
 
